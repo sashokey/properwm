@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Synchronization
 import XCTest
 
 final class WindowInventoryAnomalyLogTests: XCTestCase {
@@ -78,7 +79,12 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         first.flush()
         second.flush()
 
-        XCTAssertEqual(try jsonRecords(at: first.currentFileURL).count, 80)
+        let records = try jsonRecords(at: first.currentFileURL)
+        XCTAssertEqual(records.count, 80)
+        for logger in [first, second] {
+            let sessionRecords = records.filter { $0["sessionID"] as? String == logger.sessionID.uuidString }
+            XCTAssertEqual(sessionRecords.compactMap { $0["seq"] as? Int }, Array(1...40))
+        }
     }
 
     func testRepairsPartialTailBeforeAppending() throws {
@@ -146,19 +152,16 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         let blocker = root.appendingPathComponent("blocker")
         try Data("file".utf8).write(to: blocker)
         let badDirectory = blocker.appendingPathComponent("logs")
-        let lock = NSLock()
-        var failures = 0
+        let failures = Mutex(0)
         let log = makeLogger(directory: badDirectory, failureReporter: { _ in
-            lock.lock()
-            failures += 1
-            lock.unlock()
+            failures.withLock { $0 += 1 }
         })
 
         log.record(.sessionStart(sessionPayload()))
         log.record(.sessionStart(sessionPayload()))
         log.flush()
 
-        XCTAssertEqual(failures, 1)
+        XCTAssertEqual(failures.withLock { $0 }, 1)
     }
 
     func testAbsenceEpisodeUsesAbsentSinceBoundary() {
@@ -565,7 +568,7 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         enabled: Bool = true,
         maxFileSize: Int = 1_000_000,
         archiveCount: Int = 4,
-        failureReporter: ((String) -> Void)? = nil
+        failureReporter: (@Sendable (String) -> Void)? = nil
     ) -> WindowInventoryAnomalyLog {
         WindowInventoryAnomalyLog(
             configuration: WindowInventoryLogConfiguration(

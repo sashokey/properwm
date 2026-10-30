@@ -471,7 +471,7 @@ struct InventorySubscriptionRetryFlushPayload: Codable, Equatable {
     let durationMs: Double?
 }
 
-enum WindowInventoryLogEvent: Encodable {
+enum WindowInventoryLogEvent: Encodable, Sendable {
     case sessionStart(InventorySessionStartPayload)
     case seatCreated(InventorySeatCreatedPayload)
     case phantomHeld(InventoryPhantomHeldPayload)
@@ -529,7 +529,7 @@ enum WindowInventoryLogEvent: Encodable {
     }
 }
 
-struct WindowInventoryLogConfiguration {
+struct WindowInventoryLogConfiguration: Sendable {
     static let defaultsKey = "InventoryLog"
 
     let enabled: Bool
@@ -640,7 +640,7 @@ struct InventoryPhantomHeldDeduplicator {
     }
 }
 
-final class WindowInventoryAnomalyLog {
+final class WindowInventoryAnomalyLog: @unchecked Sendable {
     private struct Envelope: Encodable {
         let schemaVersion: Int
         let sessionID: UUID
@@ -662,7 +662,7 @@ final class WindowInventoryAnomalyLog {
     private let queue: DispatchQueue?
     private let queueKey = DispatchSpecificKey<UInt8>()
     private let fileManager: FileManager
-    private let failureReporter: (String) -> Void
+    private let failureReporter: @Sendable (String) -> Void
     private var sequence: UInt64 = 0
     private var disabledAfterFailure = false
     private var didReportFailure = false
@@ -675,7 +675,7 @@ final class WindowInventoryAnomalyLog {
         configuration: WindowInventoryLogConfiguration = .live(),
         fileManager: FileManager = .default,
         sessionID: UUID = UUID(),
-        failureReporter: ((String) -> Void)? = nil
+        failureReporter: (@Sendable (String) -> Void)? = nil
     ) {
         self.configuration = configuration
         self.fileManager = fileManager
