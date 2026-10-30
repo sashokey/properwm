@@ -5,7 +5,7 @@ set -euo pipefail
 
 PROPERWM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROPERWM_ROOT"
-VERSION="${PROPERWM_VERSION:-0.1.0}"
+VERSION="${PROPERWM_VERSION:-$(python3 -c 'import json; print(json.load(open(".github/release.json"))["version"])')}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must be X.Y.Z"; exit 1; }
 mkdir -p build dist
 

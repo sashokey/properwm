@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: ['**']
+    paths-ignore: ['.github/release.json']
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -11,7 +12,7 @@ on:
       version:
         type: string
         required: false
-        default: '0.1.0'
+        default: ''
 
 permissions:
   contents: read
@@ -81,7 +82,7 @@ jobs:
       - name: Build universal package
         if: success()
         env:
-          PROPERWM_VERSION: ${{ inputs.version || '0.1.0' }}
+          PROPERWM_VERSION: ${{ inputs.version }}
         run: bash Scripts/package_release.sh
 
       - name: Check release deployment compatibility

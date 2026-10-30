@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    branches: [master]
+    paths: ['.github/release.json']
   workflow_dispatch:
     inputs:
       version:
@@ -20,21 +23,46 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.version }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.request.outputs.version }}
+      prerelease: ${{ steps.request.outputs.prerelease }}
+      draft: ${{ steps.request.outputs.draft }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        id: request
         env:
           RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_DRAFT: ${{ inputs.draft }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
         with:
           script: |
-            const version = process.env.RELEASE_VERSION;
-            if (!/^\d+\.\d+\.\d+$/.test(version) || version !== version.trim()) {
+            let request;
+            if (context.eventName === 'workflow_dispatch') {
+              request = {
+                version: process.env.RELEASE_VERSION,
+                draft: process.env.RELEASE_DRAFT !== 'false',
+                prerelease: process.env.RELEASE_PRERELEASE !== 'false'
+              };
+            } else if (context.eventName === 'push' && context.ref === 'refs/heads/master') {
+              const fs = require('node:fs/promises');
+              request = JSON.parse(await fs.readFile('.github/release.json', 'utf8'));
+            } else {
+              throw new Error('Unsupported release event');
+            }
+            const { version, draft, prerelease } = request;
+            if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version) || version !== version.trim()) {
               throw new Error('Version must be X.Y.Z');
+            }
+            if (typeof draft !== 'boolean' || typeof prerelease !== 'boolean') {
+              throw new Error('draft and prerelease must be booleans');
             }
             try {
               await github.rest.git.getRef({
@@ -44,15 +72,18 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
+            core.setOutput('version', version);
+            core.setOutput('draft', String(draft));
+            core.setOutput('prerelease', String(prerelease));
 
   build:
     needs: validate
     uses: ./.github/workflows/ci.yml
     with:
-      version: ${{ inputs.version }}
+      version: ${{ needs.validate.outputs.version }}
 
   publish:
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -65,9 +96,9 @@ jobs:
 
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RELEASE_DRAFT: ${{ inputs.draft }}
-          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_DRAFT: ${{ needs.validate.outputs.draft }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
         with:
           script: |
             const fs = require('node:fs/promises');
@@ -93,7 +124,12 @@ jobs:
               draft: true,
               prerelease: process.env.RELEASE_PRERELEASE === 'true',
               generate_release_notes: true,
-              body: 'Universal macOS app (Apple Silicon and Intel). Ad-hoc signed; not notarized. Source and SHA-256 checksums are attached.'
+              body: [
+                'Universal macOS app (Apple Silicon and Intel). Ad-hoc signed; not notarized.',
+                'Source and SHA-256 checksums are attached.',
+                'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo
+                  + '/blob/' + context.sha + '/TESTING.md'
+              ].join('\n\n')
             });
             for (const name of [...names, 'SHA256SUMS.txt']) {
               await github.rest.repos.uploadReleaseAsset({

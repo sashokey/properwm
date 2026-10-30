@@ -16,7 +16,9 @@ Its menu contains only **Open at Login** and **Taskbar Size**. Accessibility per
 
 Builds run exclusively in GitHub Actions. **CI** runs the tests with coverage, checks localization and deployment compatibility, and packages a universal Release app. A successful run provides the **ProperWM** artifact containing the app ZIP, matching source ZIP, and SHA-256 checksums. Test logs, coverage, and the result bundle are in **test-results**.
 
-For a release, open **Actions → Release → Run workflow**, enter a new version in `X.Y.Z` form, and choose **Mark as a pre-release** and **Keep as a draft**. The workflow tests and rebuilds that exact commit before creating `vX.Y.Z` and uploading the verified packages. Existing version tags are never replaced. Clear **Keep as a draft** to publish after all steps succeed.
+To publish through the GitHub plugin, commit a new version in [`.github/release.json`](.github/release.json) on `master`. Set `prerelease` and `draft` explicitly. That commit starts **Release**, which validates the request, runs CI, builds the exact commit, verifies checksums, and publishes after uploading all assets. Ordinary code commits do not publish releases; changing only the request file runs the release pipeline without a duplicate standalone CI run.
+
+A manual alternative remains available: open **Actions → Release → Run workflow**, enter a new version in `X.Y.Z` form, and choose **Mark as a pre-release** and **Keep as a draft**. The workflow tests and rebuilds that exact commit before creating `vX.Y.Z` and uploading the verified packages. Existing version tags are never replaced. Clear **Keep as a draft** to publish after all steps succeed.
 
 Packages are ad-hoc signed and are not notarized. No paid signing account or external publishing service is required. Install `ProperWM.app` in `/Applications` before granting Accessibility permission or enabling **Open at Login**. macOS may require **Privacy & Security → Open Anyway** on first launch.
 
