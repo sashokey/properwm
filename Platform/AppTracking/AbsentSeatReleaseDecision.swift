@@ -31,7 +31,7 @@ enum AbsentSeatReleaseDecision {
         }
     }
 
-    enum ElementState: Equatable {
+    enum ElementState: Equatable, Sendable {
         /// The element answered exactly `kAXErrorInvalidUIElement`.
         case dead
         case alive(minimized: Bool?)
@@ -120,15 +120,15 @@ struct AbsentSeatProbeState: Equatable {
 }
 
 /// One probe a single-pid event read carries to the background.
-struct AbsentSeatProbeRequest {
+struct AbsentSeatProbeRequest: Sendable {
     let cgWindowID: CGWindowID
     let seatToken: String
-    let element: AXUIElement
+    let element: AXElementKey
     let instanceID: UInt64
     let probeCount: Int
 }
 
-struct AbsentSeatProbeEvidence {
+struct AbsentSeatProbeEvidence: Sendable {
     let request: AbsentSeatProbeRequest
     let element: AbsentSeatReleaseDecision.ElementState
     let windowSpaceIDs: [Int]?
@@ -145,9 +145,9 @@ protocol AbsentSeatProbing: Sendable {
 
 struct LiveAbsentSeatProber: AbsentSeatProbing {
     func probe(_ request: AbsentSeatProbeRequest, messagingTimeout: TimeInterval) -> AbsentSeatProbeEvidence {
-        AXUIElementSetMessagingTimeout(request.element, Float(messagingTimeout))
+        AXUIElementSetMessagingTimeout(request.element.e, Float(messagingTimeout))
         var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(request.element, kAXMinimizedAttribute as CFString, &value)
+        let error = AXUIElementCopyAttributeValue(request.element.e, kAXMinimizedAttribute as CFString, &value)
         let element: AbsentSeatReleaseDecision.ElementState
         switch error {
         case .success: element = .alive(minimized: value as? Bool)

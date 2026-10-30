@@ -263,7 +263,7 @@ final class AppTrackerAbsentSeatTests: XCTestCase {
         AbsentSeatProbeEvidence(
             request: AbsentSeatProbeRequest(
                 cgWindowID: player, seatToken: "tabgrp-\(pid)-s2",
-                element: AXUIElementCreateApplication(pid), instanceID: instanceID ?? instance, probeCount: 1
+                element: AXElementKey(e: AXUIElementCreateApplication(pid)), instanceID: instanceID ?? instance, probeCount: 1
             ),
             element: element,
             windowSpaceIDs: spaces,

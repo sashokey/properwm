@@ -164,7 +164,7 @@ final class AppTracker: ObservableObject {
     private var shadowPoolDiagnosticsByPID: [pid_t: ShadowPoolDiagnosticState] = [:]
     private var heldLogDeduplicator = InventoryPhantomHeldDeduplicator()
 
-    private struct PendingEventRead {
+    private struct PendingEventRead: Sendable {
         let token: UInt64
         let mutationGeneration: UInt64
         let identity: ScanAdmissionDecision.ProcessIdentity
@@ -1136,7 +1136,7 @@ final class AppTracker: ObservableObject {
             probe.nextProbeUptime = now + AbsentSeatReleaseDecision.backoff(afterDispatch: probe.probeCount)
             app.windowsByID[cgID]?.absentProbe = probe
             requests.append(AbsentSeatProbeRequest(
-                cgWindowID: cgID, seatToken: token, element: handle.element,
+                cgWindowID: cgID, seatToken: token, element: AXElementKey(e: handle.element),
                 instanceID: handle.instanceID, probeCount: probe.probeCount
             ))
         }

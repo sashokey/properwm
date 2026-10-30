@@ -292,9 +292,9 @@ final class AppRuntime: ObservableObject {
                 minimizeDispatchedAt: request.windowID.flatMap { recentMinimizeDispatchAtByWindowID[$0.rawValue] },
                 now: Date()
             )
-        let onHandoffActivePrediction: (@Sendable (WindowID) -> Void)? =
-            ((request.kind == .minimizeWindow || request.kind == .closeWindow) && Self.handoffActivePredictionEnabled)
-            ? { [weak self] windowID in
+        let onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?
+        if (request.kind == .minimizeWindow || request.kind == .closeWindow) && Self.handoffActivePredictionEnabled {
+            onHandoffActivePrediction = { @Sendable [weak self] (windowID: WindowID) in
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     guard self.optimisticStatesByWindowID[windowID.rawValue] == nil else { return }
@@ -305,7 +305,9 @@ final class AppRuntime: ObservableObject {
                     )
                 }
             }
-            : nil
+        } else {
+            onHandoffActivePrediction = nil
+        }
         Self.actionQueue.async { [weak self] in
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "execStart")
             let success = executor.execute(

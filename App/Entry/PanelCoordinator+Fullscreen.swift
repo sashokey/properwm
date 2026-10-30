@@ -22,14 +22,16 @@ extension PanelCoordinator {
     func setupFullscreenMonitor() {
         let nc = NSWorkspace.shared.notificationCenter
         workspaceObserverTokens.append(nc.addObserver(
-            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.handleSpaceChange() }
         })
         workspaceObserverTokens.append(nc.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: nil
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] note in
-            MainActor.assumeIsolated { self?.handleAppActivated(note) }
+            let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+                .processIdentifier
+            MainActor.assumeIsolated { self?.handleAppActivated(pid: pid) }
         })
         lastActiveApplicationPID = NSWorkspace.shared.runningApplications.first(where: { $0.isActive })?.processIdentifier
         fullscreenReconcileTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
@@ -72,14 +74,13 @@ extension PanelCoordinator {
         repairAllSpacesMembershipIfNeeded()
     }
 
-    private func handleAppActivated(_ note: Notification) {
-        let activated = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-        lastActiveApplicationPID = activated?.processIdentifier
+    private func handleAppActivated(pid: pid_t?) {
+        lastActiveApplicationPID = pid
         let spaceHoldGeneration = beginFullscreenSpaceHold(
             pid: lastActiveApplicationPID,
             confirmationDelay: FullscreenSpaceHoldDecision.activationFallbackDelay
         )
-        cancelFullscreenIntentIfContextChanged(activePID: activated?.processIdentifier)
+        cancelFullscreenIntentIfContextChanged(activePID: pid)
         triggerAsyncFullscreenCheck(
             pid: lastActiveApplicationPID,
             expectedSpaceHoldGeneration: spaceHoldGeneration,
