@@ -53,24 +53,6 @@ final class WindowReorderControllerTests: XCTestCase {
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     func testSlotStaysFilledUntilTheCarrierHasHadAFrame() {
         begin(.strip, "app", at: outsideZone)
         XCTAssertNotNil(controller.draggingPayload, "拖动本身立刻开始")
@@ -128,8 +110,6 @@ final class WindowReorderControllerTests: XCTestCase {
         XCTAssertNil(controller.hiddenSlotPayload, "不飞的收尾也要立刻让卡显形")
         XCTAssertTrue(controller.isCarrying, "但载体还没撤，悬停仍要压着")
     }
-
-
 
     func testHoverStaysHeldAfterLandingUntilThePointerMoves() {
         begin(.strip, "app", at: outsideZone)
@@ -237,79 +217,9 @@ final class WindowReorderControllerTests: XCTestCase {
         XCTAssertNil(controller.draggingPayload)
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
 
-extension DragControllerConversionTests {
-
-
-
-
-
-
-
+extension WindowReorderControllerTests {
 
     func testCancellationClearsSurfaceAndCarrierState() {
         begin(.strip, "window", at: outsideZone, surface: "display-A")

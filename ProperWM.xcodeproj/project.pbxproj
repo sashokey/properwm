@@ -313,7 +313,6 @@
 		D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */; };
 		D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000008 /* DisplayTopologyStoreTests.swift */; };
 		EAA000000000000000000002 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
-		EAA000000000000000000003 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1377,7 +1376,6 @@
 				A00000000000000000009D03 /* WindowTitleTooltipTests.swift in Sources */,
 				A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */,
 				A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */,
-				EAA000000000000000000003 /* AppIconResolver.swift in Sources */,
 				A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */,
 				B1000000000000000000010F /* MinimizeHandoffTarget.swift in Sources */,
 				B10000000000000000000114 /* MinimizeSettleGate.swift in Sources */,
