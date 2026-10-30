@@ -62,13 +62,5 @@ enum DisplayIdentity {
     /// 在场的屏 →（display UUID, 去重后的展示名）。读不出 UUID 的屏不进列表（固定不了它）。
     /// **有系统 I/O（`localizedName` 会读 IODisplay），别在菜单弹出路径上现算**——
     /// 调用方应在屏幕参数变化时缓存一份（`StatusMenuController` 即如此）。
-    @MainActor
-    static func connectedScreenOptions() -> [(uuid: String, title: String)] {
-        let identified: [(uuid: String, name: String)] = NSScreen.screens.compactMap { screen in
-            guard let uuid = uuidString(for: screen) else { return nil }
-            return (uuid, screen.localizedName)
-        }
-        let titles = TaskbarScreenResolution.displayTitles(names: identified.map(\.name))
-        return zip(identified, titles).map { ($0.uuid, $1) }
-    }
+
 }
