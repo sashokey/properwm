@@ -20,7 +20,7 @@ struct DockStripView: View {
     var onInteractiveResize: (StripResizeGripEvent) -> Void = { _ in }
     var resizeGripController: StripResizeGripController?
     var onLabelWidthChange: ([String: CGFloat]) -> Void = { _ in }
-    var onLabelBoxWidthTick: (String, CGFloat) -> Void = { _, _ in }
+    var onLabelBoxWidthTick: @MainActor @Sendable (String, CGFloat) -> Void = { _, _ in }
 
     @State var frames = StripFrameBox()
     @State var hoveredEntryID: String?

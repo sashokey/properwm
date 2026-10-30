@@ -17,6 +17,8 @@ Track source changes manually when requested; there is no automatic merge or bac
 
 Keep commits focused and explain what changed, why it was needed, what behavior was preserved, and how it was verified. Code changes follow SOLID, KISS, and DRY.
 
+Validate nontrivial code changes on a working branch. Move them to master after the relevant CI checks pass. This protects the main branch from intermediate migration failures; code review, meaningful tests, and Mac acceptance checks establish the behavior itself.
+
 ## Platform and toolchain policy
 
 The deployment minimum is macOS 26 on Apple Silicon. Keep its compatibility without adding a dedicated macOS 26 test matrix or special behavior. Tests run on the newest hosted macOS family available in GitHub Actions, currently `xcode-27`; its patch version follows GitHub's image updates. A newer Apple release can precede availability in hosted runners. Move the label forward when GitHub provides a newer family.
