@@ -8,15 +8,19 @@ final class WindowReorderControllerTests: XCTestCase {
     private var controller: DragController!
     private let outsideZone = CGPoint(x: 500, y: 500)
 
-    override func setUp() {
-        super.setUp()
-        _ = NSApplication.shared
-        controller = DragController(screensProvider: { NSScreen.screens })
+    override nonisolated func setUp() async throws {
+        try await super.setUp()
+        await MainActor.run {
+            _ = NSApplication.shared
+            self.controller = DragController(screensProvider: { NSScreen.screens })
+        }
     }
 
-    override func tearDown() {
-        controller.cancelDrag()   // 幂等收尾，防面板/监视器泄漏到下个用例
-        super.tearDown()
+    override nonisolated func tearDown() async throws {
+        await MainActor.run {
+            self.controller.cancelDrag()
+        }
+        try await super.tearDown()
     }
 
     private func payload(_ source: DragSource, _ bid: String) -> DragPayload {
