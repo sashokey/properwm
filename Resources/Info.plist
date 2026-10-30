@@ -9,11 +9,11 @@
   <key>CFBundleIdentifier</key>
   <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   <key>CFBundleDisplayName</key>
-  <string>Tungsten Edge 钨极</string>
+  <string>ProperWM</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Tungsten Edge 钨极</string>
+  <string>ProperWM</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -24,6 +24,8 @@
   <string>12.0</string>
   <key>NSHumanReadableCopyright</key>
   <string>Copyright © 2026 Moonbai Studio. Licensed under GPL-3.0-or-later.</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
 </dict>

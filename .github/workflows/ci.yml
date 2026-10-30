@@ -6,19 +6,25 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: '0.1.0'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
     name: Build and test
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -43,8 +49,8 @@ jobs:
           set -euo pipefail
           mkdir -p build
           xcodebuild test \
-            -project macos-dock-cc-v2.xcodeproj \
-            -scheme macos-dock-cc-v2 \
+            -project ProperWM.xcodeproj \
+            -scheme ProperWM \
             -configuration Debug \
             -derivedDataPath build/DerivedData \
             -resultBundlePath build/TestResults.xcresult \
@@ -69,6 +75,25 @@ jobs:
             echo "Coverage is unavailable because test execution did not produce a report." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Build universal package
+        if: success()
+        env:
+          PROPERWM_VERSION: ${{ inputs.version || '0.1.0' }}
+        run: bash Scripts/package_release.sh
+
+      - name: Check release deployment compatibility
+        if: success()
+        run: python3 Scripts/check_availability_warnings.py build/xcodebuild-release.log
+
+      - name: Upload ProperWM
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ProperWM
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -76,6 +101,7 @@ jobs:
           name: test-results
           path: |
             build/xcodebuild-test.log
+            build/xcodebuild-release.log
             build/TestResults.xcresult
             build/coverage.txt
             build/coverage.json

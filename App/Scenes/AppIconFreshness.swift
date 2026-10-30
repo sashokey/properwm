@@ -48,7 +48,7 @@ final class AppIconFreshnessChecker {
         let stamp: AppIconStamp?
     }
 
-    private let queue = DispatchQueue(label: "com.caye.macosdockcc.v2.app-icon-freshness", qos: .utility)
+    private let queue = DispatchQueue(label: "io.github.sashokey.properwm.app-icon-freshness", qos: .utility)
     private let snapshot: @MainActor () -> [Entry]
     private let didCheck: @MainActor ([Entry]) -> Void
     private var isChecking = false

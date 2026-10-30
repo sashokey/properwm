@@ -69,9 +69,9 @@ final class PanelCoordinator: NSObject {
     var lastCommittedFrames: [NSRect] = []
     var lastDockTargetFrame: NSRect = .zero
     var didInitialLayout = false
-    let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "dock-panel")
+    let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "dock-panel")
     let fullscreenIntentLogger = Logger(
-        subsystem: "com.caye.macosdockcc.v2",
+        subsystem: "io.github.sashokey.properwm",
         category: "FullscreenIntent"
     )
     var fullscreenReconcileTimer: Timer?
@@ -273,7 +273,7 @@ final class PanelCoordinator: NSObject {
 
     static let slsVerdictEnabled = DebugSwitch.fullscreenSlsVerdict.isEnabled(in: ProcessInfo.processInfo.environment)
 
-    let hoverLogger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "HoverSwitch")
+    let hoverLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "HoverSwitch")
     static let hoverHotZone: CGFloat = 4.0
     static let hoverSwitchDwell: TimeInterval = 0.35   // 光标驻留热区 ≥ 350ms 才切换，路过不算
     static let hoverVerboseLogging = false
@@ -297,6 +297,6 @@ final class PanelCoordinator: NSObject {
         }
     }
 
-    private static let outerMargin: CGFloat = PanelLayoutMetrics.tungstenEdge.outerMargin
+    private static let outerMargin: CGFloat = PanelLayoutMetrics.properWM.outerMargin
 
 }

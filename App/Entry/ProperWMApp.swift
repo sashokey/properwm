@@ -1,12 +1,8 @@
 import SwiftUI
 
 @main
-struct MacOSDockCCV2App: App {
+struct ProperWMApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
-    init() {
-        ProcessEnvironmentScrub.apply()
-    }
 
     var body: some Scene {
         Settings {

@@ -506,102 +506,102 @@
         }
       }
     },
-    "\n\nIf simply turning the switch back on works, Tungsten Edge restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back.": {
+    "\n\nIf simply turning the switch back on works, ProperWM restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\n如果直接把开关打开就生效了，钨极会自己重启，不用管；走上面的清理步骤则需要退出后手动重开。\n另外，之前被 Dock 栏让开过的窗口可能会矮一条边——重新最大化一次就复原了。"
+            "value": "\n\n如果直接把开关打开就生效了，ProperWM会自己重启，不用管；走上面的清理步骤则需要退出后手动重开。\n另外，之前被 Dock 栏让开过的窗口可能会矮一条边——重新最大化一次就复原了。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nIf simply turning the switch back on works, Tungsten Edge restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back."
+            "value": "\n\nIf simply turning the switch back on works, ProperWM restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\n如果只是把開關重新打開就生效了，Tungsten Edge會自己重新啟動，不必再做什麼；若走過上面的清除步驟，之後要自行重新打開它。\n另外，先前被工作列挪開過的視窗可能會少一條工作列的高度——重新最大化一次就會復原。"
+            "value": "\n\n如果只是把開關重新打開就生效了，ProperWM會自己重新啟動，不必再做什麼；若走過上面的清除步驟，之後要自行重新打開它。\n另外，先前被工作列挪開過的視窗可能會少一條工作列的高度——重新最大化一次就會復原。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nスイッチをもう一度オンにするだけで許可が有効になる場合は、Tungsten Edgeが自動的に再起動するので、ほかの操作は不要です。上の手順で記録を削除した場合は、あとから手動で開き直してください。\nまた、タスクバーとの重なりを避けるために移動したウインドウは、高さがタスクバー1本分だけ縮んだままになることがあります。一度最大化し直すと元に戻ります。"
+            "value": "\n\nスイッチをもう一度オンにするだけで許可が有効になる場合は、ProperWMが自動的に再起動するので、ほかの操作は不要です。上の手順で記録を削除した場合は、あとから手動で開き直してください。\nまた、タスクバーとの重なりを避けるために移動したウインドウは、高さがタスクバー1本分だけ縮んだままになることがあります。一度最大化し直すと元に戻ります。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nWenn es schon genügt, den Schalter wieder zu aktivieren, startet sich Tungsten Edge von selbst neu und du musst nichts weiter tun; nach der Bereinigung oben musst du es dagegen von Hand wieder öffnen.\nAußerdem können Fenster, die die Taskleiste aus dem Weg geschoben hat, um eine Taskleistenhöhe zu kurz sein – einmal maximieren stellt sie wieder her."
+            "value": "\n\nWenn es schon genügt, den Schalter wieder zu aktivieren, startet sich ProperWM von selbst neu und du musst nichts weiter tun; nach der Bereinigung oben musst du es dagegen von Hand wieder öffnen.\nAußerdem können Fenster, die die Taskleiste aus dem Weg geschoben hat, um eine Taskleistenhöhe zu kurz sein – einmal maximieren stellt sie wieder her."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSi le simple fait de réactiver l’interrupteur suffit, Tungsten Edge redémarre automatiquement et aucune autre action n’est nécessaire. Après avoir suivi les étapes de réinitialisation ci-dessus, vous devez toutefois le rouvrir manuellement.\nPar ailleurs, les fenêtres déplacées pour laisser de la place à la barre des tâches peuvent conserver une hauteur réduite de la hauteur d’une barre des tâches. Il suffit de les agrandir une fois pour rétablir leur taille."
+            "value": "\n\nSi le simple fait de réactiver l’interrupteur suffit, ProperWM redémarre automatiquement et aucune autre action n’est nécessaire. Après avoir suivi les étapes de réinitialisation ci-dessus, vous devez toutefois le rouvrir manuellement.\nPar ailleurs, les fenêtres déplacées pour laisser de la place à la barre des tâches peuvent conserver une hauteur réduite de la hauteur d’une barre des tâches. Il suffit de les agrandir une fois pour rétablir leur taille."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSi basta con volver a activar el interruptor, Tungsten Edge se reinicia automáticamente y no tienes que hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse sitio pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
+            "value": "\n\nSi basta con volver a activar el interruptor, ProperWM se reinicia automáticamente y no tienes que hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse sitio pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSi basta con volver a activar el interruptor, Tungsten Edge se reinicia automáticamente y no necesitas hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse lugar pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
+            "value": "\n\nSi basta con volver a activar el interruptor, ProperWM se reinicia automáticamente y no necesitas hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse lugar pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSe bastar ativar o interruptor novamente, o Tungsten Edge se reinicia sozinho e não há mais nada a fazer; seguindo a limpeza acima, é preciso reabri-lo manualmente depois.\nAlém disso, janelas que a barra de tarefas havia deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos — basta maximizá-las uma vez para voltarem ao normal."
+            "value": "\n\nSe bastar ativar o interruptor novamente, o ProperWM se reinicia sozinho e não há mais nada a fazer; seguindo a limpeza acima, é preciso reabri-lo manualmente depois.\nAlém disso, janelas que a barra de tarefas havia deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos — basta maximizá-las uma vez para voltarem ao normal."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSe bastar voltar a ativar o interruptor, o Tungsten Edge reinicia-se sozinho e não é preciso fazer mais nada; se seguir a limpeza acima, terá de o voltar a abrir manualmente depois.\nAlém disso, as janelas que a barra de tarefas tinha deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos – basta maximizá-las uma vez para voltarem ao normal."
+            "value": "\n\nSe bastar voltar a ativar o interruptor, o ProperWM reinicia-se sozinho e não é preciso fazer mais nada; se seguir a limpeza acima, terá de o voltar a abrir manualmente depois.\nAlém disso, as janelas que a barra de tarefas tinha deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos – basta maximizá-las uma vez para voltarem ao normal."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nSe basta riattivare l’interruttore, Tungsten Edge si riavvia automaticamente e non devi fare altro; se invece segui i passaggi di pulizia qui sopra, dovrai poi riaprirlo manualmente.\nInoltre, le finestre spostate per lasciare spazio alla barra delle applicazioni potrebbero risultare più basse di un’altezza della barra: basta ingrandirle una volta per riportarle alla dimensione corretta."
+            "value": "\n\nSe basta riattivare l’interruttore, ProperWM si riavvia automaticamente e non devi fare altro; se invece segui i passaggi di pulizia qui sopra, dovrai poi riaprirlo manualmente.\nInoltre, le finestre spostate per lasciare spazio alla barra delle applicazioni potrebbero risultare più basse di un’altezza della barra: basta ingrandirle una volta per riportarle alla dimensione corretta."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\n스위치를 다시 켜는 것만으로 해결되면 Tungsten Edge가 자동으로 재실행되므로 따로 할 일은 없습니다. 위의 정리 단계를 거쳤다면 이후에 직접 다시 열어야 합니다.\n또한 작업 표시줄이 비켜 두었던 윈도우는 작업 표시줄 높이만큼 짧아져 있을 수 있습니다. 한 번 최대화하면 원래대로 돌아옵니다."
+            "value": "\n\n스위치를 다시 켜는 것만으로 해결되면 ProperWM가 자동으로 재실행되므로 따로 할 일은 없습니다. 위의 정리 단계를 거쳤다면 이후에 직접 다시 열어야 합니다.\n또한 작업 표시줄이 비켜 두었던 윈도우는 작업 표시줄 높이만큼 짧아져 있을 수 있습니다. 한 번 최대화하면 원래대로 돌아옵니다."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nЕсли достаточно снова включить переключатель, приложение Tungsten Edge перезапустится само, и больше ничего делать не нужно; если Вы выполняли описанный выше сброс записи, потом приложение придется открыть вручную.\nКроме того, окна, которые панель задач сдвинула с пути, могут оказаться короче на высоту панели задач — достаточно один раз развернуть их, и они вернутся на место."
+            "value": "\n\nЕсли достаточно снова включить переключатель, приложение ProperWM перезапустится само, и больше ничего делать не нужно; если Вы выполняли описанный выше сброс записи, потом приложение придется открыть вручную.\nКроме того, окна, которые панель задач сдвинула с пути, могут оказаться короче на высоту панели задач — достаточно один раз развернуть их, и они вернутся на место."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nAnahtarı yeniden açmak yeterli olursa Tungsten Edge kendini yeniden çalıştırır ve yapmanız gereken başka bir şey olmaz; yukarıdaki temizleme adımlarını izlediyseniz sonrasında uygulamayı elle yeniden açmanız gerekir.\nAyrıca görev çubuğunun kendisine yer açmak için taşıdığı pencereler bir görev çubuğu yüksekliği kadar kısa kalabilir — bu pencereleri bir kez büyütmek yerlerine oturtur."
+            "value": "\n\nAnahtarı yeniden açmak yeterli olursa ProperWM kendini yeniden çalıştırır ve yapmanız gereken başka bir şey olmaz; yukarıdaki temizleme adımlarını izlediyseniz sonrasında uygulamayı elle yeniden açmanız gerekir.\nAyrıca görev çubuğunun kendisine yer açmak için taşıdığı pencereler bir görev çubuğu yüksekliği kadar kısa kalabilir — bu pencereleri bir kez büyütmek yerlerine oturtur."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nअगर स्विच को दोबारा चालू करने से ही काम बन जाता है, तो Tungsten Edge अपने आप रीस्टार्ट हो जाएगा और कुछ और करने की ज़रूरत नहीं है; ऊपर बताए गए रीसेट के चरण अपनाने पर इसे बाद में ख़ुद दोबारा खोलना होगा।\nसाथ ही, टास्कबार ने रास्ते से जो विंडो हटाई थीं, उनकी ऊँचाई पहले के मुक़ाबले टास्कबार की ऊँचाई जितनी कम रह सकती है — उन्हें एक बार मैक्सिमाइज़ करने से वे पहले जैसी हो जाती हैं।"
+            "value": "\n\nअगर स्विच को दोबारा चालू करने से ही काम बन जाता है, तो ProperWM अपने आप रीस्टार्ट हो जाएगा और कुछ और करने की ज़रूरत नहीं है; ऊपर बताए गए रीसेट के चरण अपनाने पर इसे बाद में ख़ुद दोबारा खोलना होगा।\nसाथ ही, टास्कबार ने रास्ते से जो विंडो हटाई थीं, उनकी ऊँचाई पहले के मुक़ाबले टास्कबार की ऊँचाई जितनी कम रह सकती है — उन्हें एक बार मैक्सिमाइज़ करने से वे पहले जैसी हो जाती हैं।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "\n\nNếu chỉ cần bật lại công tắc là xong, Tungsten Edge sẽ tự khởi chạy lại và bạn không cần làm gì thêm; nếu bạn đã làm theo các bước dọn dẹp ở trên, hãy tự mở lại ứng dụng sau đó.\nNgoài ra, các cửa sổ mà thanh tác vụ đã dời đi có thể bị thấp hơn một chiều cao thanh tác vụ — chỉ cần phóng to tối đa chúng một lần là sẽ trở lại bình thường."
+            "value": "\n\nNếu chỉ cần bật lại công tắc là xong, ProperWM sẽ tự khởi chạy lại và bạn không cần làm gì thêm; nếu bạn đã làm theo các bước dọn dẹp ở trên, hãy tự mở lại ứng dụng sau đó.\nNgoài ra, các cửa sổ mà thanh tác vụ đã dời đi có thể bị thấp hơn một chiều cao thanh tác vụ — chỉ cần phóng to tối đa chúng một lần là sẽ trở lại bình thường."
           }
         }
       }
@@ -1107,103 +1107,103 @@
         }
       }
     },
-    "Couldn’t start a new instance of Tungsten Edge: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder.": {
+    "Couldn’t start a new instance of ProperWM: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder.": {
       "comment": "%@ 是系统返回的错误描述",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没能启动新的钨极实例：%@\n\n可以点“重试”，或者退出后从“应用程序”手动打开。"
+            "value": "没能启动新的ProperWM实例：%@\n\n可以点“重试”，或者退出后从“应用程序”手动打开。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn’t start a new instance of Tungsten Edge: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder."
+            "value": "Couldn’t start a new instance of ProperWM: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法啟動新的Tungsten Edge：%@\n\n可以按一下「重試」，或先結束，再從「應用程式」檔案夾手動打開。"
+            "value": "無法啟動新的ProperWM：%@\n\n可以按一下「重試」，或先結束，再從「應用程式」檔案夾手動打開。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeの新しいインスタンスを起動できませんでした: %@\n\n「再試行」をクリックするか、いったん終了して「アプリケーション」フォルダから手動で開いてください。"
+            "value": "ProperWMの新しいインスタンスを起動できませんでした: %@\n\n「再試行」をクリックするか、いったん終了して「アプリケーション」フォルダから手動で開いてください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine neue Instanz von Tungsten Edge konnte nicht gestartet werden: %@\n\nDu kannst auf „Erneut versuchen“ klicken oder Tungsten Edge beenden und von Hand aus dem Ordner „Programme“ öffnen."
+            "value": "Eine neue Instanz von ProperWM konnte nicht gestartet werden: %@\n\nDu kannst auf „Erneut versuchen“ klicken oder ProperWM beenden und von Hand aus dem Ordner „Programme“ öffnen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impossible de lancer une nouvelle instance de Tungsten Edge : %@\n\nVous pouvez cliquer sur Réessayer, ou quitter puis l’ouvrir manuellement depuis votre dossier Applications."
+            "value": "Impossible de lancer une nouvelle instance de ProperWM : %@\n\nVous pouvez cliquer sur Réessayer, ou quitter puis l’ouvrir manuellement depuis votre dossier Applications."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se ha podido iniciar una nueva instancia de Tungsten Edge: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
+            "value": "No se ha podido iniciar una nueva instancia de ProperWM: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se pudo iniciar una nueva instancia de Tungsten Edge: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
+            "value": "No se pudo iniciar una nueva instancia de ProperWM: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Não foi possível iniciar uma nova instância do Tungsten Edge: %@\n\nVocê pode clicar em Tentar Novamente, ou encerrar e abri-lo manualmente a partir da pasta Aplicativos."
+            "value": "Não foi possível iniciar uma nova instância do ProperWM: %@\n\nVocê pode clicar em Tentar Novamente, ou encerrar e abri-lo manualmente a partir da pasta Aplicativos."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Não foi possível iniciar uma nova instância do Tungsten Edge: %@\n\nPode clicar em Voltar a tentar ou sair e abri-lo manualmente a partir da pasta Aplicações."
+            "value": "Não foi possível iniciar uma nova instância do ProperWM: %@\n\nPode clicar em Voltar a tentar ou sair e abri-lo manualmente a partir da pasta Aplicações."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impossibile avviare una nuova istanza di Tungsten Edge: %@\n\nPuoi fare clic su Riprova oppure uscire e aprirlo manualmente dalla cartella Applicazioni."
+            "value": "Impossibile avviare una nuova istanza di ProperWM: %@\n\nPuoi fare clic su Riprova oppure uscire e aprirlo manualmente dalla cartella Applicazioni."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge를 새로 시작할 수 없습니다: %@\n\n재시도를 클릭하거나, 종료한 후 응용 프로그램 폴더에서 직접 여십시오."
+            "value": "ProperWM를 새로 시작할 수 없습니다: %@\n\n재시도를 클릭하거나, 종료한 후 응용 프로그램 폴더에서 직접 여십시오."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не удалось запустить новый экземпляр Tungsten Edge: %@\n\nНажмите «Повторить» или завершите приложение и откройте его вручную из папки «Приложения»."
+            "value": "Не удалось запустить новый экземпляр ProperWM: %@\n\nНажмите «Повторить» или завершите приложение и откройте его вручную из папки «Приложения»."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge’in yeni bir örneği başlatılamadı: %@\n\nYeniden Dene’yi tıklayabilir veya çıkıp Uygulamalar klasöründen elle açabilirsiniz."
+            "value": "ProperWM’in yeni bir örneği başlatılamadı: %@\n\nYeniden Dene’yi tıklayabilir veya çıkıp Uygulamalar klasöründen elle açabilirsiniz."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge का नया इंस्टेंस शुरू नहीं हो सका: %@\n\nआप “फिर कोशिश करें” पर क्लिक कर सकते हैं, या इसे बंद करके ऐप्लिकेशन फ़ोल्डर से ख़ुद खोल सकते हैं।"
+            "value": "ProperWM का नया इंस्टेंस शुरू नहीं हो सका: %@\n\nआप “फिर कोशिश करें” पर क्लिक कर सकते हैं, या इसे बंद करके ऐप्लिकेशन फ़ोल्डर से ख़ुद खोल सकते हैं।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không thể khởi chạy lại Tungsten Edge: %@\n\nBạn có thể bấm Thử lại, hoặc thoát rồi tự mở ứng dụng từ thư mục Ứng dụng."
+            "value": "Không thể khởi chạy lại ProperWM: %@\n\nBạn có thể bấm Thử lại, hoặc thoát rồi tự mở ứng dụng từ thư mục Ứng dụng."
           }
         }
       }
@@ -1304,107 +1304,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thể cập nhật danh sách Mục đăng nhập."
-          }
-        }
-      }
-    },
-    "Debug Build": {
-      "comment": "版本行后缀，标记这是开发构建而非正式包",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开发版"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Debug Build"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "除錯版本"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "デバッグビルド"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Debug-Build"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version de débogage"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compilación de depuración"
-          }
-        },
-        "es-419": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compilación de depuración"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compilação de depuração"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compilação de depuração"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Build di debug"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "디버그 빌드"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отладочная сборка"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hata Ayıklama Sürümü"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "डीबग बिल्ड"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bản dựng gỡ lỗi"
           }
         }
       }
@@ -1611,202 +1510,202 @@
         }
       }
     },
-    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of Tungsten Edge. You can reset it:\n\n1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select Tungsten Edge in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted.": {
+    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份钨极。可以这样重置一次：\n\n1. 先退出钨极——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 辅助功能”里把列表中的 Tungsten Edge 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开钨极，按提示重新添加并打开开关。"
+            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份ProperWM。可以这样重置一次：\n\n1. 先退出ProperWM——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 辅助功能”里把列表中的 ProperWM 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开ProperWM，按提示重新添加并打开开关。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of Tungsten Edge. You can reset it:\n\n1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select Tungsten Edge in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted."
+            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份Tungsten Edge。你可以重設一次：\n\n1. 先結束Tungsten Edge——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「輔助使用」裡選取列表中的Tungsten Edge，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開Tungsten Edge，再依照提示重新加入並打開開關。"
+            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份ProperWM。你可以重設一次：\n\n1. 先結束ProperWM——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「輔助使用」裡選取列表中的ProperWM，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開ProperWM，再依照提示重新加入並打開開關。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のTungsten Edgeと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にTungsten Edgeを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「アクセシビリティ」でリストからTungsten Edgeを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからTungsten Edgeを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
+            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のProperWMと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にProperWMを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「アクセシビリティ」でリストからProperWMを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからProperWMを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von Tungsten Edge. So setzt du ihn zurück:\n\n1. Beende zuerst Tungsten Edge – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Bedienungshilfen“ Tungsten Edge in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne Tungsten Edge erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
+            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von ProperWM. So setzt du ihn zurück:\n\n1. Beende zuerst ProperWM – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Bedienungshilfen“ ProperWM in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne ProperWM erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de Tungsten Edge. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord Tungsten Edge — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Accessibilité, sélectionnez Tungsten Edge dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez Tungsten Edge depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
+            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de ProperWM. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord ProperWM — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Accessibilité, sélectionnez ProperWM dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez ProperWM depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de Tungsten Edge. Puedes restablecerlo:\n\n1. Sal primero de Tungsten Edge: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona Tungsten Edge en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir Tungsten Edge desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Sal primero de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de Tungsten Edge. Puedes restablecerlo:\n\n1. Primero sal de Tungsten Edge: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona Tungsten Edge en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir Tungsten Edge desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Primero sal de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do Tungsten Edge. Você pode redefini-lo:\n\n1. Primeiro, encerre o Tungsten Edge — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Acessibilidade, selecione Tungsten Edge na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o Tungsten Edge novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
+            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do ProperWM. Você pode redefini-lo:\n\n1. Primeiro, encerre o ProperWM — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Acessibilidade, selecione ProperWM na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o ProperWM novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do Tungsten Edge. Pode repô-lo:\n\n1. Comece por sair do Tungsten Edge – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Acessibilidade, selecione Tungsten Edge na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o Tungsten Edge a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
+            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do ProperWM. Pode repô-lo:\n\n1. Comece por sair do ProperWM – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Acessibilidade, selecione ProperWM na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o ProperWM a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di Tungsten Edge. Puoi reimpostarla:\n\n1. Esci prima da Tungsten Edge: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Accessibilità, seleziona Tungsten Edge nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri Tungsten Edge dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
+            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di ProperWM. Puoi reimpostarla:\n\n1. Esci prima da ProperWM: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Accessibilità, seleziona ProperWM nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri ProperWM dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 Tungsten Edge 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 Tungsten Edge를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 손쉬운 사용에서 목록의 Tungsten Edge를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 Tungsten Edge를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
+            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 ProperWM 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 ProperWM를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 손쉬운 사용에서 목록의 ProperWM를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 ProperWM를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии Tungsten Edge. Ее можно сбросить:\n\n1. Сначала завершите Tungsten Edge: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Универсальный доступ» выберите Tungsten Edge в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте Tungsten Edge из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
+            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии ProperWM. Ее можно сбросить:\n\n1. Сначала завершите ProperWM: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Универсальный доступ» выберите ProperWM в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте ProperWM из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı Tungsten Edge’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce Tungsten Edge’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Erişilebilirlik bölümünde listeden Tungsten Edge’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. Tungsten Edge’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
+            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı ProperWM’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce ProperWM’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Erişilebilirlik bölümünde listeden ProperWM’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. ProperWM’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड Tungsten Edge की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले Tungsten Edge बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > ऐक्सेसिबिलिटी में सूची से Tungsten Edge चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. Tungsten Edge को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
+            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड ProperWM की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले ProperWM बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > ऐक्सेसिबिलिटी में सूची से ProperWM चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. ProperWM को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản Tungsten Edge này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát Tungsten Edge — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Trợ năng, chọn Tungsten Edge trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại Tungsten Edge từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
+            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản ProperWM này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát ProperWM — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Trợ năng, chọn ProperWM trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại ProperWM từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
           }
         }
       }
     },
-    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of Tungsten Edge. You can reset it:\n\n1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select Tungsten Edge in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted.": {
+    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份钨极。可以这样重置一次：\n\n1. 先退出钨极——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 设备控制和数据访问”里把列表中的 Tungsten Edge 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开钨极，按提示重新添加并打开开关。"
+            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份ProperWM。可以这样重置一次：\n\n1. 先退出ProperWM——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 设备控制和数据访问”里把列表中的 ProperWM 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开ProperWM，按提示重新添加并打开开关。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of Tungsten Edge. You can reset it:\n\n1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select Tungsten Edge in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted."
+            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份Tungsten Edge。你可以重設一次：\n\n1. 先結束Tungsten Edge——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「裝置控制和資料取用」裡選取列表中的Tungsten Edge，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開Tungsten Edge，再依照提示重新加入並打開開關。"
+            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份ProperWM。你可以重設一次：\n\n1. 先結束ProperWM——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「裝置控制和資料取用」裡選取列表中的ProperWM，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開ProperWM，再依照提示重新加入並打開開關。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のTungsten Edgeと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にTungsten Edgeを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「デバイスの制御とデータへのアクセス」でリストからTungsten Edgeを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからTungsten Edgeを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
+            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のProperWMと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にProperWMを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「デバイスの制御とデータへのアクセス」でリストからProperWMを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからProperWMを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von Tungsten Edge. So setzt du ihn zurück:\n\n1. Beende zuerst Tungsten Edge – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Gerätesteuerung und Datenzugriff“ Tungsten Edge in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne Tungsten Edge erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
+            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von ProperWM. So setzt du ihn zurück:\n\n1. Beende zuerst ProperWM – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Gerätesteuerung und Datenzugriff“ ProperWM in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne ProperWM erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de Tungsten Edge. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord Tungsten Edge — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Contrôle de l’appareil et accès aux données, sélectionnez Tungsten Edge dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez Tungsten Edge depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
+            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de ProperWM. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord ProperWM — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Contrôle de l’appareil et accès aux données, sélectionnez ProperWM dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez ProperWM depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de Tungsten Edge. Puedes restablecerlo:\n\n1. Sal primero de Tungsten Edge: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a datos, selecciona Tungsten Edge en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir Tungsten Edge desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Sal primero de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a datos, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de Tungsten Edge. Puedes restablecerlo:\n\n1. Primero sal de Tungsten Edge: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a los datos, selecciona Tungsten Edge en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir Tungsten Edge desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Primero sal de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a los datos, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do Tungsten Edge. Você pode redefini-lo:\n\n1. Primeiro, encerre o Tungsten Edge — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Controle do Dispositivo e Acesso a Dados, selecione Tungsten Edge na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o Tungsten Edge novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
+            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do ProperWM. Você pode redefini-lo:\n\n1. Primeiro, encerre o ProperWM — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Controle do Dispositivo e Acesso a Dados, selecione ProperWM na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o ProperWM novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do Tungsten Edge. Pode repô-lo:\n\n1. Comece por sair do Tungsten Edge – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Controlo do dispositivo e acesso a dados, selecione Tungsten Edge na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o Tungsten Edge a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
+            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do ProperWM. Pode repô-lo:\n\n1. Comece por sair do ProperWM – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Controlo do dispositivo e acesso a dados, selecione ProperWM na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o ProperWM a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di Tungsten Edge. Puoi reimpostarla:\n\n1. Esci prima da Tungsten Edge: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Controllo del dispositivo e accesso ai dati, seleziona Tungsten Edge nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri Tungsten Edge dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
+            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di ProperWM. Puoi reimpostarla:\n\n1. Esci prima da ProperWM: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Controllo del dispositivo e accesso ai dati, seleziona ProperWM nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri ProperWM dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 Tungsten Edge 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 Tungsten Edge를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 기기 제어 및 데이터 접근에서 목록의 Tungsten Edge를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 Tungsten Edge를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
+            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 ProperWM 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 ProperWM를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 기기 제어 및 데이터 접근에서 목록의 ProperWM를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 ProperWM를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии Tungsten Edge. Ее можно сбросить:\n\n1. Сначала завершите Tungsten Edge: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Управление устройством и доступ к данным» выберите Tungsten Edge в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте Tungsten Edge из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
+            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии ProperWM. Ее можно сбросить:\n\n1. Сначала завершите ProperWM: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Управление устройством и доступ к данным» выберите ProperWM в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте ProperWM из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı Tungsten Edge’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce Tungsten Edge’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Aygıt Denetimi ve Veri Erişimi bölümünde listeden Tungsten Edge’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. Tungsten Edge’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
+            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı ProperWM’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce ProperWM’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Aygıt Denetimi ve Veri Erişimi bölümünde listeden ProperWM’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. ProperWM’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड Tungsten Edge की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले Tungsten Edge बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > डिवाइस नियंत्रण और डेटा ऐक्सेस में सूची से Tungsten Edge चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. Tungsten Edge को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
+            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड ProperWM की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले ProperWM बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > डिवाइस नियंत्रण और डेटा ऐक्सेस में सूची से ProperWM चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. ProperWM को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản Tungsten Edge này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát Tungsten Edge — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Điều khiển thiết bị và truy cập dữ liệu, chọn Tungsten Edge trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại Tungsten Edge từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
+            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản ProperWM này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát ProperWM — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Điều khiển thiết bị và truy cập dữ liệu, chọn ProperWM trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại ProperWM từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
           }
         }
       }
@@ -1911,7 +1810,7 @@
         }
       }
     },
-    "Move Tungsten Edge to Applications": {
+    "Move ProperWM to Applications": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -1922,191 +1821,91 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Move Tungsten Edge to Applications"
+            "value": "Move ProperWM to Applications"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請將Tungsten Edge移到「應用程式」"
+            "value": "請將ProperWM移到「應用程式」"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeを「アプリケーション」に移動してください"
+            "value": "ProperWMを「アプリケーション」に移動してください"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge in den Ordner „Programme“ bewegen"
+            "value": "ProperWM in den Ordner „Programme“ bewegen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Déplacez Tungsten Edge vers le dossier Applications"
+            "value": "Déplacez ProperWM vers le dossier Applications"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mueve Tungsten Edge a la carpeta Aplicaciones"
+            "value": "Mueve ProperWM a la carpeta Aplicaciones"
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mueve Tungsten Edge a la carpeta Aplicaciones"
+            "value": "Mueve ProperWM a la carpeta Aplicaciones"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mova o Tungsten Edge para Aplicativos"
+            "value": "Mova o ProperWM para Aplicativos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mova o Tungsten Edge para Aplicações"
+            "value": "Mova o ProperWM para Aplicações"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sposta Tungsten Edge in Applicazioni"
+            "value": "Sposta ProperWM in Applicazioni"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge를 응용 프로그램 폴더로 이동"
+            "value": "ProperWM를 응용 프로그램 폴더로 이동"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Переместить Tungsten Edge в папку «Приложения»"
+            "value": "Переместить ProperWM в папку «Приложения»"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge’i Uygulamalar Klasörüne Taşı"
+            "value": "ProperWM’i Uygulamalar Klasörüne Taşı"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge को ऐप्लिकेशन में मूव करें"
+            "value": "ProperWM को ऐप्लिकेशन में मूव करें"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Di chuyển Tungsten Edge vào thư mục Ứng dụng"
-          }
-        }
-      }
-    },
-    "Not Installed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "非安装位置"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not Installed"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未安裝"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未インストール"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht installiert"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non installé"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin instalar"
-          }
-        },
-        "es-419": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin instalar"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não instalado"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não instalada"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non installata"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "설치되지 않음"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не установлено"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yüklenmemiş"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इंस्टॉल नहीं है"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chưa cài đặt"
+            "value": "Di chuyển ProperWM vào thư mục Ứng dụng"
           }
         }
       }
@@ -3313,102 +3112,102 @@
         }
       }
     },
-    "Restarting Tungsten Edge…": {
+    "Restarting ProperWM…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在重启钨极…"
+            "value": "正在重启ProperWM…"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restarting Tungsten Edge…"
+            "value": "Restarting ProperWM…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在重新啟動Tungsten Edge⋯"
+            "value": "正在重新啟動ProperWM⋯"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeを再起動しています…"
+            "value": "ProperWMを再起動しています…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge wird neu gestartet …"
+            "value": "ProperWM wird neu gestartet …"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redémarrage de Tungsten Edge…"
+            "value": "Redémarrage de ProperWM…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciando Tungsten Edge…"
+            "value": "Reiniciando ProperWM…"
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciando Tungsten Edge…"
+            "value": "Reiniciando ProperWM…"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reiniciando o Tungsten Edge…"
+            "value": "Reiniciando o ProperWM…"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A reiniciar o Tungsten Edge…"
+            "value": "A reiniciar o ProperWM…"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riavvio di Tungsten Edge…"
+            "value": "Riavvio di ProperWM…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge 재실행 중…"
+            "value": "ProperWM 재실행 중…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перезапуск Tungsten Edge…"
+            "value": "Перезапуск ProperWM…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge yeniden çalıştırılıyor…"
+            "value": "ProperWM yeniden çalıştırılıyor…"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge रीस्टार्ट हो रहा है…"
+            "value": "ProperWM रीस्टार्ट हो रहा है…"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đang khởi chạy lại Tungsten Edge…"
+            "value": "Đang khởi chạy lại ProperWM…"
           }
         }
       }
@@ -4318,7 +4117,7 @@
       }
     },
     "Taskbar": {
-      "comment": "钨极自己的窗口在窗口列表里的标题兜底（WindowDisplayTitle）",
+      "comment": "ProperWM自己的窗口在窗口列表里的标题兜底（WindowDisplayTitle）",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
@@ -4719,403 +4518,403 @@
         }
       }
     },
-    "Tungsten Edge is still running. You can try again.": {
+    "ProperWM is still running. You can try again.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "钨极还在运行，可以重试。"
+            "value": "ProperWM还在运行，可以重试。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge is still running. You can try again."
+            "value": "ProperWM is still running. You can try again."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge仍在執行，可以再試一次。"
+            "value": "ProperWM仍在執行，可以再試一次。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeはまだ実行中です。もう一度お試しください。"
+            "value": "ProperWMはまだ実行中です。もう一度お試しください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge läuft noch. Du kannst es erneut versuchen."
+            "value": "ProperWM läuft noch. Du kannst es erneut versuchen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge est toujours en cours d’exécution. Vous pouvez réessayer."
+            "value": "ProperWM est toujours en cours d’exécution. Vous pouvez réessayer."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge sigue en ejecución. Puedes volver a intentarlo."
+            "value": "ProperWM sigue en ejecución. Puedes volver a intentarlo."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge sigue en ejecución. Puedes intentarlo de nuevo."
+            "value": "ProperWM sigue en ejecución. Puedes intentarlo de nuevo."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge ainda está em execução. Você pode tentar novamente."
+            "value": "O ProperWM ainda está em execução. Você pode tentar novamente."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge continua em execução. Pode voltar a tentar."
+            "value": "O ProperWM continua em execução. Pode voltar a tentar."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge è ancora in esecuzione. Puoi riprovare."
+            "value": "ProperWM è ancora in esecuzione. Puoi riprovare."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge가 아직 실행 중입니다. 다시 시도할 수 있습니다."
+            "value": "ProperWM가 아직 실행 중입니다. 다시 시도할 수 있습니다."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge все еще работает. Можно повторить попытку."
+            "value": "ProperWM все еще работает. Можно повторить попытку."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge hâlâ çalışıyor. Yeniden deneyebilirsiniz."
+            "value": "ProperWM hâlâ çalışıyor. Yeniden deneyebilirsiniz."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge अभी भी चल रहा है। आप फिर कोशिश कर सकते हैं।"
+            "value": "ProperWM अभी भी चल रहा है। आप फिर कोशिश कर सकते हैं।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge vẫn đang chạy. Bạn có thể thử lại."
+            "value": "ProperWM vẫn đang chạy. Bạn có thể thử lại."
           }
         }
       }
     },
-    "Tungsten Edge just lost its Accessibility permission, so the taskbar has been put away. Turn Tungsten Edge back on in %@.": {
+    "ProperWM just lost its Accessibility permission, so the taskbar has been put away. Turn ProperWM back on in %@.": {
       "comment": "%@ 同上",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "钨极刚才失去了辅助功能权限，Dock 栏已经收起。请在%@中重新打开 Tungsten Edge 钨极的开关。"
+            "value": "ProperWM刚才失去了辅助功能权限，Dock 栏已经收起。请在%@中重新打开 ProperWM的开关。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge just lost its Accessibility permission, so the taskbar has been put away. Turn Tungsten Edge back on in %@."
+            "value": "ProperWM just lost its Accessibility permission, so the taskbar has been put away. Turn ProperWM back on in %@."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge剛才失去了輔助使用權限，工作列已經收起。請在%@中重新打開Tungsten Edge的開關。"
+            "value": "ProperWM剛才失去了輔助使用權限，工作列已經收起。請在%@中重新打開ProperWM的開關。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeのアクセシビリティの許可が失われたため、タスクバーを格納しました。%@でTungsten Edgeをもう一度オンにしてください。"
+            "value": "ProperWMのアクセシビリティの許可が失われたため、タスクバーを格納しました。%@でProperWMをもう一度オンにしてください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge hat gerade seine Bedienungshilfen-Berechtigung verloren, deshalb wurde die Taskleiste eingeklappt. Aktiviere Tungsten Edge unter %@ wieder."
+            "value": "ProperWM hat gerade seine Bedienungshilfen-Berechtigung verloren, deshalb wurde die Taskleiste eingeklappt. Aktiviere ProperWM unter %@ wieder."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge vient de perdre son autorisation d’accessibilité ; la barre des tâches a donc été retirée. Réactivez Tungsten Edge dans %@."
+            "value": "ProperWM vient de perdre son autorisation d’accessibilité ; la barre des tâches a donc été retirée. Réactivez ProperWM dans %@."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge acaba de perder el permiso de accesibilidad, por lo que se ha ocultado la barra de tareas. Vuelve a activar Tungsten Edge en %@."
+            "value": "ProperWM acaba de perder el permiso de accesibilidad, por lo que se ha ocultado la barra de tareas. Vuelve a activar ProperWM en %@."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge acaba de perder el permiso de accesibilidad, por lo que se ocultó la barra de tareas. Vuelve a activar Tungsten Edge en %@."
+            "value": "ProperWM acaba de perder el permiso de accesibilidad, por lo que se ocultó la barra de tareas. Vuelve a activar ProperWM en %@."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge acabou de perder a permissão de Acessibilidade, então a barra de tarefas foi recolhida. Ative o Tungsten Edge novamente em %@."
+            "value": "O ProperWM acabou de perder a permissão de Acessibilidade, então a barra de tarefas foi recolhida. Ative o ProperWM novamente em %@."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge acabou de perder a permissão de Acessibilidade, pelo que a barra de tarefas foi recolhida. Volte a ativar o Tungsten Edge em %@."
+            "value": "O ProperWM acabou de perder a permissão de Acessibilidade, pelo que a barra de tarefas foi recolhida. Volte a ativar o ProperWM em %@."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge ha appena perso l’autorizzazione di accessibilità, quindi la barra delle applicazioni è stata nascosta. Riattiva Tungsten Edge in %@."
+            "value": "ProperWM ha appena perso l’autorizzazione di accessibilità, quindi la barra delle applicazioni è stata nascosta. Riattiva ProperWM in %@."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge가 방금 손쉬운 사용 권한을 잃어 작업 표시줄을 숨겼습니다. %@에서 Tungsten Edge를 다시 켜십시오."
+            "value": "ProperWM가 방금 손쉬운 사용 권한을 잃어 작업 표시줄을 숨겼습니다. %@에서 ProperWM를 다시 켜십시오."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложение Tungsten Edge только что лишилось разрешения универсального доступа, поэтому панель задач убрана. Снова включите Tungsten Edge здесь: %@."
+            "value": "Приложение ProperWM только что лишилось разрешения универсального доступа, поэтому панель задач убрана. Снова включите ProperWM здесь: %@."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge Erişilebilirlik iznini az önce kaybetti, bu yüzden görev çubuğu gizlendi. Şu konumda Tungsten Edge’in anahtarını yeniden açın: %@."
+            "value": "ProperWM Erişilebilirlik iznini az önce kaybetti, bu yüzden görev çubuğu gizlendi. Şu konumda ProperWM’in anahtarını yeniden açın: %@."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge की ऐक्सेसिबिलिटी अनुमति अभी-अभी हट गई, इसलिए टास्कबार हटा दिया गया है। %@ में Tungsten Edge को फिर से चालू करें।"
+            "value": "ProperWM की ऐक्सेसिबिलिटी अनुमति अभी-अभी हट गई, इसलिए टास्कबार हटा दिया गया है। %@ में ProperWM को फिर से चालू करें।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge vừa mất quyền Trợ năng nên thanh tác vụ đã được cất đi. Hãy bật lại Tungsten Edge trong %@."
+            "value": "ProperWM vừa mất quyền Trợ năng nên thanh tác vụ đã được cất đi. Hãy bật lại ProperWM trong %@."
           }
         }
       }
     },
-    "Tungsten Edge needs this permission to read and manage your windows.": {
+    "ProperWM needs this permission to read and manage your windows.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge 需要这项权限来读取和操作窗口。"
+            "value": "ProperWM 需要这项权限来读取和操作窗口。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge needs this permission to read and manage your windows."
+            "value": "ProperWM needs this permission to read and manage your windows."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge需要這項權限來讀取與管理你的視窗。"
+            "value": "ProperWM需要這項權限來讀取與管理你的視窗。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edgeはウインドウを読み取って操作するために、この許可を必要とします。"
+            "value": "ProperWMはウインドウを読み取って操作するために、この許可を必要とします。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge benötigt diese Berechtigung, um deine Fenster zu lesen und zu verwalten."
+            "value": "ProperWM benötigt diese Berechtigung, um deine Fenster zu lesen und zu verwalten."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge a besoin de cette autorisation pour lire et gérer vos fenêtres."
+            "value": "ProperWM a besoin de cette autorisation pour lire et gérer vos fenêtres."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge necesita este permiso para leer y gestionar tus ventanas."
+            "value": "ProperWM necesita este permiso para leer y gestionar tus ventanas."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge necesita este permiso para leer y administrar tus ventanas."
+            "value": "ProperWM necesita este permiso para leer y administrar tus ventanas."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge precisa desta permissão para ler e gerenciar suas janelas."
+            "value": "O ProperWM precisa desta permissão para ler e gerenciar suas janelas."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge precisa desta permissão para ler e gerir as suas janelas."
+            "value": "O ProperWM precisa desta permissão para ler e gerir as suas janelas."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge richiede questa autorizzazione per leggere e gestire le finestre."
+            "value": "ProperWM richiede questa autorizzazione per leggere e gestire le finestre."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge가 윈도우를 읽고 관리하려면 이 권한이 필요합니다."
+            "value": "ProperWM가 윈도우를 읽고 관리하려면 이 권한이 필요합니다."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложению Tungsten Edge нужно это разрешение, чтобы получать сведения об окнах и управлять ими."
+            "value": "Приложению ProperWM нужно это разрешение, чтобы получать сведения об окнах и управлять ими."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge’in pencerelerinizi okuyabilmesi ve yönetebilmesi için bu izne ihtiyacı var."
+            "value": "ProperWM’in pencerelerinizi okuyabilmesi ve yönetebilmesi için bu izne ihtiyacı var."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge को आपकी विंडो पढ़ने और प्रबंधित करने के लिए इस अनुमति की ज़रूरत है।"
+            "value": "ProperWM को आपकी विंडो पढ़ने और प्रबंधित करने के लिए इस अनुमति की ज़रूरत है।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge cần quyền này để đọc và quản lý các cửa sổ của bạn."
+            "value": "ProperWM cần quyền này để đọc và quản lý các cửa sổ của bạn."
           }
         }
       }
     },
-    "Tungsten Edge will restart itself once you grant it again.": {
+    "ProperWM will restart itself once you grant it again.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "重新授权后钨极会自动重启。"
+            "value": "重新授权后ProperWM会自动重启。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge will restart itself once you grant it again."
+            "value": "ProperWM will restart itself once you grant it again."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "重新授權後Tungsten Edge會自行重新啟動。"
+            "value": "重新授權後ProperWM會自行重新啟動。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "もう一度許可すると、Tungsten Edgeは自動的に再起動します。"
+            "value": "もう一度許可すると、ProperWMは自動的に再起動します。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sobald du sie erneut erteilst, startet sich Tungsten Edge von selbst neu."
+            "value": "Sobald du sie erneut erteilst, startet sich ProperWM von selbst neu."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge redémarrera de lui-même une fois l’autorisation réaccordée."
+            "value": "ProperWM redémarrera de lui-même une fois l’autorisation réaccordée."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge se reiniciará automáticamente cuando vuelvas a concederle el permiso."
+            "value": "ProperWM se reiniciará automáticamente cuando vuelvas a concederle el permiso."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge se reiniciará automáticamente cuando vuelvas a otorgarle el permiso."
+            "value": "ProperWM se reiniciará automáticamente cuando vuelvas a otorgarle el permiso."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge será reiniciado sozinho assim que você conceder a permissão novamente."
+            "value": "O ProperWM será reiniciado sozinho assim que você conceder a permissão novamente."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O Tungsten Edge reinicia-se sozinho assim que voltar a conceder a permissão."
+            "value": "O ProperWM reinicia-se sozinho assim que voltar a conceder a permissão."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge si riavvierà automaticamente dopo la nuova autorizzazione."
+            "value": "ProperWM si riavvierà automaticamente dopo la nuova autorizzazione."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "다시 허용하면 Tungsten Edge가 자동으로 재실행됩니다."
+            "value": "다시 허용하면 ProperWM가 자동으로 재실행됩니다."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Приложение Tungsten Edge перезапустится само, как только разрешение будет выдано снова."
+            "value": "Приложение ProperWM перезапустится само, как только разрешение будет выдано снова."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İzni yeniden verdiğinizde Tungsten Edge kendini yeniden çalıştıracak."
+            "value": "İzni yeniden verdiğinizde ProperWM kendini yeniden çalıştıracak."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आपके दोबारा अनुमति देते ही Tungsten Edge अपने आप रीस्टार्ट हो जाएगा।"
+            "value": "आपके दोबारा अनुमति देते ही ProperWM अपने आप रीस्टार्ट हो जाएगा।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tungsten Edge sẽ tự khởi chạy lại sau khi bạn cấp lại quyền."
+            "value": "ProperWM sẽ tự khởi chạy lại sau khi bạn cấp lại quyền."
           }
         }
       }
@@ -5220,504 +5019,203 @@
         }
       }
     },
-    "Turn on Tungsten Edge in %@. This window closes by itself once you do, and the taskbar finishes starting.": {
+    "Turn on ProperWM in %@. This window closes by itself once you do, and the taskbar finishes starting.": {
       "comment": "%@ 是系统设置里的权限路径，随 macOS 版本不同",
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请在%@中，打开 Tungsten Edge 钨极的开关。开启后本窗口会自动关闭，Dock 栏会继续启动。"
+            "value": "请在%@中，打开 ProperWM的开关。开启后本窗口会自动关闭，Dock 栏会继续启动。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turn on Tungsten Edge in %@. This window closes by itself once you do, and the taskbar finishes starting."
+            "value": "Turn on ProperWM in %@. This window closes by itself once you do, and the taskbar finishes starting."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請在%@中打開Tungsten Edge的開關。打開後這個視窗會自動關閉，工作列也會繼續啟動。"
+            "value": "請在%@中打開ProperWM的開關。打開後這個視窗會自動關閉，工作列也會繼續啟動。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@でTungsten Edgeをオンにしてください。オンにするとこのウインドウは自動的に閉じ、タスクバーの起動が完了します。"
+            "value": "%@でProperWMをオンにしてください。オンにするとこのウインドウは自動的に閉じ、タスクバーの起動が完了します。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktiviere Tungsten Edge unter %@. Sobald du das getan hast, schließt sich dieses Fenster von selbst und die Taskleiste startet vollständig."
+            "value": "Aktiviere ProperWM unter %@. Sobald du das getan hast, schließt sich dieses Fenster von selbst und die Taskleiste startet vollständig."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activez Tungsten Edge dans %@. Cette fenêtre se ferme alors d’elle-même et la barre des tâches termine son démarrage."
+            "value": "Activez ProperWM dans %@. Cette fenêtre se ferme alors d’elle-même et la barre des tâches termine son démarrage."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activa Tungsten Edge en %@. Esta ventana se cerrará sola cuando lo hagas y la barra de tareas terminará de iniciarse."
+            "value": "Activa ProperWM en %@. Esta ventana se cerrará sola cuando lo hagas y la barra de tareas terminará de iniciarse."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activa Tungsten Edge en %@. Esta ventana se cerrará automáticamente cuando lo hagas y la barra de tareas terminará de iniciarse."
+            "value": "Activa ProperWM en %@. Esta ventana se cerrará automáticamente cuando lo hagas y la barra de tareas terminará de iniciarse."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ative o Tungsten Edge em %@. Esta janela se fecha sozinha quando você fizer isso, e a barra de tarefas termina de iniciar."
+            "value": "Ative o ProperWM em %@. Esta janela se fecha sozinha quando você fizer isso, e a barra de tarefas termina de iniciar."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ative o Tungsten Edge em %@. Esta janela fecha-se sozinha assim que o fizer e a barra de tarefas conclui o arranque."
+            "value": "Ative o ProperWM em %@. Esta janela fecha-se sozinha assim que o fizer e a barra de tarefas conclui o arranque."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attiva Tungsten Edge in %@. Questa finestra si chiude da sola quando lo fai e la barra delle applicazioni completa l’avvio."
+            "value": "Attiva ProperWM in %@. Questa finestra si chiude da sola quando lo fai e la barra delle applicazioni completa l’avvio."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@에서 Tungsten Edge를 켜십시오. 켜면 이 윈도우가 자동으로 닫히고 작업 표시줄이 시작됩니다."
+            "value": "%@에서 ProperWM를 켜십시오. 켜면 이 윈도우가 자동으로 닫히고 작업 표시줄이 시작됩니다."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Включите Tungsten Edge здесь: %@. Окно закроется само, и панель задач завершит запуск."
+            "value": "Включите ProperWM здесь: %@. Окно закроется само, и панель задач завершит запуск."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Şu konumda Tungsten Edge’in anahtarını açın: %@. Bunu yaptığınızda bu pencere kendiliğinden kapanır ve görev çubuğunun başlatılması tamamlanır."
+            "value": "Şu konumda ProperWM’in anahtarını açın: %@. Bunu yaptığınızda bu pencere kendiliğinden kapanır ve görev çubuğunun başlatılması tamamlanır."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ में Tungsten Edge चालू करें। चालू करते ही यह विंडो अपने आप बंद हो जाएगी और टास्कबार पूरी तरह शुरू हो जाएगा।"
+            "value": "%@ में ProperWM चालू करें। चालू करते ही यह विंडो अपने आप बंद हो जाएगी और टास्कबार पूरी तरह शुरू हो जाएगा।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hãy bật Tungsten Edge trong %@. Cửa sổ này sẽ tự đóng ngay khi bạn bật, và thanh tác vụ sẽ khởi động xong."
+            "value": "Hãy bật ProperWM trong %@. Cửa sổ này sẽ tự đóng ngay khi bạn bật, và thanh tác vụ sẽ khởi động xong."
           }
         }
       }
     },
-    "Version %@": {
+    "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag ProperWM to your Applications folder and open it from there.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "版本 %@"
+            "value": "macOS 会把辅助功能授权绑定到具体的应用副本上。当前这份ProperWM跑在一个临时或只读的位置，就算你打开了开关也不会生效，而且卸载磁盘映像后那条授权记录还会留在系统里。请把 ProperWM 拖到“应用程序”文件夹，再从那里重新打开。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@"
+            "value": "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag ProperWM to your Applications folder and open it from there."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "版本%@"
+            "value": "macOS會把輔助使用權限綁定到某一份特定的App副本上。目前這份執行於暫時或唯讀的位置，就算打開開關也不會生效，而且退出磁碟映像檔後，那筆權限記錄還會留在「系統設定」裡。請把ProperWM拖到「應用程式」檔案夾，再從那裡重新打開。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "バージョン%@"
+            "value": "macOSはアクセシビリティの許可を、アプリの特定のコピーに結び付けます。このコピーは一時的な場所または読み出し専用の場所で実行されているため、スイッチをオンにしても反映されません。さらに、ディスクイメージを取り出したあとも、許可の記録がシステム設定に残ります。ProperWMを「アプリケーション」フォルダにドラッグし、そこから開いてください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@"
+            "value": "macOS bindet die Bedienungshilfen-Berechtigung an genau eine Kopie einer App. Diese Kopie läuft von einem temporären oder schreibgeschützten Ort, deshalb bleibt das Aktivieren des Schalters wirkungslos – und der Berechtigungseintrag bleibt nach dem Auswerfen des Images in den Systemeinstellungen zurück. Bewege ProperWM in den Ordner „Programme“ und öffne es von dort."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@"
+            "value": "macOS associe l’autorisation d’accessibilité à une copie précise d’une app. Cette copie s’exécute depuis un emplacement temporaire ou en lecture seule, si bien qu’activer l’interrupteur restera sans effet — et l’autorisation restera inscrite dans Réglages Système après l’éjection de l’image disque. Faites glisser ProperWM dans votre dossier Applications, puis ouvrez-le depuis là."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versión %@"
+            "value": "macOS asocia el permiso de accesibilidad a una copia concreta de cada app. Esta copia se está ejecutando desde una ubicación temporal o de solo lectura, así que activar el interruptor no surtirá efecto, y el registro del permiso se queda en Ajustes del Sistema después de expulsar la imagen de disco. Arrastra ProperWM a la carpeta Aplicaciones y ábrelo desde allí."
           }
         },
         "es-419": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versión %@"
+            "value": "macOS asocia el permiso de accesibilidad a una copia específica de cada app. Esta copia se está ejecutando desde una ubicación temporal o de sólo lectura, así que activar el interruptor no tendrá efecto, y el registro del permiso permanece en Configuración del Sistema después de expulsar la imagen de disco. Arrastra ProperWM a la carpeta Aplicaciones y ábrelo desde ahí."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versão %@"
+            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de um app. Esta cópia está em execução a partir de um local temporário ou somente leitura, portanto ativar o interruptor não terá efeito — e o registro da permissão continua nos Ajustes do Sistema depois que a imagem de disco é ejetada. Arraste o ProperWM para a pasta Aplicativos e abra-o de lá."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versão %@"
+            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de uma aplicação. Esta cópia está a ser executada a partir de uma localização temporária ou só de leitura, pelo que ativar o interruptor não terá efeito – e o registo da permissão permanece nas Definições do Sistema depois de a imagem de disco ser ejetada. Arraste o ProperWM para a pasta Aplicações e abra-o a partir daí."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versione %@"
+            "value": "macOS associa l’autorizzazione di accessibilità a una copia specifica di un’app. Questa copia viene eseguita da una posizione temporanea o di sola lettura, quindi attivare l’interruttore non avrà effetto; inoltre l’autorizzazione resta registrata in Impostazioni di Sistema anche dopo l’espulsione dell’immagine disco. Trascina ProperWM nella cartella Applicazioni e aprilo da lì."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "버전 %@"
+            "value": "macOS는 손쉬운 사용 권한을 앱의 특정 사본 하나에 연결합니다. 이 사본은 임시 위치 또는 읽기 전용 위치에서 실행 중이므로 스위치를 켜도 적용되지 않으며, 디스크 이미지를 추출한 뒤에도 권한 기록이 시스템 설정에 남게 됩니다. ProperWM를 응용 프로그램 폴더로 드래그한 다음 그곳에서 여십시오."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Версия %@"
+            "value": "macOS привязывает разрешение универсального доступа к конкретной копии приложения. Эта копия запущена из временной папки или с носителя только для чтения, поэтому включение переключателя не подействует, а запись о разрешении останется в Системных настройках после извлечения образа диска. Перетащите ProperWM в папку «Приложения» и откройте приложение оттуда."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sürüm %@"
+            "value": "macOS, Erişilebilirlik iznini bir uygulamanın belirli bir kopyasına bağlar. Bu kopya geçici veya salt okunur bir konumdan çalıştığı için anahtarı açmak etki etmez — ayrıca disk görüntüsü çıkarıldıktan sonra izin kaydı Sistem Ayarları’nda kalır. ProperWM’i Uygulamalar klasörünüze sürükleyin ve oradan açın."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "संस्करण %@"
+            "value": "macOS ऐक्सेसिबिलिटी अनुमति को ऐप की किसी एक ख़ास कॉपी से जोड़ता है। यह कॉपी किसी अस्थायी या रीड-ओनली जगह से चल रही है, इसलिए स्विच चालू करने का कोई असर नहीं होगा — और डिस्क इमेज बाहर निकालने के बाद भी अनुमति का रिकॉर्ड सिस्टम सेटिंग में बचा रहता है। ProperWM को ऐप्लिकेशन फ़ोल्डर में ड्रैग करें और वहीं से खोलें।"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phiên bản %@"
-          }
-        }
-      }
-    },
-    "Version %@ (%@)": {
-      "comment": "%@ 依次是版本号与构建号",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本 %@ (%@)"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version %@ (%@)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本%@（%@）"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "バージョン%@ (%@)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version %@ (%@)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version %@ (%@)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versión %@ (%@)"
-          }
-        },
-        "es-419": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versión %@ (%@)"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versão %@ (%@)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versão %@ (%@)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versione %@ (%@)"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "버전 %@(%@)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Версия %@ (%@)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sürüm %@ (%@)"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "संस्करण %@ (%@)"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phiên bản %@ (%@)"
-          }
-        }
-      }
-    },
-    "Version (%@)": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本 (%@)"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version (%@)"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "版本（%@）"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "バージョン (%@)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version (%@)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Version (%@)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versión (%@)"
-          }
-        },
-        "es-419": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versión (%@)"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versão (%@)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versão (%@)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versione (%@)"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "버전(%@)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Версия (%@)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sürüm (%@)"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "संस्करण (%@)"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phiên bản (%@)"
-          }
-        }
-      }
-    },
-    "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag Tungsten Edge to your Applications folder and open it from there.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS 会把辅助功能授权绑定到具体的应用副本上。当前这份钨极跑在一个临时或只读的位置，就算你打开了开关也不会生效，而且卸载磁盘映像后那条授权记录还会留在系统里。请把 Tungsten Edge 拖到“应用程序”文件夹，再从那里重新打开。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag Tungsten Edge to your Applications folder and open it from there."
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS會把輔助使用權限綁定到某一份特定的App副本上。目前這份執行於暫時或唯讀的位置，就算打開開關也不會生效，而且退出磁碟映像檔後，那筆權限記錄還會留在「系統設定」裡。請把Tungsten Edge拖到「應用程式」檔案夾，再從那裡重新打開。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOSはアクセシビリティの許可を、アプリの特定のコピーに結び付けます。このコピーは一時的な場所または読み出し専用の場所で実行されているため、スイッチをオンにしても反映されません。さらに、ディスクイメージを取り出したあとも、許可の記録がシステム設定に残ります。Tungsten Edgeを「アプリケーション」フォルダにドラッグし、そこから開いてください。"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS bindet die Bedienungshilfen-Berechtigung an genau eine Kopie einer App. Diese Kopie läuft von einem temporären oder schreibgeschützten Ort, deshalb bleibt das Aktivieren des Schalters wirkungslos – und der Berechtigungseintrag bleibt nach dem Auswerfen des Images in den Systemeinstellungen zurück. Bewege Tungsten Edge in den Ordner „Programme“ und öffne es von dort."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS associe l’autorisation d’accessibilité à une copie précise d’une app. Cette copie s’exécute depuis un emplacement temporaire ou en lecture seule, si bien qu’activer l’interrupteur restera sans effet — et l’autorisation restera inscrite dans Réglages Système après l’éjection de l’image disque. Faites glisser Tungsten Edge dans votre dossier Applications, puis ouvrez-le depuis là."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS asocia el permiso de accesibilidad a una copia concreta de cada app. Esta copia se está ejecutando desde una ubicación temporal o de solo lectura, así que activar el interruptor no surtirá efecto, y el registro del permiso se queda en Ajustes del Sistema después de expulsar la imagen de disco. Arrastra Tungsten Edge a la carpeta Aplicaciones y ábrelo desde allí."
-          }
-        },
-        "es-419": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS asocia el permiso de accesibilidad a una copia específica de cada app. Esta copia se está ejecutando desde una ubicación temporal o de sólo lectura, así que activar el interruptor no tendrá efecto, y el registro del permiso permanece en Configuración del Sistema después de expulsar la imagen de disco. Arrastra Tungsten Edge a la carpeta Aplicaciones y ábrelo desde ahí."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de um app. Esta cópia está em execução a partir de um local temporário ou somente leitura, portanto ativar o interruptor não terá efeito — e o registro da permissão continua nos Ajustes do Sistema depois que a imagem de disco é ejetada. Arraste o Tungsten Edge para a pasta Aplicativos e abra-o de lá."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de uma aplicação. Esta cópia está a ser executada a partir de uma localização temporária ou só de leitura, pelo que ativar o interruptor não terá efeito – e o registo da permissão permanece nas Definições do Sistema depois de a imagem de disco ser ejetada. Arraste o Tungsten Edge para a pasta Aplicações e abra-o a partir daí."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS associa l’autorizzazione di accessibilità a una copia specifica di un’app. Questa copia viene eseguita da una posizione temporanea o di sola lettura, quindi attivare l’interruttore non avrà effetto; inoltre l’autorizzazione resta registrata in Impostazioni di Sistema anche dopo l’espulsione dell’immagine disco. Trascina Tungsten Edge nella cartella Applicazioni e aprilo da lì."
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS는 손쉬운 사용 권한을 앱의 특정 사본 하나에 연결합니다. 이 사본은 임시 위치 또는 읽기 전용 위치에서 실행 중이므로 스위치를 켜도 적용되지 않으며, 디스크 이미지를 추출한 뒤에도 권한 기록이 시스템 설정에 남게 됩니다. Tungsten Edge를 응용 프로그램 폴더로 드래그한 다음 그곳에서 여십시오."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS привязывает разрешение универсального доступа к конкретной копии приложения. Эта копия запущена из временной папки или с носителя только для чтения, поэтому включение переключателя не подействует, а запись о разрешении останется в Системных настройках после извлечения образа диска. Перетащите Tungsten Edge в папку «Приложения» и откройте приложение оттуда."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS, Erişilebilirlik iznini bir uygulamanın belirli bir kopyasına bağlar. Bu kopya geçici veya salt okunur bir konumdan çalıştığı için anahtarı açmak etki etmez — ayrıca disk görüntüsü çıkarıldıktan sonra izin kaydı Sistem Ayarları’nda kalır. Tungsten Edge’i Uygulamalar klasörünüze sürükleyin ve oradan açın."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS ऐक्सेसिबिलिटी अनुमति को ऐप की किसी एक ख़ास कॉपी से जोड़ता है। यह कॉपी किसी अस्थायी या रीड-ओनली जगह से चल रही है, इसलिए स्विच चालू करने का कोई असर नहीं होगा — और डिस्क इमेज बाहर निकालने के बाद भी अनुमति का रिकॉर्ड सिस्टम सेटिंग में बचा रहता है। Tungsten Edge को ऐप्लिकेशन फ़ोल्डर में ड्रैग करें और वहीं से खोलें।"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS gắn quyền Trợ năng với một bản sao cụ thể của ứng dụng. Bản sao này đang chạy từ vị trí tạm thời hoặc chỉ đọc, vì vậy việc bật công tắc sẽ không có hiệu lực — và bản ghi quyền vẫn còn lại trong Cài đặt hệ thống sau khi ảnh đĩa được tháo. Hãy kéo Tungsten Edge vào thư mục Ứng dụng rồi mở từ đó."
+            "value": "macOS gắn quyền Trợ năng với một bản sao cụ thể của ứng dụng. Bản sao này đang chạy từ vị trí tạm thời hoặc chỉ đọc, vì vậy việc bật công tắc sẽ không có hiệu lực — và bản ghi quyền vẫn còn lại trong Cài đặt hệ thống sau khi ảnh đĩa được tháo. Hãy kéo ProperWM vào thư mục Ứng dụng rồi mở từ đó."
           }
         }
       }

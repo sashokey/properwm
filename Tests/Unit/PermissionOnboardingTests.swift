@@ -20,32 +20,32 @@ final class PermissionOnboardingTests: XCTestCase {
     }
 
     func testClassifiesStableLocations() {
-        XCTAssertEqual(location("/Applications/Tungsten Edge.app"), .applications)
+        XCTAssertEqual(location("/Applications/ProperWM.app"), .applications)
         XCTAssertEqual(
-            location(NSHomeDirectory() + "/Applications/Tungsten Edge.app"),
+            location(NSHomeDirectory() + "/Applications/ProperWM.app"),
             .applications
         )
-        XCTAssertEqual(location("/Volumes/Samsung T7/Tungsten Edge.app", readOnly: false), .other)
-        XCTAssertEqual(location("/Users/someone/Downloads/Tungsten Edge.app"), .other)
+        XCTAssertEqual(location("/Volumes/Samsung T7/ProperWM.app", readOnly: false), .other)
+        XCTAssertEqual(location("/Users/someone/Downloads/ProperWM.app"), .other)
     }
 
     func testClassifiesTransientLocations() {
-        XCTAssertEqual(location("/Volumes/Tungsten Edge 0.7.0/Tungsten Edge.app", readOnly: true), .readOnlyVolume)
+        XCTAssertEqual(location("/Volumes/ProperWM 0.7.0/ProperWM.app", readOnly: true), .readOnlyVolume)
         XCTAssertEqual(
-            location("/private/var/folders/ab/AppTranslocation/XYZ/d/Tungsten Edge.app"),
+            location("/private/var/folders/ab/AppTranslocation/XYZ/d/ProperWM.app"),
             .appTranslocation
         )
     }
 
     func testTranslocationWinsOverVolumeReadability() {
         XCTAssertEqual(
-            location("/Volumes/Foo/AppTranslocation/XYZ/d/Tungsten Edge.app", readOnly: false),
+            location("/Volumes/Foo/AppTranslocation/XYZ/d/ProperWM.app", readOnly: false),
             .appTranslocation
         )
     }
 
     func testUnknownVolumeReadabilityIsTreatedAsWritable() {
-        XCTAssertEqual(location("/Volumes/Whatever/Tungsten Edge.app", readOnly: nil), .other)
+        XCTAssertEqual(location("/Volumes/Whatever/ProperWM.app", readOnly: nil), .other)
     }
 
     func testTransientLocationsRejectAccessibilityPrompt() {

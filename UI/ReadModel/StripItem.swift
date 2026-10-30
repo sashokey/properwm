@@ -6,7 +6,7 @@ enum WindowDisplayTitle {
         let title = rawTitle.flatMap { title in
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
         } ?? fallbackName
-        return title == "macos-dock-cc-v2" ? String(localized: "Taskbar") : title
+        return title == "ProperWM" ? String(localized: "Taskbar") : title
     }
 
     static func trimmingAppNameSuffix(_ title: String, appName: String) -> String {
@@ -34,7 +34,6 @@ struct StripItem: Hashable {
     let showsTitle: Bool
     let isAppLevelFallback: Bool
     let canMinimize: Bool
-    let canHide: Bool
     let canClose: Bool
     let isOnDesktop: Bool
     let cgWindowID: CGWindowID?
@@ -62,7 +61,6 @@ struct StripItem: Hashable {
         self.showsTitle = sameAppCardCount >= 2
         self.isAppLevelFallback = token.hasPrefix("app-")
         self.canMinimize = self.isAppLevelFallback == false
-        self.canHide = true
         self.canClose = self.isAppLevelFallback == false
         self.isOnDesktop = representative.isOnDesktop
         self.cgWindowID = representative.cgWindowID

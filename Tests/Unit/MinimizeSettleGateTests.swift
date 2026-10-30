@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class MinimizeSettleGateTests: XCTestCase {
     /// 锚点取参考纪元 0:`addingTimeInterval(x)` 与 `timeIntervalSince(anchor)` 都精确等于 x,

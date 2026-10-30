@@ -1,10 +1,10 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 /// macOS 12 的老登录项路径。真正碰 CoreServices 的 `SharedFileListLoginItems` 在这里用内存列表替掉，
 /// 测的是后端的判断：什么时候算开、重复勾选不重复插、取消要清干净、列表打不开时怎么表现。
 final class LaunchAtLoginServiceTests: XCTestCase {
-    private let app = URL(fileURLWithPath: "/Applications/Tungsten Edge.app")
+    private let app = URL(fileURLWithPath: "/Applications/ProperWM.app")
     private let otherApp = URL(fileURLWithPath: "/Applications/Safari.app")
 
     // MARK: 读状态
@@ -35,7 +35,7 @@ final class LaunchAtLoginServiceTests: XCTestCase {
 
     func testReadTreatsTrailingSlashVariantAsTheSameBundle() {
         // 列表里存的 URL 带不带结尾斜杠不稳定，不能因此把「已勾选」读成「未勾选」。
-        let listed = URL(fileURLWithPath: "/Applications/Tungsten Edge.app/")
+        let listed = URL(fileURLWithPath: "/Applications/ProperWM.app/")
         XCTAssertEqual(
             LegacyLoginItemBackend(list: LoginItemListStub(urls: [listed]), bundleURL: app).readState(),
             .on
@@ -56,7 +56,7 @@ final class LaunchAtLoginServiceTests: XCTestCase {
     }
 
     func testDisableRemovesEveryMatchingEntryAndLeavesOthersAlone() throws {
-        let duplicate = URL(fileURLWithPath: "/Applications/Tungsten Edge.app/")
+        let duplicate = URL(fileURLWithPath: "/Applications/ProperWM.app/")
         let list = LoginItemListStub(urls: [app, otherApp, duplicate])
         let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
 
@@ -93,12 +93,12 @@ final class LaunchAtLoginServiceTests: XCTestCase {
 
     func testMatcherIgnoresTrailingSlashAndNormalizesPath() {
         XCTAssertTrue(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/Tungsten Edge.app/"),
-            URL(fileURLWithPath: "/Applications/Tungsten Edge.app")
+            URL(fileURLWithPath: "/Applications/ProperWM.app/"),
+            URL(fileURLWithPath: "/Applications/ProperWM.app")
         ))
         XCTAssertTrue(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/Utilities/../Tungsten Edge.app"),
-            URL(fileURLWithPath: "/Applications/Tungsten Edge.app")
+            URL(fileURLWithPath: "/Applications/Utilities/../ProperWM.app"),
+            URL(fileURLWithPath: "/Applications/ProperWM.app")
         ))
     }
 
@@ -106,8 +106,8 @@ final class LaunchAtLoginServiceTests: XCTestCase {
         XCTAssertFalse(LoginItemURLMatcher.matches(app, otherApp))
         // 前缀相同不算同一个包。
         XCTAssertFalse(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/Tungsten Edge.app"),
-            URL(fileURLWithPath: "/Applications/Tungsten Edge.app.bak")
+            URL(fileURLWithPath: "/Applications/ProperWM.app"),
+            URL(fileURLWithPath: "/Applications/ProperWM.app.bak")
         ))
     }
 

@@ -30,9 +30,6 @@ final class AppSettingsStore: ObservableObject {
     let taskbarScreenPlacement = TaskbarScreenPlacement.allScreensPerDisplay
     let edgeAutoHideEnabled = false
     let edgeAutoHideDelay = AppSettingsStore.neverHideDelay
-    let frontWindowBar = false
-    let showShelf = false
-    let showTrash = false
 
     private let defaults: UserDefaults
 

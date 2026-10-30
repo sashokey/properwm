@@ -100,9 +100,6 @@
 		A00000000000000000009091 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009080 /* PanelGeometry.swift */; };
 		A000000000000000000090A1 /* PanelGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000090A0 /* PanelGeometryTests.swift */; };
 		A000000000000000000090B1 /* FullscreenClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000090B0 /* FullscreenClassificationTests.swift */; };
-		A0000000000000000000EA01 /* FrontWindowIndicatorDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000EA00 /* FrontWindowIndicatorDecision.swift */; };
-		A0000000000000000000EA02 /* FrontWindowIndicatorDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000EA00 /* FrontWindowIndicatorDecision.swift */; };
-		A0000000000000000000EA11 /* FrontWindowIndicatorDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000EA10 /* FrontWindowIndicatorDecisionTests.swift */; };
 		A00000000000000000001C01 /* IconRenditionChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C00 /* IconRenditionChoice.swift */; };
 		A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C20 /* IconBitmapRenderer.swift */; };
 		A10CF0000000000000000001 /* AppIconFreshness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10CF0000000000000000000 /* AppIconFreshness.swift */; };
@@ -167,7 +164,7 @@
 		C9000000000000000000000D /* ChipPressFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000001 /* ChipPressFeedback.swift */; };
 		A000000000000000000019D1 /* AppMenuFragments.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019C1 /* AppMenuFragments.swift */; };
 		A00000000000000000009771 /* WindowOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009770 /* WindowOrderingTests.swift */; };
-		A00000000000000000001001 /* MacOSDockCCV2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* MacOSDockCCV2App.swift */; };
+		A00000000000000000001001 /* ProperWMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* ProperWMApp.swift */; };
 		A000000000000000000010F1 /* PermissionOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F1 /* PermissionOnboardingView.swift */; };
 		A00000000000000000001003 /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* AppComposition.swift */; };
 		A00000000000000000001004 /* ObservationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000004 /* ObservationPipeline.swift */; };
@@ -239,13 +236,10 @@
 		A00000000000000000001043 /* AppTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000069 /* AppTracker.swift */; };
 		A00000000000000000009610 /* TabFoldDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009600 /* TabFoldDecision.swift */; };
 		A00000000000000000009611 /* TabFoldDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009600 /* TabFoldDecision.swift */; };
-		A00000000000000000000D201 /* ProcessEnvironmentScrub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000D200 /* ProcessEnvironmentScrub.swift */; };
 		A00000000000000000000E201 /* WindowTitleSettle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E200 /* WindowTitleSettle.swift */; };
 		A00000000000000000000B121 /* DockPanelRimPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B120 /* DockPanelRimPlan.swift */; };
-		A00000000000000000000D202 /* ProcessEnvironmentScrub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000D200 /* ProcessEnvironmentScrub.swift */; };
 		A00000000000000000000E202 /* WindowTitleSettle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E200 /* WindowTitleSettle.swift */; };
 		A00000000000000000000B122 /* DockPanelRimPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B120 /* DockPanelRimPlan.swift */; };
-		A00000000000000000000D211 /* ProcessEnvironmentScrubTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000D210 /* ProcessEnvironmentScrubTests.swift */; };
 		A00000000000000000000E211 /* WindowTitleSettleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E210 /* WindowTitleSettleTests.swift */; };
 		A00000000000000000000B131 /* DockPanelRimPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B130 /* DockPanelRimPlanTests.swift */; };
 		A00000000000000000000B201 /* AppNameRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B200 /* AppNameRegistryTests.swift */; };
@@ -283,9 +277,6 @@
 		D40000000000000000000003 /* NonRegularEvictionDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000103 /* NonRegularEvictionDecision.swift */; };
 		B10000000000000000000011 /* CGSnapshotReuseDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000010B /* CGSnapshotReuseDecision.swift */; };
 		B10000000000000000000005 /* ScanProbeGateDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000104 /* ScanProbeGateDecision.swift */; };
-		A00000000000000000009E1C /* BuildProvenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E07 /* BuildProvenance.swift */; };
-		A00000000000000000009E1D /* BuildProvenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E07 /* BuildProvenance.swift */; };
-		A00000000000000000009E1E /* BuildProvenanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E08 /* BuildProvenanceTests.swift */; };
 		A00000000000000000009E21 /* LegacyLoginItemBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E20 /* LegacyLoginItemBackend.swift */; };
 		A00000000000000000009E22 /* LegacyLoginItemBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E20 /* LegacyLoginItemBackend.swift */; };
 		A00000000000000000009E24 /* LaunchAtLoginServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */; };
@@ -331,7 +322,7 @@
 			containerPortal = A0000000000000000000003F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A00000000000000000000038;
-			remoteInfo = "macos-dock-cc-v2";
+			remoteInfo = "ProperWM";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -408,8 +399,6 @@
 		B1000000000000000000010B /* CGSnapshotReuseDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGSnapshotReuseDecision.swift; sourceTree = "<group>"; };
 		B10000000000000000000104 /* ScanProbeGateDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProbeGateDecision.swift; sourceTree = "<group>"; };
 		A00000000000000000009E06 /* ScanAdmissionDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAdmissionDecisionTests.swift; sourceTree = "<group>"; };
-		A00000000000000000009E07 /* BuildProvenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildProvenance.swift; sourceTree = "<group>"; };
-		A00000000000000000009E08 /* BuildProvenanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildProvenanceTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009E20 /* LegacyLoginItemBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyLoginItemBackend.swift; sourceTree = "<group>"; };
 		A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginServiceTests.swift; sourceTree = "<group>"; };
 		F3A0000000000000000000A0 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
@@ -443,10 +432,8 @@
 		A00000000000000000009750 /* NonConstrainingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonConstrainingPanel.swift; sourceTree = "<group>"; };
 		A00000000000000000000C00 /* ManualPanelHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPanelHostTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000ACC0 /* NonConstrainingPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonConstrainingPanelTests.swift; sourceTree = "<group>"; };
-		A00000000000000000000D200 /* ProcessEnvironmentScrub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessEnvironmentScrub.swift; sourceTree = "<group>"; };
 		A00000000000000000000E200 /* WindowTitleSettle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleSettle.swift; sourceTree = "<group>"; };
 		A00000000000000000000B120 /* DockPanelRimPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockPanelRimPlan.swift; sourceTree = "<group>"; };
-		A00000000000000000000D210 /* ProcessEnvironmentScrubTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessEnvironmentScrubTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000E210 /* WindowTitleSettleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleSettleTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000B130 /* DockPanelRimPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockPanelRimPlanTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000B200 /* AppNameRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNameRegistryTests.swift; sourceTree = "<group>"; };
@@ -465,7 +452,7 @@
 		A000000000000000000019B1 /* AppDisplayNameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameResolver.swift; sourceTree = "<group>"; };
 		C90000000000000000000001 /* ChipPressFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipPressFeedback.swift; sourceTree = "<group>"; };
 		A000000000000000000019C1 /* AppMenuFragments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuFragments.swift; sourceTree = "<group>"; };
-		A00000000000000000000001 /* MacOSDockCCV2App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacOSDockCCV2App.swift; sourceTree = "<group>"; };
+		A00000000000000000000001 /* ProperWMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProperWMApp.swift; sourceTree = "<group>"; };
 		A000000000000000000000F1 /* PermissionOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOnboardingView.swift; sourceTree = "<group>"; };
 		A00000000000000000000003 /* AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComposition.swift; sourceTree = "<group>"; };
 		A00000000000000000000004 /* ObservationPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationPipeline.swift; sourceTree = "<group>"; };
@@ -506,7 +493,7 @@
 		A00000000000000000000F10 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		A00000000000000000000F11 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		A00000000000000000000017 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		A00000000000000000000018 /* macos-dock-cc-v2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "macos-dock-cc-v2.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000018 /* ProperWM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ProperWM.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000019 /* window-lab */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "window-lab"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000058 /* FinderP0Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderP0Tests.swift; sourceTree = "<group>"; };
 		A00000000000000000008040 /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
@@ -517,7 +504,6 @@
 		B72000000000000000000003 /* AppDisplayNameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameCache.swift; sourceTree = "<group>"; };
 		C90000000000000000000005 /* ClickLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickLatencyTrace.swift; sourceTree = "<group>"; };
 		A00000000000000000009AB0 /* HoverTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTrace.swift; sourceTree = "<group>"; };
-		A0000000000000000000EA00 /* FrontWindowIndicatorDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontWindowIndicatorDecision.swift; sourceTree = "<group>"; };
 		A00000000000000000001C00 /* IconRenditionChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconRenditionChoice.swift; sourceTree = "<group>"; };
 		A00000000000000000001C20 /* IconBitmapRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconBitmapRenderer.swift; sourceTree = "<group>"; };
 		A10CF0000000000000000000 /* AppIconFreshness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconFreshness.swift; sourceTree = "<group>"; };
@@ -536,7 +522,6 @@
 		D90000000000000000000004 /* DisplayTopologyRefreshController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshController.swift; sourceTree = "<group>"; };
 		D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshControllerTests.swift; sourceTree = "<group>"; };
 		D90000000000000000000008 /* DisplayTopologyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStoreTests.swift; sourceTree = "<group>"; };
-		A0000000000000000000EA10 /* FrontWindowIndicatorDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontWindowIndicatorDecisionTests.swift; sourceTree = "<group>"; };
 		A00000000000000000001C10 /* IconRenditionChoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconRenditionChoiceTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayTitleTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FB00 /* DockThemeTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockThemeTokens.swift; sourceTree = "<group>"; };
@@ -545,12 +530,12 @@
 		E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockLiquidGlassConfiguration.swift; sourceTree = "<group>"; };
 		E10000000000000000000002 /* DockGlassRuntimeBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DockGlassRuntimeBridge.h; sourceTree = "<group>"; };
 		E10000000000000000000003 /* DockGlassRuntimeBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DockGlassRuntimeBridge.m; sourceTree = "<group>"; };
-		E10000000000000000000004 /* TungstenEdge-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TungstenEdge-Bridging-Header.h"; sourceTree = "<group>"; };
+		E10000000000000000000004 /* ProperWM-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ProperWM-Bridging-Header.h"; sourceTree = "<group>"; };
 		E10000000000000000000005 /* DockLiquidGlassConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockLiquidGlassConfigurationTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FD00 /* DockThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockThemeTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009770 /* WindowOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrderingTests.swift; sourceTree = "<group>"; };
 		A000000000000000000090B0 /* FullscreenClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenClassificationTests.swift; sourceTree = "<group>"; };
-		A00000000000000000000059 /* macos-dock-cc-v2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "macos-dock-cc-v2Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000059 /* ProperWMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ProperWMTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -595,7 +580,7 @@
 		A0000000000000000000001D /* App */ = {
 			isa = PBXGroup;
 			children = (
-				E10000000000000000000004 /* TungstenEdge-Bridging-Header.h */,
+				E10000000000000000000004 /* ProperWM-Bridging-Header.h */,
 				A00000000000000000000024 /* Entry */,
 				A00000000000000000000025 /* Composition */,
 				A00000000000000000000026 /* Scenes */,
@@ -613,7 +598,7 @@
 				E90000000000000000000020 /* PanelCoordinator+Tooltip.swift */,
 				E9D000000000000000000035 /* PanelCoordinator+ResizeCursor.swift */,
 				E90000000000000000000021 /* PanelCoordinator+Spaces.swift */,
-				A00000000000000000000001 /* MacOSDockCCV2App.swift */,
+				A00000000000000000000001 /* ProperWMApp.swift */,
 				A00000000000000000000066 /* AppDelegate.swift */,
 				A00000000000000000008020 /* StatusMenuController.swift */,
 				A0000000000000000000006C /* PanelCoordinator.swift */,
@@ -708,7 +693,6 @@
 				E9D000000000000000000032 /* DockHeightDragSession.swift */,
 				BAA000000000000000000001 /* BarArrowCursorDecision.swift */,
 				C30000000000000000000010 /* AppFallbackChipDecision.swift */,
-				A0000000000000000000EA00 /* FrontWindowIndicatorDecision.swift */,
 				A00000000000000000001C00 /* IconRenditionChoice.swift */,
 				B10000000000000000000109 /* HoverPollThrottle.swift */,
 				B1000000000000000000010D /* MinimizeHandoffTarget.swift */,
@@ -726,11 +710,9 @@
 				A00000000000000000009AB0 /* HoverTrace.swift */,
 				A0000000000000000000FB00 /* DockThemeTokens.swift */,
 				E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */,
-				A00000000000000000000D200 /* ProcessEnvironmentScrub.swift */,
 				A00000000000000000000E200 /* WindowTitleSettle.swift */,
 				A00000000000000000000B120 /* DockPanelRimPlan.swift */,
 				A00000000000000000009A00 /* WindowLiftAvoidance.swift */,
-				A00000000000000000009E07 /* BuildProvenance.swift */,
 				D10000000000000000000006 /* AccessoryWindowPresentation.swift */,
 				D10000000000000000000041 /* StripContextMenuZone.swift */,
 				D10000000000000000000067 /* StripWheelScroll.swift */,
@@ -977,7 +959,6 @@
 				A000000000000000000090A0 /* PanelGeometryTests.swift */,
 				A00000000000000000009D10 /* WindowTitleTooltipTests.swift */,
 				A000000000000000000090B0 /* FullscreenClassificationTests.swift */,
-				A0000000000000000000EA10 /* FrontWindowIndicatorDecisionTests.swift */,
 				A00000000000000000001C10 /* IconRenditionChoiceTests.swift */,
 				A10CF0000000000000000010 /* AppIconStampTests.swift */,
 				A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */,
@@ -992,7 +973,6 @@
 				A00000000000000000009E04 /* ProcessLivenessTests.swift */,
 				A00000000000000000000B90 /* FeedbackTickPolicyTests.swift */,
 				A00000000000000000009E06 /* ScanAdmissionDecisionTests.swift */,
-				A00000000000000000009E08 /* BuildProvenanceTests.swift */,
 				A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */,
 				A00000000000000000009A20 /* WindowLiftAvoidanceTests.swift */,
 				A00000000000000000009801 /* CGWindowSnapshotTests.swift */,
@@ -1016,7 +996,6 @@
 				B1000000000000000000013A /* StripDisplayFilterTests.swift */,
 				B10000000000000000000204 /* StripSharedAffixTrimTests.swift */,
 				B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */,
-				A00000000000000000000D210 /* ProcessEnvironmentScrubTests.swift */,
 				A00000000000000000000E210 /* WindowTitleSettleTests.swift */,
 				A00000000000000000000B130 /* DockPanelRimPlanTests.swift */,
 				A00000000000000000000B200 /* AppNameRegistryTests.swift */,
@@ -1032,9 +1011,9 @@
 		A00000000000000000000023 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000018 /* macos-dock-cc-v2.app */,
+				A00000000000000000000018 /* ProperWM.app */,
 				A00000000000000000000019 /* window-lab */,
-				A00000000000000000000059 /* macos-dock-cc-v2Tests.xctest */,
+				A00000000000000000000059 /* ProperWMTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1042,9 +1021,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000038 /* macos-dock-cc-v2 */ = {
+		A00000000000000000000038 /* ProperWM */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000039 /* Build configuration list for PBXNativeTarget "macos-dock-cc-v2" */;
+			buildConfigurationList = A00000000000000000000039 /* Build configuration list for PBXNativeTarget "ProperWM" */;
 			buildPhases = (
 				A0000000000000000000003A /* Sources */,
 				A0000000000000000000001A /* Frameworks */,
@@ -1054,11 +1033,11 @@
 			);
 			dependencies = (
 			);
-			name = "macos-dock-cc-v2";
+			name = "ProperWM";
 			packageProductDependencies = (
 			);
-			productName = "macos-dock-cc-v2";
-			productReference = A00000000000000000000018 /* macos-dock-cc-v2.app */;
+			productName = "ProperWM";
+			productReference = A00000000000000000000018 /* ProperWM.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A0000000000000000000003C /* window-lab */ = {
@@ -1077,9 +1056,9 @@
 			productReference = A00000000000000000000019 /* window-lab */;
 			productType = "com.apple.product-type.tool";
 		};
-		A0000000000000000000005A /* macos-dock-cc-v2Tests */ = {
+		A0000000000000000000005A /* ProperWMTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A0000000000000000000005B /* Build configuration list for PBXNativeTarget "macos-dock-cc-v2Tests" */;
+			buildConfigurationList = A0000000000000000000005B /* Build configuration list for PBXNativeTarget "ProperWMTests" */;
 			buildPhases = (
 				A0000000000000000000005C /* Sources */,
 				A0000000000000000000005D /* Frameworks */,
@@ -1089,9 +1068,9 @@
 			dependencies = (
 				A00000000000000000009621 /* PBXTargetDependency */,
 			);
-			name = "macos-dock-cc-v2Tests";
-			productName = "macos-dock-cc-v2Tests";
-			productReference = A00000000000000000000059 /* macos-dock-cc-v2Tests.xctest */;
+			name = "ProperWMTests";
+			productName = "ProperWMTests";
+			productReference = A00000000000000000000059 /* ProperWMTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -1115,7 +1094,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A00000000000000000000040 /* Build configuration list for PBXProject "macos-dock-cc-v2" */;
+			buildConfigurationList = A00000000000000000000040 /* Build configuration list for PBXProject "ProperWM" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -1145,9 +1124,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A00000000000000000000038 /* macos-dock-cc-v2 */,
+				A00000000000000000000038 /* ProperWM */,
 				A0000000000000000000003C /* window-lab */,
-				A0000000000000000000005A /* macos-dock-cc-v2Tests */,
+				A0000000000000000000005A /* ProperWMTests */,
 			);
 		};
 /* End PBXProject section */
@@ -1204,7 +1183,7 @@
 					F20000000000000000000002 /* FullscreenIntentMonitor.swift in Sources */,
 					F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */,
 					C30000000000000000000001 /* AppFallbackChipDecision.swift in Sources */,
-					A00000000000000000001001 /* MacOSDockCCV2App.swift in Sources */,
+					A00000000000000000001001 /* ProperWMApp.swift in Sources */,
 					A00000000000000000001040 /* AppDelegate.swift in Sources */,
 					D20000000000000000000003 /* SettingsCoordinator.swift in Sources */,
 					D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */,
@@ -1241,14 +1220,12 @@
 					A00000000000000000009A11 /* WindowLiftAvoidanceController.swift in Sources */,
 					A00000000000000000009A31 /* FrontmostWindowGeometryObserver.swift in Sources */,
 					A00000000000000000009A01 /* WindowLiftAvoidance.swift in Sources */,
-				A00000000000000000009E1C /* BuildProvenance.swift in Sources */,
 					A00000000000000000008021 /* StatusMenuController.swift in Sources */,
 					A000000000000000000019A1 /* AppDisplayNameResolver.swift in Sources */,
 					C90000000000000000000002 /* ChipPressFeedback.swift in Sources */,
 					A000000000000000000019D1 /* AppMenuFragments.swift in Sources */,
 					F3A0000000000000000000A1 /* DiagnosticReport.swift in Sources */,
 					D1A000000000000000000002 /* StripProjectionRegistry.swift in Sources */,
-					A0000000000000000000EA01 /* FrontWindowIndicatorDecision.swift in Sources */,
 					A00000000000000000001C01 /* IconRenditionChoice.swift in Sources */,
 					B1000000000000000000000E /* HoverPollThrottle.swift in Sources */,
 					B1000000000000000000010E /* MinimizeHandoffTarget.swift in Sources */,
@@ -1267,7 +1244,6 @@
 					A0000000000000000000FC01 /* DockTheme.swift in Sources */,
 					A0000000000000000000FE01 /* DockGlassBackdrop.swift in Sources */,
 					E20000000000000000000003 /* DockGlassRuntimeBridge.m in Sources */,
-					A00000000000000000000D201 /* ProcessEnvironmentScrub.swift in Sources */,
 					A00000000000000000000E201 /* WindowTitleSettle.swift in Sources */,
 					A00000000000000000000B121 /* DockPanelRimPlan.swift in Sources */,
 					A00000000000000000001005 /* IntentPipeline.swift in Sources */,
@@ -1399,7 +1375,6 @@
 				A00000000000000000009D02 /* WindowTitleTooltip.swift in Sources */,
 				B71000000000000000000002 /* ScreenRectReader.swift in Sources */,
 				A00000000000000000009D03 /* WindowTitleTooltipTests.swift in Sources */,
-				A0000000000000000000EA02 /* FrontWindowIndicatorDecision.swift in Sources */,
 				A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */,
 				A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */,
 				A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */,
@@ -1422,7 +1397,6 @@
 				C9000000000000000000000D /* ChipPressFeedback.swift in Sources */,
 				C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */,
 				C9000000000000000000000B /* AXElementCache.swift in Sources */,
-				A0000000000000000000EA11 /* FrontWindowIndicatorDecisionTests.swift in Sources */,
 				A00000000000000000001C11 /* IconRenditionChoiceTests.swift in Sources */,
 				A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */,
 				A0000000000000000000FD01 /* DockThemeTests.swift in Sources */,
@@ -1465,8 +1439,6 @@
 					B10000000000000000000012 /* CGSnapshotReuseDecision.swift in Sources */,
 					B10000000000000000000006 /* ScanProbeGateDecision.swift in Sources */,
 					A00000000000000000009E1B /* ScanAdmissionDecisionTests.swift in Sources */,
-					A00000000000000000009E1D /* BuildProvenance.swift in Sources */,
-					A00000000000000000009E1E /* BuildProvenanceTests.swift in Sources */,
 					A00000000000000000009E24 /* LaunchAtLoginServiceTests.swift in Sources */,
 					A00000000000000000009A02 /* WindowLiftAvoidance.swift in Sources */,
 					A00000000000000000009A21 /* WindowLiftAvoidanceTests.swift in Sources */,
@@ -1492,12 +1464,10 @@
 					B1000000000000000000013B /* StripDisplayFilterTests.swift in Sources */,
 					B10000000000000000000205 /* StripSharedAffixTrimTests.swift in Sources */,
 					B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */,
-					A00000000000000000000D202 /* ProcessEnvironmentScrub.swift in Sources */,
 					A00000000000000000000E202 /* WindowTitleSettle.swift in Sources */,
 					A00000000000000000000B122 /* DockPanelRimPlan.swift in Sources */,
 					A00000000000000000006012 /* DragController.swift in Sources */,
 					A00000000000000000009752 /* NonConstrainingPanel.swift in Sources */,
-					A00000000000000000000D211 /* ProcessEnvironmentScrubTests.swift in Sources */,
 					A00000000000000000000E211 /* WindowTitleSettleTests.swift in Sources */,
 					A00000000000000000000B131 /* DockPanelRimPlanTests.swift in Sources */,
 					A00000000000000000000B201 /* AppNameRegistryTests.swift in Sources */,
@@ -1518,7 +1488,7 @@
 /* Begin PBXTargetDependency section */
 		A00000000000000000009621 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A00000000000000000000038 /* macos-dock-cc-v2 */;
+			target = A00000000000000000000038 /* ProperWM */;
 			targetProxy = A00000000000000000009620 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -1593,18 +1563,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "macos-dock-cc Local Code Signing";
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 57;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "App/TungstenEdge-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/ProperWM-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.18.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -1616,18 +1586,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "macos-dock-cc Local Code Signing";
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 57;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "App/TungstenEdge-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/ProperWM-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.18.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -1639,9 +1609,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGNING_ALLOWED = NO;
-				CURRENT_PROJECT_VERSION = 57;
-				MARKETING_VERSION = 0.18.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2.windowlab;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.windowlab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = targeted;
 				SWIFT_VERSION = 5.0;
@@ -1652,9 +1622,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGNING_ALLOWED = NO;
-				CURRENT_PROJECT_VERSION = 57;
-				MARKETING_VERSION = 0.18.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2.windowlab;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.windowlab;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -1674,7 +1644,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = targeted;
 				SWIFT_VERSION = 5.0;
@@ -1692,7 +1662,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.caye.macosdockcc.v2.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -1704,7 +1674,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000000000000000000039 /* Build configuration list for PBXNativeTarget "macos-dock-cc-v2" */ = {
+		A00000000000000000000039 /* Build configuration list for PBXNativeTarget "ProperWM" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000000000000000000043 /* Debug */,
@@ -1722,7 +1692,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A0000000000000000000005B /* Build configuration list for PBXNativeTarget "macos-dock-cc-v2Tests" */ = {
+		A0000000000000000000005B /* Build configuration list for PBXNativeTarget "ProperWMTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A0000000000000000000005F /* Debug */,
@@ -1731,7 +1701,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A00000000000000000000040 /* Build configuration list for PBXProject "macos-dock-cc-v2" */ = {
+		A00000000000000000000040 /* Build configuration list for PBXProject "ProperWM" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000000000000000000041 /* Debug */,

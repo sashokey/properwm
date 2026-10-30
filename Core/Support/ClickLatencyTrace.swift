@@ -36,7 +36,7 @@ enum ClickLatencyTrace {
     private static let runtime = Runtime()
 
     private final class Runtime: @unchecked Sendable {
-        private let queue = DispatchQueue(label: "com.caye.macosdockcc.v2.click-latency-trace")
+        private let queue = DispatchQueue(label: "io.github.sashokey.properwm.click-latency-trace")
         private var sessions: [String: Session] = [:]
 
         private struct Session {
@@ -95,7 +95,7 @@ enum ClickLatencyTrace {
         private lazy var fileURL: URL? = {
             let fm = FileManager.default
             guard let base = fm.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
-            let dir = base.appendingPathComponent("Logs/com.caye.macosdockcc.v2", isDirectory: true)
+            let dir = base.appendingPathComponent("Logs/io.github.sashokey.properwm", isDirectory: true)
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir.appendingPathComponent("click-latency.jsonl")
         }()

@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class StripContextMenuZoneTests: XCTestCase {
     /// 中档基线的一条典型任务条：内缩 20pt，chip 40 宽、间距 2pt，
@@ -40,7 +40,7 @@ final class StripContextMenuZoneTests: XCTestCase {
     }
 
     /// 这一条是本次改动的**目的**：瞄图标差几 pt 落进窄缝时，宁可没反应，
-    /// 也不要弹出钨极菜单顶掉那个 app 自己的菜单。
+    /// 也不要弹出ProperWM菜单顶掉那个 app 自己的菜单。
     func testPlainChipGapDoesNotClaim() {
         // 缝是 60...62，只有 2pt。
         XCTAssertFalse(claims(x: 61))

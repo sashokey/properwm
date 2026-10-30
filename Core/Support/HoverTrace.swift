@@ -15,7 +15,7 @@ import QuartzCore
 /// 这是「事件被合并」的直接证据——AGENTS《Menus, Panels, And Screens》里那条 100ms 粘滞
 /// 当年就是靠"主线程闲着但事件到得晚"才辨出来的，光看 CPU 占用看不出来。
 ///
-/// 落盘在 `~/Library/Logs/com.caye.macosdockcc.v2/hover-trace.jsonl`。
+/// 落盘在 `~/Library/Logs/io.github.sashokey.properwm/hover-trace.jsonl`。
 enum HoverTrace {
     static let isEnabled = DebugSwitch.hoverTrace.isEnabled(in: ProcessInfo.processInfo.environment)
     /// 宽度探针（`width` / `relayout` / `action`）单独可开：`DOCK_LABEL_PROBE=1` 不带 hover trace 的
@@ -365,7 +365,7 @@ enum HoverTrace {
 
     private final class Writer {
         static let shared = Writer()
-        private let queue = DispatchQueue(label: "com.caye.macosdockcc.v2.hovertrace")
+        private let queue = DispatchQueue(label: "io.github.sashokey.properwm.hovertrace")
 
         func append(_ line: String) {
             queue.async { [self] in
@@ -383,7 +383,7 @@ enum HoverTrace {
         private lazy var fileURL: URL? = {
             let fm = FileManager.default
             guard let base = fm.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
-            let dir = base.appendingPathComponent("Logs/com.caye.macosdockcc.v2", isDirectory: true)
+            let dir = base.appendingPathComponent("Logs/io.github.sashokey.properwm", isDirectory: true)
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir.appendingPathComponent("hover-trace.jsonl")
         }()

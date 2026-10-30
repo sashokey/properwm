@@ -91,7 +91,7 @@ extension PanelCoordinator {
         SystemCursorHider.shared.show(owner: stripSurfaceID)
     }
 
-    /// The ▲▼ stays up while a Tungsten menu is open — but only as the real system cursor. The
+    /// The ▲▼ stays up while a ProperWM menu is open — but only as the real system cursor. The
     /// fallback glyph cannot: menu tracking un-hides the arrow, and the two read as two cursors.
     private var resizeCursorSuppressedByMenu: Bool {
         isTaskbarMenuOpen && !SystemResizeCursor.shared.isAvailable
@@ -118,7 +118,7 @@ extension PanelCoordinator {
         }
     }
 
-    /// A Tungsten menu opened (status item or taskbar right-click, on any unit) or closed. The
+    /// A ProperWM menu opened (status item or taskbar right-click, on any unit) or closed. The
     /// poll reports only on motion, so a parked pointer needs the ▲▼ put back here: menu
     /// tracking resets the cursor at both ends (see `resizeCursorReassertWindow`).
     func resizeCursorMenuVisibilityChanged(_ open: Bool) {

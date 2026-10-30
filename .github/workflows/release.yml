@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (X.Y.Z)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as a pre-release'
+        default: true
+        type: boolean
+      draft:
+        description: 'Keep as a draft'
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        with:
+          script: |
+            const version = process.env.RELEASE_VERSION;
+            if (!/^\d+\.\d+\.\d+$/.test(version)) {
+              throw new Error('Version must be X.Y.Z');
+            }
+            try {
+              await github.rest.git.getRef({
+                ...context.repo, ref: 'tags/v' + version
+              });
+              throw new Error('This version already has a tag. Use a new version.');
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ inputs.version }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: ProperWM
+          path: dist
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_DRAFT: ${{ inputs.draft }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const crypto = require('node:crypto');
+            const version = process.env.RELEASE_VERSION;
+            const names = [
+              'ProperWM-' + version + '.zip',
+              'ProperWM-' + version + '-source.zip'
+            ];
+            const sums = await fs.readFile('dist/SHA256SUMS.txt', 'utf8');
+            for (const name of names) {
+              const bytes = await fs.readFile('dist/' + name);
+              const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+              if (!sums.split('\n').some(line => line === hash + '  ' + name)) {
+                throw new Error('Checksum mismatch: ' + name);
+              }
+            }
+            const { data: release } = await github.rest.repos.createRelease({
+              ...context.repo,
+              tag_name: 'v' + version,
+              target_commitish: context.sha,
+              name: 'ProperWM ' + version,
+              draft: true,
+              prerelease: process.env.RELEASE_PRERELEASE === 'true',
+              generate_release_notes: true,
+              body: 'Universal macOS app (Apple Silicon and Intel). Ad-hoc signed; not notarized. Source and SHA-256 checksums are attached.'
+            });
+            for (const name of [...names, 'SHA256SUMS.txt']) {
+              await github.rest.repos.uploadReleaseAsset({
+                ...context.repo, release_id: release.id, name,
+                headers: { 'content-type': name.endsWith('.zip') ? 'application/zip' : 'text/plain' },
+                data: await fs.readFile('dist/' + name)
+              });
+            }
+            if (process.env.RELEASE_DRAFT !== 'true') {
+              await github.rest.repos.updateRelease({
+                ...context.repo, release_id: release.id, draft: false
+              });
+            }
+            core.summary.addLink('ProperWM ' + version, release.html_url);
+            await core.summary.write();

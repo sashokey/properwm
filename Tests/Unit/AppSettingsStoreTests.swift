@@ -58,21 +58,17 @@ final class AppSettingsStoreTests: XCTestCase {
 
     func testRemovedPreferencesCannotOverrideFixedBehavior() {
         let defaults = makeDefaults()
-        defaults.set("followMouse", forKey: "com.tungsten.edge.taskbarScreen.mode")
-        defaults.set("quiet", forKey: "com.tungsten.edge.hoverStyle")
-        defaults.set(false, forKey: "com.tungsten.edge.windowLiftEnabled")
-        defaults.set(false, forKey: "com.tungsten.edge.fullscreenIntentEnabled")
-        defaults.set(true, forKey: "com.tungsten.edge.showShelf")
-        defaults.set(true, forKey: "com.tungsten.edge.showTrash")
-        defaults.set(2.0, forKey: "com.tungsten.edge.autoHide.edge.delay")
+        defaults.set("followMouse", forKey: "properwm.legacy.taskbarScreen.mode")
+        defaults.set("quiet", forKey: "properwm.legacy.hoverStyle")
+        defaults.set(false, forKey: "properwm.legacy.windowLiftEnabled")
+        defaults.set(false, forKey: "properwm.legacy.fullscreenIntentEnabled")
+        defaults.set(2.0, forKey: "properwm.legacy.autoHide.edge.delay")
         let store = AppSettingsStore(defaults: defaults)
         XCTAssertEqual(store.taskbarScreenPlacement, .allScreensPerDisplay)
         XCTAssertEqual(store.hoverStyle, .standard)
         XCTAssertTrue(store.windowLiftEnabled)
         XCTAssertTrue(store.fullscreenIntentEnabled)
         XCTAssertFalse(store.edgeAutoHideEnabled)
-        XCTAssertFalse(store.showShelf)
-        XCTAssertFalse(store.showTrash)
     }
 
     private func makeDefaults() -> UserDefaults {

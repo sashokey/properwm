@@ -83,7 +83,7 @@ protocol LaunchAtLoginBackend: Sendable {
 @MainActor
 final class LaunchAtLoginService: LaunchAtLoginServicing {
     private let backend: any LaunchAtLoginBackend
-    private let readerQueue = DispatchQueue(label: "com.caye.macosdockcc.v2.launch-at-login-reader", qos: .userInitiated)
+    private let readerQueue = DispatchQueue(label: "io.github.sashokey.properwm.launch-at-login-reader", qos: .userInitiated)
 
     init(backend: any LaunchAtLoginBackend = LaunchAtLoginService.systemBackend()) {
         self.backend = backend

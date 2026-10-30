@@ -55,7 +55,7 @@ struct PanelLayoutMetrics: Equatable {
 
     static let shadowPadding: CGFloat = 20
 
-    static let tungstenEdge = DockPanelHeight.native.metrics
+    static let properWM = DockPanelHeight.native.metrics
 }
 
 struct PanelScreenGeometry: Equatable {
@@ -75,7 +75,7 @@ enum PanelGeometry {
     static func dockTargetFrame(
         contentWidth: CGFloat,
         on screen: PanelScreenGeometry,
-        metrics: PanelLayoutMetrics = .tungstenEdge
+        metrics: PanelLayoutMetrics = .properWM
     ) -> CGRect {
         let maxWidth = screen.frame.width - 2 * metrics.outerMargin
         let panelWidth = max(min(contentWidth, maxWidth), metrics.minimumDockWidth)

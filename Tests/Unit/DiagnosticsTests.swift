@@ -90,7 +90,7 @@ final class DiagnosticSnapshotAssemblyTests: XCTestCase {
     }
 
     private func report(_ blocks: [DiagnosticApplicationBlock]) -> DiagnosticSnapshotReport {
-        .init(basic: "Tungsten Edge diagnostics", permissions: ["accessibility=true", "finderAutomation=0"],
+        .init(basic: "ProperWM diagnostics", permissions: ["accessibility=true", "finderAutomation=0"],
               settings: ["kept=4"], panels: ["unit=screen visible=true", "Recent visibility changes (last 40):"], applications: blocks)
     }
 

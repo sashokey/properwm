@@ -36,7 +36,7 @@ struct DockLiquidGlassConfiguration: Equatable {
     ///
     /// **这是「像不像原生」最贵重的一档。** 原生 Dock 靠这一圈把轮廓从背景里勾出来；
     /// 缺了它条会糊进背景、像直接刷在屏幕上，连圆角都显得比实际方
-    /// （实测钨极圆角 16pt 其实比原生的 14pt 还大，但看着更方）。
+    /// （实测ProperWM圆角 16pt 其实比原生的 14pt 还大，但看着更方）。
     let borderPeakOpacity: Double
     /// 四条长边相对峰值的比例。长边要的绝对 alpha 是 0.375（比底板高 +67），
     /// 除以峰值 0.75 得 0.5。**改峰值必须同步改它**，否则长边会跟着一起变亮。
@@ -59,7 +59,7 @@ struct DockLiquidGlassConfiguration: Equatable {
     let backgroundMaterialOpacity: Double
     /// 背景窗口的 WindowServer 模糊半径（SkyLight）。**默认 0 = 不用。**
     ///
-    /// 这个值是照抄 BestDock 的实机层级带进来的（它那边是 6pt）。在钨极这套合成里它
+    /// 这个值是照抄 BestDock 的实机层级带进来的（它那边是 6pt）。在ProperWM这套合成里它
     /// **只带来坏处**：WindowServer 的窗口背景模糊按**窗口矩形**生效，不跟着我们画的圆角走，
     /// 于是四个角上「圆角外、包围矩形内」那块被糊成方的，模糊本身的扩散再往外溢一圈 ——
     /// owner 2026-08-16 报「圆角外面这里会有一些问题」，A/B 到 0 之后当场消失。

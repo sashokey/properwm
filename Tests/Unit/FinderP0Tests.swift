@@ -881,7 +881,7 @@ final class FinderP0Tests: XCTestCase {
                     appName: "任务条调试台",
                     title: "任务条调试台",
                     activationPolicy: .regular,
-                    executablePath: "/Applications/macos-dock-cc-v2.app/Contents/MacOS/macos-dock-cc-v2"
+                    executablePath: "/Applications/ProperWM.app/Contents/MacOS/ProperWM"
                 )
             ),
             .filter

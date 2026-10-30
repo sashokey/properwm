@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class DragLandingPlanTests: XCTestCase {
     private let carrier = CGRect(x: 0, y: 0, width: 1512, height: 982)

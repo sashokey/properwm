@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000038"
-               BuildableName = "macos-dock-cc-v2.app"
-               BlueprintName = "macos-dock-cc-v2"
-               ReferencedContainer = "container:macos-dock-cc-v2.xcodeproj">
+               BuildableName = "ProperWM.app"
+               BlueprintName = "ProperWM"
+               ReferencedContainer = "container:ProperWM.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,9 +34,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A0000000000000000000005A"
-               BuildableName = "macos-dock-cc-v2Tests.xctest"
-               BlueprintName = "macos-dock-cc-v2Tests"
-               ReferencedContainer = "container:macos-dock-cc-v2.xcodeproj">
+               BuildableName = "ProperWMTests.xctest"
+               BlueprintName = "ProperWMTests"
+               ReferencedContainer = "container:ProperWM.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -56,9 +56,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000038"
-            BuildableName = "macos-dock-cc-v2.app"
-            BlueprintName = "macos-dock-cc-v2"
-            ReferencedContainer = "container:macos-dock-cc-v2.xcodeproj">
+            BuildableName = "ProperWM.app"
+            BlueprintName = "ProperWM"
+            ReferencedContainer = "container:ProperWM.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -73,9 +73,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000038"
-            BuildableName = "macos-dock-cc-v2.app"
-            BlueprintName = "macos-dock-cc-v2"
-            ReferencedContainer = "container:macos-dock-cc-v2.xcodeproj">
+            BuildableName = "ProperWM.app"
+            BlueprintName = "ProperWM"
+            ReferencedContainer = "container:ProperWM.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

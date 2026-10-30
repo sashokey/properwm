@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 /// 载体图层的坐标换算。
 ///

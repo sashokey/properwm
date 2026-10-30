@@ -20,7 +20,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     private let displayTopologyStore: DisplayTopologyStore
     private let topologySnapshotProvider: @MainActor () -> ScreenTopologySnapshot
     private let topologyRetryScheduler: DisplayTopologyRefreshController.ScheduleAfter
-    private let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "taskbar-screens")
+    private let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "taskbar-screens")
 
     var onRequestTaskbarMenu: ((NSEvent, NSView) -> Void)? {
         didSet { units.forEach { $0.coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu } }

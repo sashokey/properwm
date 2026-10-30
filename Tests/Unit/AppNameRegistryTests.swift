@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 /// 消息区吸收判据「窗口标题 == 应用名」的名字侧。
 ///

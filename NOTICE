@@ -6,7 +6,7 @@ This software includes code originally developed by Moonbai Studio and is licens
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-Modification notice: on 2026-10-30, this independent repository was initialized with a source snapshot. Repository documentation was replaced and upstream promotional materials, release archives, and contribution templates were omitted. Application code, build resources, scripts, tests, and dependency versions were retained unchanged.
+Modification notice: on 2026-10-30, this independent repository was initialized from source version 0.18.4, commit 825924c8019945bb0b620702f8a274a249e9c8f6. On the same date, ProperWM removed application launchers, pinning, Drawer, messaging badges, file features, settings UI, Dock configuration, licensing and updater integrations; retained the window taskbar and fixes; and replaced product branding, icon, build and release configuration. The initial snapshot and subsequent changes remain available in this repository history.
 
 Trademark reservation
 

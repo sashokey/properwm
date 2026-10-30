@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var localizedDisplayName: String {
         (Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
             ?? (Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String)
-            ?? "Tungsten Edge"
+            ?? "ProperWM"
     }
 
     private let inventoryLog = WindowInventoryAnomalyLog()
@@ -37,10 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionCoordinator: PermissionRecoveryCoordinator?
     private var permissionWatchdogTimer: Timer?
     private var permissionWatchdogGate = PermissionWatchdogGate()
-    private let permissionProbeQueue = DispatchQueue(label: "com.caye.macosdockcc.v2.permission-probe", qos: .utility)
+    private let permissionProbeQueue = DispatchQueue(label: "io.github.sashokey.properwm.permission-probe", qos: .utility)
     private var cachedAccessibilityTrusted = false
     private var hasStartedApp = false
-    private let permissionLogger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "permissions")
+    private let permissionLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "permissions")
     private lazy var statusMenuController = StatusMenuController(
         store: settingsStore,
         settingsCoordinator: settingsCoordinator,
@@ -110,10 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .filter { $0.processIdentifier != myPID && !$0.isTerminated }
         guard !others.isEmpty else { return }
 
-        let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "instance")
+        let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "instance")
         for app in others {
             logger.warning("""
-                发现另一个钨极实例，终止它：pid=\(app.processIdentifier, privacy: .public) \
+                发现另一个ProperWM实例，终止它：pid=\(app.processIdentifier, privacy: .public) \
                 path=\(app.bundleURL?.path ?? "(unknown)", privacy: .public)
                 """)
             app.terminate()

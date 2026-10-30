@@ -41,7 +41,7 @@ final class WindowLiftAvoidanceTests: XCTestCase {
         XCTAssertEqual(adjusted.minY, 62)
     }
 
-    func testExistingBottomSystemDockReservationWinsOverTungstenClearance() {
+    func testExistingBottomSystemDockReservationWinsOverProperWMClearance() {
         let bottomDockGeometry = WindowLiftAvoidance.Geometry(
             screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982),
             visibleFrame: CGRect(x: 0, y: 90, width: 1512, height: 859),

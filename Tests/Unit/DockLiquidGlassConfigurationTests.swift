@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class DockLiquidGlassConfigurationTests: XCTestCase {
     /// **默认现在是开**（owner 2026-08-17 转正玻璃观感）。

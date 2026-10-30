@@ -24,12 +24,10 @@ RE_SWIFTUI = re.compile(r'\b(?:Text|Button|Toggle|Label|Picker|TextField)\(\s*' 
 # 用户可见的中文字面量（用来统计剩余工作量）
 RE_CHINESE = re.compile(STR)
 
-SKIP_FILES = {'App/Scenes/ContentView.swift'}   # 未接线的调试台，按方案不翻
-
+SKIP_FILES = set()
 
 def unescape(s):
     return s.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
-
 
 def strip_comments(text):
     """把注释行整行变成空白，保留行数（这样行号仍然准）。"""
@@ -53,10 +51,8 @@ def strip_comments(text):
         out.append(line)
     return '\n'.join(out)
 
-
 def lineno_of(text, pos):
     return text.count('\n', 0, pos) + 1
-
 
 def eval_multiline(block_lines, closing_indent):
     out = []
@@ -67,7 +63,6 @@ def eval_multiline(block_lines, closing_indent):
     # 行尾续行符：\ + 换行 → 直接拼接
     text = re.sub(r'\\\n', '', text)
     return text
-
 
 def extract_multiline(path):
     lines = pathlib.Path(path).read_text(encoding='utf-8').splitlines()
@@ -85,7 +80,6 @@ def extract_multiline(path):
             i = j
         i += 1
     return keys
-
 
 def scan():
     used, chinese = {}, []
@@ -108,13 +102,10 @@ def scan():
                     chinese.append((f'{rel}:{lineno_of(text, m.start())}', m.group(1)))
     return used, chinese
 
-
 def value_of(entry, lang):
     return entry.get('localizations', {}).get(lang, {}).get('stringUnit', {}).get('value')
 
-
 RE_PLACEHOLDER = re.compile(r'%(?:\d+\$)?(?:@|d|lld|ld|u|f|s|%)')
-
 
 def placeholder_mismatches(catalog):
     """每种语言的占位符必须与英文同数同序——多一个 %@ 是运行时崩溃，少一个是信息丢失。"""
@@ -129,7 +120,6 @@ def placeholder_mismatches(catalog):
             if actual != expected:
                 out.append((key, lang, expected, actual))
     return out
-
 
 def main():
     catalog = json.loads(CATALOG.read_text(encoding='utf-8'))['strings']
@@ -185,7 +175,6 @@ def main():
     print()
     print('✅ 全部对上' if ok else '⛔ 有问题，见上')
     return 0 if ok else 1
-
 
 if __name__ == '__main__':
     sys.exit(main())

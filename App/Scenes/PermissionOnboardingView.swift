@@ -89,11 +89,11 @@ struct PermissionOnboardingView: View {
 
     private var title: String {
         switch presentation {
-        case .moveToApplications: return String(localized: "Move Tungsten Edge to Applications")
+        case .moveToApplications: return String(localized: "Move ProperWM to Applications")
         case .waiting, .stalled: return String(localized: "Turn On Accessibility Permission")
         case .recoveryWaiting, .recoveryStalled: return String(localized: "Accessibility Permission Was Revoked")
         case .restoringWindows: return String(localized: "Restoring Windows…")
-        case .relaunching: return String(localized: "Restarting Tungsten Edge…")
+        case .relaunching: return String(localized: "Restarting ProperWM…")
         case .relaunchFailed: return String(localized: "Restart Failed")
         }
     }
@@ -101,11 +101,11 @@ struct PermissionOnboardingView: View {
     private var subtitle: String {
         switch presentation {
         case .moveToApplications: return String(localized: "This copy is running from a temporary or read-only location.")
-        case .waiting, .stalled: return String(localized: "Tungsten Edge needs this permission to read and manage your windows.")
-        case .recoveryWaiting, .recoveryStalled: return String(localized: "Tungsten Edge will restart itself once you grant it again.")
+        case .waiting, .stalled: return String(localized: "ProperWM needs this permission to read and manage your windows.")
+        case .recoveryWaiting, .recoveryStalled: return String(localized: "ProperWM will restart itself once you grant it again.")
         case .restoringWindows: return String(localized: "Putting the windows it moved back where they were.")
         case .relaunching: return String(localized: "This will only take a moment.")
-        case .relaunchFailed: return String(localized: "Tungsten Edge is still running. You can try again.")
+        case .relaunchFailed: return String(localized: "ProperWM is still running. You can try again.")
         }
     }
 
@@ -116,16 +116,16 @@ struct PermissionOnboardingView: View {
             macOS ties Accessibility permission to one specific copy of an app. This copy is running from a \
             temporary or read-only location, so turning the switch on will not take effect — and the permission \
             record stays behind in System Settings after the disk image is ejected. \
-            Drag Tungsten Edge to your Applications folder and open it from there.
+            Drag ProperWM to your Applications folder and open it from there.
             """)
         case .waiting, .stalled:
-            return String(format: String(localized: "Turn on Tungsten Edge in %@. This window closes by itself once you do, and the taskbar finishes starting."), settingsPath)
+            return String(format: String(localized: "Turn on ProperWM in %@. This window closes by itself once you do, and the taskbar finishes starting."), settingsPath)
         case .recoveryWaiting, .recoveryStalled:
-            return String(format: String(localized: "Tungsten Edge just lost its Accessibility permission, so the taskbar has been put away. Turn Tungsten Edge back on in %@."), settingsPath)
+            return String(format: String(localized: "ProperWM just lost its Accessibility permission, so the taskbar has been put away. Turn ProperWM back on in %@."), settingsPath)
         case .restoringWindows, .relaunching:
             return String(localized: "Nothing to do here — just a moment.")
         case let .relaunchFailed(message):
-            return String(format: String(localized: "Couldn’t start a new instance of Tungsten Edge: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder."), message)
+            return String(format: String(localized: "Couldn’t start a new instance of ProperWM: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder."), message)
         }
     }
 
@@ -141,7 +141,7 @@ struct PermissionOnboardingView: View {
             return steps + String(localized: """
 
 
-            If simply turning the switch back on works, Tungsten Edge restarts itself and there is nothing else \
+            If simply turning the switch back on works, ProperWM restarts itself and there is nothing else \
             to do; going through the cleanup above means reopening it manually afterwards.
             Also, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing \
             them once puts them back.
@@ -157,24 +157,24 @@ struct PermissionOnboardingView: View {
         if #available(macOS 27, *) {
             return String(localized: """
             If the switch is already on and nothing happens, a permission record left by an older version may no \
-            longer match this copy of Tungsten Edge. You can reset it:
+            longer match this copy of ProperWM. You can reset it:
 
-            1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the \
+            1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the \
             entry cannot be removed.
-            2. In Privacy & Security > Device Control and Data Access, select Tungsten Edge in the list and remove it with the minus \
+            2. In Privacy & Security > Device Control and Data Access, select ProperWM in the list and remove it with the minus \
             button. There may be more than one entry; remove them all.
-            3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted.
+            3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.
             """)
         }
         return String(localized: """
         If the switch is already on and nothing happens, a permission record left by an older version may no \
-        longer match this copy of Tungsten Edge. You can reset it:
+        longer match this copy of ProperWM. You can reset it:
 
-        1. Quit Tungsten Edge first — while it is running, the minus button in the list is greyed out and the \
+        1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the \
         entry cannot be removed.
-        2. In Privacy & Security > Accessibility, select Tungsten Edge in the list and remove it with the minus \
+        2. In Privacy & Security > Accessibility, select ProperWM in the list and remove it with the minus \
         button. There may be more than one entry; remove them all.
-        3. Open Tungsten Edge again from your Applications folder, then add it and turn the switch on when prompted.
+        3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.
         """)
     }
 

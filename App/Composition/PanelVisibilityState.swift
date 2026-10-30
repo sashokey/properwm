@@ -114,7 +114,7 @@ enum OverlayWindowWatch {
 ///
 /// macOS 会在**一个全屏空间被销毁的那一刻，把当时处于隐藏状态的 `.canJoinAllSpaces` 窗口
 /// 重新只挂到当前那个桌面上**，其余桌面从此看不到它。2026-08-28 用一个 80 行、与本项目
-/// 无关的独立实验复现（`scratch/space_membership_lab2.swift`），所以这不是钨极的 bug，
+/// 无关的独立实验复现（`scratch/space_membership_lab2.swift`），所以这不是ProperWM的 bug，
 /// 但受害的正是我们「进全屏 orderOut / 退全屏 orderFrontRegardless」这套让位机制。
 ///
 /// 补不回来的做法（都实测过）：`orderFrontRegardless`、把同样的 `collectionBehavior`
@@ -141,7 +141,7 @@ enum EdgeAutoHideInhibitor: Hashable {
     case dragging
     case drawerOpen
     case folderPopupOpen
-    /// 钨极菜单（状态栏图标或任务条右键弹出的那一个）正开着。
+    /// ProperWM菜单（状态栏图标或任务条右键弹出的那一个）正开着。
     /// 不挡的话，自动隐藏档位下空闲计时照跑，任务条会从菜单底下缩掉。
     case taskbarMenuOpen
     /// A height drag is in progress on this unit's bar. Past the top clamp the pointer leaves

@@ -202,7 +202,7 @@ enum WindowLiftAvoidance {
             return !(fillsVisibleFrame(suppressedNative) && fillsVisibleFrame(frame))
         }
 
-        /// 保持窗口顶、左、宽不变，只把底边收至系统保留区和钨极任务栏之上。
+        /// 保持窗口顶、左、宽不变，只把底边收至系统保留区和ProperWM任务栏之上。
         func adjustedFrame(
             for maximizedFrame: CGRect,
             clearance: CGFloat = WindowLiftAvoidance.clearance

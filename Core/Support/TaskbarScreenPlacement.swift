@@ -3,7 +3,7 @@ import Foundation
 /// 任务条屏幕安放模式（多屏路线四档：2026-08-26 上 ②，2026-09-02 立项 ③④）。
 /// rawValue 即 UserDefaults 持久化值。老版本读到不认识的 rawValue 会按 followMouse 跑
 /// 且**不改写键**（`AppSettingsStore`），所以新档位只加不改名。
-/// **与已删除的旧 `com.tungsten.edge.displayMode` 键无关**——那个键是孤儿键，永不再读。
+/// **与已删除的旧 `properwm.legacy.displayMode` 键无关**——那个键是孤儿键，永不再读。
 enum TaskbarScreenMode: String {
     case followMouse
     case pinned

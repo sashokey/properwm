@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class MinimizeHandoffTargetTests: XCTestCase {
     private func record(_ id: String, pid: Int32, wid: CGWindowID?, status: WindowStatus = .inactive) -> WindowRecord {

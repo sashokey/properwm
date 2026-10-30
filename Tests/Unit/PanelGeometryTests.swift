@@ -2,7 +2,7 @@ import CoreGraphics
 import XCTest
 
 final class PanelGeometryTests: XCTestCase {
-    private let metrics = PanelLayoutMetrics.tungstenEdge
+    private let metrics = PanelLayoutMetrics.properWM
 
     func testBottomDockVisibleFrameChangeDoesNotMoveBottomPanelsVertically() {
         let hidden = screen(frame: CGRect(x: 0, y: 0, width: 1512, height: 982))
@@ -142,7 +142,7 @@ final class PanelGeometryTests: XCTestCase {
             bottomGap: 8, outerMargin: 12,
             minimumDockWidth: 120
         ))
-        XCTAssertEqual(PanelLayoutMetrics.tungstenEdge, DockPanelHeight.native.metrics)
+        XCTAssertEqual(PanelLayoutMetrics.properWM, DockPanelHeight.native.metrics)
     }
 
     func testChipHeightFillsTheNativePanelExactly() {

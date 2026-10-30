@@ -365,7 +365,7 @@ private final class FullscreenIntentEventTapThread {
             guard thread == nil else { return }
             stopping = false
             let thread = Thread { [weak self] in self?.run() }
-            thread.name = "com.caye.macosdockcc.fullscreen-intent-tap"
+            thread.name = "io.github.sashokey.properwm.fullscreen-intent-tap"
             thread.qualityOfService = .userInteractive
             self.thread = thread
             thread.start()
@@ -500,7 +500,7 @@ final class FullscreenIntentMonitor {
     }
 
     private let logger = Logger(
-        subsystem: "com.caye.macosdockcc.v2",
+        subsystem: "io.github.sashokey.properwm",
         category: "FullscreenIntent"
     )
     private let atomicState = FullscreenIntentAtomicState()
@@ -541,7 +541,7 @@ final class FullscreenIntentMonitor {
     /// observer creation, the run-loop source, and all `@MainActor` bookkeeping stay on main. Serial so
     /// per-observer registration order is preserved. Callbacks still fire on the main run loop.
     nonisolated private static let axRegistrationQueue = DispatchQueue(
-        label: "com.caye.macosdockcc.v2.fullscreen-intent-ax-registration"
+        label: "io.github.sashokey.properwm.fullscreen-intent-ax-registration"
     )
     private var appElement: AXUIElement?
     private var focusedElement: AXUIElement?

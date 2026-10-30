@@ -17,9 +17,9 @@ enum TaskbarDebugSnapshotExporter {
         let data = try encoder.encode(report)
         let timestamp = fileTimestamp.string(from: generatedAt)
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("macos-dock-cc-v2-debug-snapshot-\(timestamp).json")
+            .appendingPathComponent("ProperWM-debug-snapshot-\(timestamp).json")
         let latestURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("macos-dock-cc-v2-debug-snapshot-latest.json")
+            .appendingPathComponent("ProperWM-debug-snapshot-latest.json")
         try data.write(to: url, options: .atomic)
         try data.write(to: latestURL, options: .atomic)
         return url

@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 /// 「指针压在哪张卡上」的纯判定。取代了每张卡各自的 `.onHover`——成因、实测数据和
 /// 它同时治掉的两个毛病（快速横扫漏格 / 切换边界带方向）见 `StripHoverResolution` 的注释。

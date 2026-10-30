@@ -1,5 +1,5 @@
 import XCTest
-@testable import macos_dock_cc_v2
+@testable import ProperWM
 
 final class StripWheelScrollTests: XCTestCase {
     private func input(dx: CGFloat = 0,

@@ -254,7 +254,7 @@ final class AppTracker: ObservableObject {
     private var subscribedElementOverridesForTesting: [pid_t: [CGWindowID: (element: AXUIElement, instanceID: UInt64)]] = [:]
     #endif
     private let windowEligibility = AppTrackerWindowEligibility()
-    private let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "app-tracker")
+    private let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "app-tracker")
     private let inventoryLog: WindowInventoryAnomalyLog
     #if DEBUG
     private var admissionAppsForTesting: [NSRunningApplication]?
@@ -1362,7 +1362,7 @@ final class AppTracker: ObservableObject {
     }
 
     private static let displayTraceEnabled = DebugSwitch.displayTrace.isEnabled(in: ProcessInfo.processInfo.environment)
-    private let displayTraceLogger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "display-trace")
+    private let displayTraceLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "display-trace")
 
     @discardableResult
     func noteWindowMoved(pid: pid_t, cgWindowID: CGWindowID, displayUUID: String?, hold: DisplayKeyHold = .brief) -> Bool {

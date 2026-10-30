@@ -271,13 +271,13 @@ final class WindowLiftAvoidanceController {
     private static let trackedProbeInterval = WindowLiftAvoidance.trackedSessionProbeInterval
     /// For the static restore path, which cannot reach the instance logger.
     private static let restoreLogger = Logger(
-        subsystem: "com.caye.macosdockcc.v2",
+        subsystem: "io.github.sashokey.properwm",
         category: "WindowLiftAvoidance"
     )
 
     private weak var host: WindowLiftAvoidanceHost?
     private let logger = Logger(
-        subsystem: "com.caye.macosdockcc.v2",
+        subsystem: "io.github.sashokey.properwm",
         category: "WindowLiftAvoidance"
     )
     private var pollTimer: Timer?

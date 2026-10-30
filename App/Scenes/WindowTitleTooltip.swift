@@ -53,7 +53,6 @@ enum LabelWidthAnimation {
         .timingCurve(curve.c1x, curve.c1y, curve.c2x, curve.c2y, duration: curve.duration)
     }
 
-
     /// "ms,c1x,c1y,c2x,c2y" → 曲线；格式不对、时长非正、控制点 x 越界（贝塞尔要求 0…1）→ nil，走默认。
     static func parse(_ raw: String?) -> Curve? {
         guard let raw else { return nil }
@@ -161,7 +160,7 @@ enum ChipPillMetrics {
     }
     /// 纯图标卡的卡宽。**中心间距 = `cardWidth + Style.chipSpacing`，两者要一起看。**
     /// 2026-08-16 实测原生 Dock 的图标中心间距是 42pt（40 的 tile + 2pt 缝），
-    /// 钨极原来是 52pt（44 + 8），稀疏了一倍；改成 40 + 2 对齐。
+    /// ProperWM原来是 52pt（44 + 8），稀疏了一倍；改成 40 + 2 对齐。
     /// 卡宽等于图标尺寸，所以图标横向没有额外余量——原生也是这样，
     /// 可见的缝来自图标资源自带的透明边距。
     static let cardWidth: CGFloat = 40
@@ -243,7 +242,6 @@ enum ChipPillMetrics {
     }
 }
 
-
 /// 悬停时 chip 的视觉。**几何恒定不变，只有「我在这上面」的提亮随进度走。**
 ///
 /// 2026-08-16 之前这里还插值三样东西：裸图标 40→26、药丸盒 34→28、药丸内图标 22→18，
@@ -296,7 +294,7 @@ enum ChipAnimationTrace {
     private static let enabled = DebugSwitch.chipAnimTrace.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let runtime = Runtime()
     private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.caye.macosdockcc.v2",
+        subsystem: Bundle.main.bundleIdentifier ?? "io.github.sashokey.properwm",
         category: "ChipAnimation"
     )
 
@@ -335,7 +333,7 @@ enum ChipAnimationTrace {
     }
 
     private final class Runtime: @unchecked Sendable {
-        private let queue = DispatchQueue(label: "com.caye.macosdockcc.v2.chip-animation-trace")
+        private let queue = DispatchQueue(label: "io.github.sashokey.properwm.chip-animation-trace")
         private let fileManager = FileManager.default
         private var buffer = ChipAnimationTraceBuffer(capacity: 4_096)
         private var sessionByChip: [String: UUID] = [:]
@@ -459,7 +457,7 @@ enum ChipAnimationTrace {
                 ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
             let directory = library
                 .appendingPathComponent("Logs", isDirectory: true)
-                .appendingPathComponent("com.caye.macosdockcc.v2", isDirectory: true)
+                .appendingPathComponent("io.github.sashokey.properwm", isDirectory: true)
             try fileManager.createDirectory(
                 at: directory,
                 withIntermediateDirectories: true,

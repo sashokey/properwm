@@ -41,8 +41,8 @@ final class AppRuntime: ObservableObject {
     private var feedbackTimer: Timer?
     private var startedAt: Date?
 
-    private let debugSnapshotLogger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "debug-snapshot")
-    private let chipProbeLogger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "ChipProbe")
+    private let debugSnapshotLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "debug-snapshot")
+    private let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
     private static let chipProbeEnabled = DebugSwitch.chipProbe.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let settleGateEnabled = DebugSwitch.minimizeSettleGate.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let handoffActiveGraceEnabled = DebugSwitch.handoffActiveGrace.isEnabled(in: ProcessInfo.processInfo.environment)
@@ -118,7 +118,7 @@ final class AppRuntime: ObservableObject {
         defer { HoverTrace.action("\(intent.action)", phase: "dispatched") }
         cancelHeldAction(for: intent)
         switch intent.action {
-        case .close, .quit:
+        case .close:
             guard intentPipeline.canBegin(intent: intent) else { return }
         default:
             break
@@ -160,7 +160,7 @@ final class AppRuntime: ObservableObject {
     }
 
     static let actionQueue = DispatchQueue(
-        label: "com.caye.macosdockcc.v2.window-action",
+        label: "io.github.sashokey.properwm.window-action",
         qos: .userInitiated,
         attributes: .concurrent
     )
@@ -277,7 +277,7 @@ final class AppRuntime: ObservableObject {
         guard let held = heldActionsByWindowID.removeValue(forKey: intent.windowID.rawValue) else { return }
         held.workItem.cancel()
         switch intent.action {
-        case .close, .quit:
+        case .close:
             intentPipeline.registerExecutionResult(intent: held.intent, request: held.request, success: false)
         default:
             break

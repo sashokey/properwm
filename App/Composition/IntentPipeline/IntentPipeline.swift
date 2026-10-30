@@ -5,7 +5,7 @@ import os
 final class IntentPipeline {
     private let actionPlanning: LifecycleActionPlanner
     private(set) var feedbackState = IntentFeedbackState()
-    private let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "intent-pipeline")
+    private let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "intent-pipeline")
 
     init(actionPlanning: LifecycleActionPlanner) {
         self.actionPlanning = actionPlanning

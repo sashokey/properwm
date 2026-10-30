@@ -34,7 +34,7 @@ final class FrontmostWindowGeometryObserver {
     /// still fire on the main run loop via the observer's run-loop source. A late registration is
     /// covered by window-lift's activation scan + 1s idle fallback.
     nonisolated private static let registrationQueue = DispatchQueue(
-        label: "com.caye.macosdockcc.v2.frontmost-ax-registration"
+        label: "io.github.sashokey.properwm.frontmost-ax-registration"
     )
 
     deinit {
