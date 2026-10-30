@@ -1,13 +1,3 @@
-# Continuous integration for the public repo (added 2026-09-05).
-#
-# Runs on every push and pull request: the localization catalog check (a missing zh-Hans
-# key is invisible to the compiler and silently shows English to Chinese users) and the
-# full unit-test suite. No signing, no notarization, no artifacts - release packaging is
-# Scripts/package_release.sh on the maintainer's machine (Docs/29).
-#
-# Runner: macos-26 (arm64). The code targets the macOS 26 SDK (Liquid Glass path uses
-# NSGlassEffectView behind #available(macOS 26.0, *)), so the macos-15 image's Xcode 16
-# cannot compile it.
 name: CI
 
 on:
@@ -15,6 +5,10 @@ on:
     branches: ['**']
   pull_request:
     branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,50 +16,66 @@ concurrency:
 
 jobs:
   test:
-    name: Localization check + unit tests
+    name: Build and test
     runs-on: macos-26
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Select newest Xcode 26
+        shell: bash
         run: |
+          set -euo pipefail
           XCODE="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
-          echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
-      - name: Localization catalog check
+      - name: Check localization
         run: python3 Scripts/check_localization.py
 
-      - name: Debug-switch registry check
+      - name: Check debug switches
         run: python3 Scripts/check_debug_switches.py
 
-      - name: Unit tests
+      - name: Build and run unit tests
+        shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p build
           xcodebuild test \
             -project macos-dock-cc-v2.xcodeproj \
             -scheme macos-dock-cc-v2 \
             -configuration Debug \
             -derivedDataPath build/DerivedData \
+            -resultBundlePath build/TestResults.xcresult \
+            -enableCodeCoverage YES \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/xcodebuild-test.log | grep -E 'error:|warning: unre|Executed [0-9]+ tests|\*\* TEST' || true
-          grep -E 'Executed [0-9]+ tests, with 0 failures' build/xcodebuild-test.log
+            2>&1 | tee build/xcodebuild-test.log
 
-      # Conformance-availability warnings do not fail a build, but they crash at launch on
-      # the deployment target (macOS 12): CGRect/CGPoint/CGSize Hashable is macOS 15+, and
-      # a Set<CGRect> shipped that way in 0.11.0-0.11.2. The runner compiles from a fresh
-      # checkout, so this log carries every warning.
-      - name: Cross-version conformance check
+      - name: Check deployment compatibility
+        if: success() || failure()
         run: python3 Scripts/check_availability_warnings.py build/xcodebuild-test.log
 
-      - name: Upload test log
+      - name: Export coverage
+        if: success() || failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d build/TestResults.xcresult ]; then
+            xcrun xccov view --report build/TestResults.xcresult > build/coverage.txt
+            xcrun xccov view --report --json build/TestResults.xcresult > build/coverage.json
+            cat build/coverage.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: xcodebuild-test-log
-          path: build/xcodebuild-test.log
-          if-no-files-found: ignore
+          name: test-results
+          path: |
+            build/xcodebuild-test.log
+            build/TestResults.xcresult
+            build/coverage.txt
+            build/coverage.json
+          if-no-files-found: warn
+          retention-days: 14
