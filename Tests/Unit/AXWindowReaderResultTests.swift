@@ -106,19 +106,16 @@ final class ActionExecutionSwitchesTests: XCTestCase {
 
         XCTAssertTrue(switches.fastWindowHandleEnabled)
         XCTAssertFalse(switches.chipProbeEnabled)
-        XCTAssertFalse(switches.minimizeAppFallbackEnabled)
     }
 
     func testCompatibilityKillSwitchesAreDirectional() {
         let switches = ActionExecutionSwitches(environment: [
             "DOCK_FAST_WINDOW_HANDLE": "0",
             "DOCK_CHIP_PROBE": "1",
-            "DOCK_MINIMIZE_APP_FALLBACK": "1"
         ])
 
         XCTAssertFalse(switches.fastWindowHandleEnabled)
         XCTAssertTrue(switches.chipProbeEnabled)
-        XCTAssertTrue(switches.minimizeAppFallbackEnabled)
     }
 
     func testFastHandleHitSkipsFallback() {
@@ -156,8 +153,6 @@ final class ActionExecutionSwitchesTests: XCTestCase {
         XCTAssertEqual(fastCalls, 1)
         XCTAssertEqual(fallbackCalls, 1)
     }
-
-    // MARK: - 缓存元素档（最小化恢复提速，2026-08-11）
 
     func testCachedHandleHitSkipsBothSlowerTiers() {
         var cachedCalls = 0
@@ -199,8 +194,6 @@ final class ActionExecutionSwitchesTests: XCTestCase {
         XCTAssertEqual(fallbackCalls, 1)
     }
 
-    /// 刚 unhide 出来的 App，**前两档一律禁用**：AX 元素可能仍在过渡态，缓存里那个更是
-    /// 隐藏之前存下的。既有规则（原来只管 fast 一档），扩到缓存档后必须继续成立。
     func testJustUnhidSkipsCachedAndFastTiers() {
         var cachedCalls = 0
         var fastCalls = 0
@@ -221,7 +214,6 @@ final class ActionExecutionSwitchesTests: XCTestCase {
         XCTAssertEqual(fallbackCalls, 1)
     }
 
-    /// `DOCK_AX_ELEMENT_CACHE=0` 必须完整退回改动前的两档行为。
     func testCacheDisabledRestoresPreviousTwoTierBehaviour() {
         var cachedCalls = 0
         var fastCalls = 0
@@ -258,52 +250,18 @@ final class ActionExecutionSwitchesTests: XCTestCase {
         XCTAssertEqual(fastCalls, 0)
     }
 
-    func testMinimizeCaptureFailureDoesNotUseAppFallbackByDefault() {
-        XCTAssertFalse(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .minimizeWindow,
-            isFinderWindow: false,
-            minimizeAppFallbackEnabled: false,
-            knownMinimized: false
-        ))
-        XCTAssertTrue(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .minimizeWindow,
-            isFinderWindow: false,
-            minimizeAppFallbackEnabled: true,
-            knownMinimized: false
-        ))
-        XCTAssertTrue(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .activateWindow,
-            isFinderWindow: false,
-            minimizeAppFallbackEnabled: false,
-            knownMinimized: false
-        ))
+    func testOnlyUnminimizedNonFinderActivationMayUseAppRecovery() {
+        for kind in [PlatformActionRequest.ActionKind.activateWindow, .minimizeWindow, .closeWindow] {
+            for finder in [false, true] {
+                for minimized in [false, true] {
+                    XCTAssertEqual(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
+                        requestKind: kind, isFinderWindow: finder, knownMinimized: minimized),
+                        kind == .activateWindow && !finder && !minimized)
+                }
+            }
+        }
     }
 
-    /// 【承重,2026-08-25】knownMinimized 的 activate 禁止 app 级兜底,且**不挂沉降门开关**:
-    /// `activateAppWithWindowRecovery` raise 的是 `visibleWindows[0]`,对最小化目标永远还原
-    /// 不了它,只会把兄弟窗口带到前面(owner 连点实测的确切出处)。
-    func testKnownMinimizedActivateNeverUsesAppFallback() {
-        XCTAssertFalse(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .activateWindow,
-            isFinderWindow: false,
-            minimizeAppFallbackEnabled: false,
-            knownMinimized: true
-        ))
-        // 两轴正交:knownMinimized 不影响 minimize 请求的兜底开关语义。
-        XCTAssertTrue(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .minimizeWindow,
-            isFinderWindow: false,
-            minimizeAppFallbackEnabled: true,
-            knownMinimized: true
-        ))
-        // Finder guard 优先级不变。
-        XCTAssertFalse(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
-            requestKind: .activateWindow,
-            isFinderWindow: true,
-            minimizeAppFallbackEnabled: false,
-            knownMinimized: true
-        ))
-    }
 }
 
 @MainActor
@@ -572,7 +530,6 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        // destroy 事件走限时后台读（同其它 AX 事件）；不限时读在主 actor 上一次都不许发生。
         let reader = ControlledAppTrackerReader(
             result: .success([]),
             blocksTimedReads: false

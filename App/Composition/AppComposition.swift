@@ -405,9 +405,7 @@ final class AppRuntime: ObservableObject {
             state = OptimisticWindowState(status: .active, createdAt: Date(), focusHandoffGrace: wasMinimizedAtPlan)
         case .minimizeWindow:
             state = OptimisticWindowState(status: .minimized, createdAt: Date())
-        case .hideApp:
-            state = OptimisticWindowState(status: .hidden, createdAt: Date())
-        case .closeWindow, .quitApp, .newWindow:
+        case .closeWindow:
             state = nil
         }
         guard let state, let windowID = request.windowID else { return }

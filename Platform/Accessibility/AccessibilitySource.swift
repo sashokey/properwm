@@ -197,12 +197,6 @@ struct AccessibilityWindowActionExecutor {
         fileprivate let element: AXUIElement
     }
 
-    /// 最快的一档：直接用 `AppTracker` 盘点时存下的 AX 元素（`AXElementCache`），只花一次
-    /// `_AXUIElementGetWindow` 校验它仍指向期望的窗口，预算 50ms。
-    ///
-    /// 为什么值得单独一档：既有的快路径要依次问 `AXFocusedWindow` → `AXMainWindow` → 全量
-    /// `AXWindows`，而**最小化的窗口既不是 focused 也不是 main**，必然走到最后那步；偏偏最小化的
-    /// App 常在打盹，这一整套能把 100ms 预算吃光，再转 500ms 的慢路径。缓存这一档把它压到 ≤50ms。
     func captureHandleFromCache(
         _ cgWindowID: CGWindowID,
         pid: Int32,
@@ -214,15 +208,11 @@ struct AccessibilityWindowActionExecutor {
         }
         switch reader.matchesCGWindowID(cgWindowID, element: element, messagingTimeout: 0.05) {
         case .some(true):
-            // title / bounds 用快照值补齐——同 `fastHandle`，绝不透传 nil（透传 nil 会让后面
-            // recapture 的 bestMatch 对任何 ≥2 窗口的应用必然返回 nil，静默废掉救援路径）。
             return WindowHandle(pid: pid, title: title, bounds: bounds, element: element)
         case .some(false):
-            // 读到了、但已经换了窗口（cgWindowID 复用）——这条缓存必须作废。
             AXElementCache.shared.remove(pid: pid, cgWindowID: cgWindowID)
             return nil
         case .none:
-            // 读不到 ≠ 陈旧。留着缓存，本次回落既有捕获链。
             return nil
         }
     }
@@ -254,9 +244,6 @@ struct AccessibilityWindowActionExecutor {
     }
 
     func activateAppWithWindowRecovery(pid: Int32, runningApp: NSRunningApplication?) -> Bool {
-        // 限时 0.3s（2026-08-11）。这里原来走的是**无超时**的 `windows(forPID:)`，用的是系统默认
-        // AX 超时，打盹的 App 上是秒级——而这是 `app-*` 卡片点击的唯一路径，人正在等。读不出来
-        // 就当没有可见窗口，直接走下面的 openApplication 唤出（行为与 `.unread → 空` 一致）。
         let liveWindows: [AXWindowSnapshot]
         switch reader.inventoryWindows(forPID: pid, messagingTimeout: 0.3) {
         case .success(let windows): liveWindows = windows
@@ -269,11 +256,7 @@ struct AccessibilityWindowActionExecutor {
             return runningApp?.activate(options: [.activateIgnoringOtherApps]) ?? false
         }
 
-        guard let app = runningApp, let url = app.bundleURL else { return false }
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: nil)
-        return true
+        return false
     }
 
     func captureHandle(
@@ -299,7 +282,6 @@ struct AccessibilityWindowActionExecutor {
 
     func minimize(_ handle: WindowHandle) -> ActionExecution {
         if chipProbeEnabled {
-            // Read-only survey, intentionally absent from the default click path.
             let role = reader.stringAttribute(kAXRoleAttribute as CFString, from: handle.element, maxAttempts: 1)
             let subrole = reader.stringAttribute(kAXSubroleAttribute as CFString, from: handle.element, maxAttempts: 1)
             let hasMinimizeButton = axElementAttribute(kAXMinimizeButtonAttribute as CFString, from: handle.element) != nil
@@ -329,8 +311,6 @@ struct AccessibilityWindowActionExecutor {
         }
 
         guard let button = axElementAttribute(kAXMinimizeButtonAttribute as CFString, from: handle.element) else {
-            // 无最小化按钮但回读已是收起态（AXDialog 类窗口，Release 实测 2026-08-26）：
-            // 目标状态已成立就是成功，报失败会让乐观态误回弹。
             let verified = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element)
             return ActionExecution(
                 success: verified == true,
@@ -404,49 +384,20 @@ struct AccessibilityWindowActionExecutor {
         awaitOnScreenBeforeFocus: Bool = false
     ) -> Bool {
         let runningApp = NSRunningApplication(processIdentifier: handle.pid)
-        // `knownMinimized` 来自快照，只作**肯定**的快路径用（2026-08-11）：快照说它最小化，就直接
-        // 还原，省掉一次对打盹 App 的 AX 往返——那正是「点最小化的窗口最慢」里最后一段等待。
-        // 反过来**不能**用：快照说「没最小化」时仍必须现读，否则一次陈旧快照就会让窗口回不来。
-        // 误判方向也无害：对一个其实没最小化的窗口写 `minimized = false` 是空操作。
         if knownMinimized || reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element) == true {
-            // R2 序（2026-08-22 矩阵）：无非最小化兄弟时先切前台、微秒级紧跟还原——
-            // AppKit 进程内把还原窗口直接立为 key，红绿灯在还原动画期间即为彩色，
-            // 消掉「窗口出现后补聚焦」的过程（外部事件在动画期间进不了 App 事件队列，
-            // 矩阵 R0/R1/R3 实证补发无效，唯一的原生同款路径就是让 App 自己做）。
-            // 判定见 MinimizedRestorePreActivation；有兄弟时走下面的原有顺序。
             if preActivateForRestore, let wid = knownCGWindowID {
                 postSkyLightFrontSwitchOnly(pid: handle.pid, windowID: wid)
             }
             _ = setMinimized(false, for: handle)
-            // 回屏等待(2026-08-25 midMin/midMinWait 探针,仅连点先验路径):unminimize 落在
-            // genie 尾段时窗口有约 40-100ms 离屏空窗,聚焦(含前台切换)若在空窗内被处理,
-            // AppKit 会把可见兄弟**持久**提拔(访达 gap300 实测 1/3 踩中:+381ms B2 压 A1,
-            // 目标回屏后伤害仍在);等 wid 回到 CG 在屏后再发聚焦,脏配置复测 2/2 干净,
-            // 通常只等 ≤50ms(等待时长可从 DOCK_CLICK_TRACE 的 total 看出)。R2 预切路径与
-            // 普通还原(目标本就稳定离屏,聚焦排队到还原动画尾,v3 实测 5/5)保持原序不动。
             if awaitOnScreenBeforeFocus, !preActivateForRestore, let wid = knownCGWindowID {
                 waitForWindowOnScreen(wid)
             }
-            // 恢复→切换必须紧贴、中间零 AX 问询（2026-07-05 探针 v3）：最小化恢复不做提前
-            // 聚焦——B1 还在 order-out 时任何切前台（含 kCPSNoWindows、不发 make-key 的裸
-            // psn 切换）都会让 App 自动提拔可见兄弟 B2 压到旧前台 A1 上（持久 z 序变化）。
-            // 唯一干净路径：unminimize 之后立即用快照 wid 发完整 SkyLight 聚焦，make-key
-            // 此刻正确落在刚恢复的 B1 上；间隔微秒级，re-asserter 源（Ghostty/Chromium 系
-            // ~450ms 才回浮）来不及抢，激活闪不回归（500ms 最坏空窗实测无闪）。
             if let wid = knownCGWindowID {
                 postSkyLightWindowFocus(pid: handle.pid, windowID: wid)
             }
-            // 恢复后立刻把 App 内部焦点键回本窗口（kAXMain = App 内切窗的标准 AX 通道）。
-            // 对「仍最小化的窗口」发过的 make-key 会被 App 落到可见兄弟窗口上；不纠正的话，
-            // 键盘输入和「最小化回上一个 App」的 focused-window 保护都会错到兄弟窗口
-            // （2026-07-03 Chrome/访达 B1B2 实测）。
             AXUIElementSetAttributeValue(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue)
         }
 
-        // Trial focus patch: target the concrete window first so standard app activation
-        // does not briefly restore a sibling/previous key window over the requested one.
-        // 顺序固定为「先 SkyLight（前置 + make-key down）后 kAXRaiseAction」——AltTab 同序，
-        // CLI 连续切换实证（2026-08-22）；raise 是连续切换能持续生效的一环，不是可选项。
         let focusedViaSkyLight = focusWindowViaSkyLight(pid: handle.pid, element: handle.element)
         let raised = AXUIElementPerformAction(handle.element, kAXRaiseAction as CFString) == .success
         if !focusedViaSkyLight, runningApp?.isActive != true {
@@ -464,10 +415,6 @@ struct AccessibilityWindowActionExecutor {
         return focusedViaSkyLight || raised || runningApp?.isActive == true
     }
 
-    /// 等窗口回到 CG 在屏列表(layer-0 onscreen)。Platform 首个 CG 轮询;语义与
-    /// `scratch/minrestore_probe.swift` 的 midMinWait 变体一致(探针用全表 contains,这里用
-    /// 单窗查询判 onscreen+layer0)。2ms 步长、0.9s 上限与探针一致、超时照做不阻塞(全仓惯例);
-    /// 只在 actionQueue 后台线程上运行。
     @discardableResult
     private func waitForWindowOnScreen(_ windowID: CGWindowID, cap: TimeInterval = 0.9) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + cap
@@ -483,11 +430,6 @@ struct AccessibilityWindowActionExecutor {
         return false
     }
 
-    /// Finder answers every AX call with `cannotComplete` while its main thread sits in file
-    /// coordination (a Trash count on a dead network mount: up to ~1s, `Docs/05`), and the handle's
-    /// 100ms messaging timeout turns that into a silent no-op:
-    /// the front was already handed off, the window stayed open. Only that error is retried, within
-    /// a bounded budget; any other answer is final.
     func close(_ handle: WindowHandle) -> Bool {
         let deadline = Date().addingTimeInterval(0.6)
         var attempts = 0
@@ -547,24 +489,16 @@ struct AccessibilityWindowActionExecutor {
         return CFEqual(focusedWindow, handle.element)
     }
 
-    /// 最小化前的前台交接：决定把前台交给谁（规则与理由见 `MinimizeHandoffTarget`）。
-    /// 两道闸保留：目标 App 得在前台、且这扇窗就是它的 focused window——右键最小化后台兄弟不抢焦点。
-    /// CG 列表只取 pid / wid / layer，**不读 `kCGWindowName`**（需要屏幕录制权限，装机版没有，
-    /// 2026-08-23 实测原标题守卫让交接从未生效）；候选资格改由快照成员身份决定。
     func findBackgroundActivationTarget(
         for handle: WindowHandle,
         record: WindowRecord,
         snapshot: DockSnapshot,
         focusedReadBudget: TimeInterval = 0
     ) -> MinimizeHandoffTarget.Verdict {
-        // isActive（即时读）而非 NSWorkspace.frontmostApplication（滞后缓存）：SkyLight 激活后
-        // ~1.5s 内读缓存会误判"App 不在前台"，静默跳过预切 → macOS 提拔同 App 兄弟窗口。
         guard NSRunningApplication(processIdentifier: handle.pid)?.isActive == true else { return .none }
 
         let appElement = AXUIElementCreateApplication(handle.pid)
         AXUIElementSetMessagingTimeout(appElement, 0.2)
-        // Only `cannotComplete` (a busy app) is retried within the budget — a "no focused window"
-        // answer is final, so a background sibling never waits here.
         let deadline = Date().addingTimeInterval(focusedReadBudget)
         var focused: AXUIElement?
         var readError = AXError.success
@@ -610,8 +544,6 @@ struct AccessibilityWindowActionExecutor {
         return verdict
     }
 
-    // MARK: - Front process and window-targeted focus helpers
-
     private typealias GetProcessForPIDFunc =
         @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
 
@@ -628,13 +560,6 @@ struct AccessibilityWindowActionExecutor {
         return nil
     }()
 
-    /// 最小化前的前台交接（M4，2026-08-23 矩阵 0/20 提拔）：`_SLPSSetFrontProcessWithOptions`
-    /// 以 `kCPSNoWindows` 切前台——**不抬交接 App 的任何窗口**，被收的窗口从最上层正常收起，收完
-    /// 下面那扇自然就在最前；然后**等目标 App 自己通过 AX 回答「不在前台」**（典型 9–13ms，
-    /// 上限 100ms）再最小化。`NSRunningApplication.isActive` 瞬间就翻、不能当这个闸：
-    /// 它翻了之后目标 App 仍可能没处理完失活，此时最小化 AppKit 照样提拔兄弟（矩阵 M1/M2/M3
-    /// 各 1–3/10；加 AX 闸后 M4/M5 均 0/20）。旧的公开 API `SetFrontProcessWithOptions(FrontWindowOnly)`
-    /// 会先把交接窗口抬到被收窗口之上，动画从别人背后开始，已弃用。
     func switchFrontmostForHandoff(toPID pid: pid_t, windowID: CGWindowID, awaitingDeactivationOf targetPID: pid_t,
                                    deactivationCap: TimeInterval = 0.1) -> Bool {
         let route: String
@@ -668,10 +593,6 @@ struct AccessibilityWindowActionExecutor {
         return true
     }
 
-    /// LaunchServices-free activation for the hand-off: `kAXFrontmostAttribute = true` on the
-    /// target's application element still activates on macOS 26 (~110ms), unlike the window-level
-    /// AX focus writes. It raises the target's key window before the switch lands, which is why it
-    /// runs only when no process serial number can be resolved for the SkyLight route.
     private func activateApplicationViaAccessibility(pid: pid_t) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.2)
@@ -696,11 +617,6 @@ struct AccessibilityWindowActionExecutor {
     private static let skyLightFocusEnabled =
         DebugSwitch.skylightFocus.isEnabled(in: ProcessInfo.processInfo.environment)
 
-    /// pid → PSN, remembered per process generation: `GetProcessForPID` resolves through
-    /// LaunchServices and fails transiently for live processes (it and
-    /// `NSRunningApplication(processIdentifier:)` failed for the same pid at the same instant on
-    /// 2026-09-15, which skipped the hand-off pre-switch and let Finder promote a sibling). A PSN
-    /// seen earlier for the same process generation is served when the lookup fails.
     private static let serialNumbers = ProcessGenerationCache<ProcessSerialNumber>()
 
     private static func processSerialNumber(for pid: pid_t) -> ProcessSerialNumber? {
@@ -713,10 +629,7 @@ struct AccessibilityWindowActionExecutor {
         return serialNumbers.value(for: pid)
     }
 
-    /// 仅做 `_SLPSSetFrontProcessWithOptions` 前切、不发 make-key down（还原预激活用：
-    /// down 要等 unminimize 之后发，见 activate() 还原分支的 R2 序注释）。
     fileprivate static let kCPSUserGenerated: UInt32 = 0x200
-    /// 切前台但不抬该 App 的任何窗口（最小化交接用，见 `switchFrontmostForHandoff`）。
     fileprivate static let kCPSNoWindows: UInt32 = 0x400
 
     @discardableResult
@@ -731,21 +644,6 @@ struct AccessibilityWindowActionExecutor {
         return true
     }
 
-    /// Shared SkyLight focus core: front-process switch + one synthetic make-key mouse-down for a
-    /// known cgWindowID. Pure event posts — no AX round-trips, so it never blocks on a
-    /// napping target app. Byte layout is load-bearing (see AGENTS.md); do not vary it.
-    ///
-    /// 2026-08-22 换布局：旧的成对 0x0d make-key 事件在 macOS 26 (Tahoe) 上被 WindowServer
-    /// 静默忽略（调用全部返回成功、焦点纹丝不动，CLI 探针实证），点标签后 kAXFocusedWindow
-    /// 停在旧窗口 → 快照永远等不到 .active → 同应用切窗失效 + toggle 误最小化。现布局
-    /// 移植自 AltTab（macOS 26.5 实测有效，src/macos/api-wrappers/SkyLight.framework.swift）：
-    /// 按 windowID 投递一枚合成 kCGEventLeftMouseDown（0x08=0x01），只发 down 不发 up——
-    /// down 单独即交付 key，且半次点击永远无法激活任何控件；落点 (300_000, 300_000) 远在
-    /// 任何窗口右下之外（NaN 会被部分 App 消毒成 (0,0) 误点左上控件；贴框点会落进
-    /// resize 抓取区）。缓冲区 0x100 而记录声明长度仍 0xf8：macOS 14.7.4+ 的
-    /// CGSEncodeEventRecord 会越界读到 0xf8 之外，短缓冲会 SIGABRT。
-    /// 事件后必须紧跟 kAXRaiseAction 才能连续切换（本文件 focusWindowViaSkyLight /
-    /// activate() 均保持该顺序；CLI 连续 4 次切换实证）。
     @discardableResult
     fileprivate func postSkyLightWindowFocus(pid: pid_t, windowID: CGWindowID) -> Bool {
         guard Self.skyLightFocusEnabled else { return false }
@@ -760,9 +658,6 @@ struct AccessibilityWindowActionExecutor {
         return postSkyLightMakeKeyDown(pid: pid, windowID: windowID)
     }
 
-    /// 只发 make-key 的合成 mouse-down，不切前台（字节布局见上）。最小化交接后给接手 App 的那扇
-    /// 窗口补 key 用：`kCPSNoWindows` 前切让 App 成了前台却没有 key 窗口（owner 2026-08-23
-    /// 「聚焦是空的」），收起目标后补这一枚 down，接手窗口立刻成 key（矩阵 M6 5/5）。
     @discardableResult
     fileprivate func postSkyLightMakeKeyDown(pid: pid_t, windowID: CGWindowID) -> Bool {
         guard Self.skyLightFocusEnabled else { return false }
@@ -790,23 +685,15 @@ struct AccessibilityWindowActionExecutor {
         return true
     }
 
-    /// 最小化交接的收尾：目标已收起，给接手 App 的窗口补 key（见 `postSkyLightMakeKeyDown`）。
     func makeKeyAfterHandoff(pid: pid_t, windowID: CGWindowID) {
         postSkyLightMakeKeyDown(pid: pid, windowID: windowID)
     }
 
-    /// 提前聚焦（激活闪根治 2026-07-03）：点击瞬间用快照里已知的 cgWindowID 直接切前台，
-    /// 抢在任何可能阻塞 400–900ms 的 AX 问询（句柄捕获 / 最小化读取 / cgID 读取）之前。
-    /// 空窗期正是 Ghostty / Chromium 系前台 App 把自己窗口抢回顶层造成激活闪的窗口期。
-    /// 仅限可见窗口：最小化窗口不能提前切换（App 会提拔可见兄弟窗口，2026-07-05 探针），
-    /// 它们走 activate() 里「unminimize 后立即切换」的路径（knownCGWindowID）。
     @discardableResult
     func focusWindowEarly(pid: pid_t, cgWindowID: CGWindowID) -> Bool {
         postSkyLightWindowFocus(pid: pid, windowID: cgWindowID)
     }
 
-    /// Best-effort windowID-targeted focus. Return false only when we cannot even
-    /// attempt the route; SkyLight return codes are not a fallback signal.
     @discardableResult
     func focusWindowViaSkyLight(pid: pid_t, element: AXUIElement) -> Bool {
         guard Self.skyLightFocusEnabled else { return false }
@@ -854,24 +741,17 @@ struct AccessibilityWindowActionExecutor {
 
 struct ActionExecutionSwitches: Equatable {
     let fastWindowHandleEnabled: Bool
-    /// `DOCK_AX_ELEMENT_CACHE=0` 关掉「缓存元素」那一档，回到 fast / fallback 两档。
     let axElementCacheEnabled: Bool
     let chipProbeEnabled: Bool
-    let minimizeAppFallbackEnabled: Bool
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         fastWindowHandleEnabled = DebugSwitch.fastWindowHandle.isEnabled(in: environment)
         axElementCacheEnabled = DebugSwitch.axElementCache.isEnabled(in: environment)
         chipProbeEnabled = DebugSwitch.chipProbe.isEnabled(in: environment)
-        minimizeAppFallbackEnabled = DebugSwitch.minimizeAppFallback.isEnabled(in: environment)
     }
 }
 
 enum WindowHandleCapturePlan {
-    /// 三档，从快到慢：**缓存元素（零枚举）→ 按 cgWindowID 现问（100ms）→ 全量标题/几何链（500ms）**。
-    ///
-    /// `justUnhid` 对**前两档**一律禁用：刚 unhide 出来的 App，其 AX 元素可能仍在过渡态，
-    /// 缓存里那个更是最小化/隐藏之前存的，两者都不可信，必须走带重试的慢路径（既有规则，不变）。
     static func capture<Handle>(
         cachedEnabled: Bool,
         fastEnabled: Bool,
@@ -888,29 +768,15 @@ enum WindowHandleCapturePlan {
         return fallback()
     }
 
-    /// `knownMinimized` 的 activate 禁止 app 级兜底(2026-08-25,无条件生效、不挂沉降门开关):
-    /// `activateAppWithWindowRecovery` raise 的是 `visibleWindows[0]`——对最小化目标永远还原
-    /// 不了它,只会把兄弟窗口带到前面(owner 连点实测的确切出处)。捕获全败就返回失败让乐观态
-    /// 回弹,与 2026-08-11「minimize 捕获失败绝不 hide 整 App」同构,故同样不挂开关。
     static func usesAppFallbackAfterCaptureFailure(
         requestKind: PlatformActionRequest.ActionKind,
         isFinderWindow: Bool,
-        minimizeAppFallbackEnabled: Bool,
         knownMinimized: Bool
     ) -> Bool {
-        guard !isFinderWindow else { return false }
-        if requestKind == .minimizeWindow { return minimizeAppFallbackEnabled }
-        if requestKind == .activateWindow && knownMinimized { return false }
-        return true
+        requestKind == .activateWindow && !isFinderWindow && !knownMinimized
     }
 }
 
-/// 还原前预激活判定（2026-08-22 还原时序矩阵）：仅当目标 App 除目标窗口外
-/// **没有任何非最小化窗口**时，才允许「先切前台、紧跟还原」（R2 序）——那时 AppKit
-/// 无可提拔对象，进程内 deminiaturize-as-key 让红绿灯在还原动画期间即为彩色（原生观感）。
-/// 存在任何非最小化兄弟（可见 / 隐藏 / disappeared 一律保守算数）时禁用：矩阵实证
-/// 即便切换与还原微秒级相邻，AppKit 仍会把可见兄弟持久抬到旧前台之上（07-05 护栏
-/// 在新事件机制下依然成立）。纯函数，FinderP0Tests 锁行为。
 enum MinimizedRestorePreActivation {
     static func canPreActivate(snapshot: DockSnapshot, target: WindowRecord) -> Bool {
         !snapshot.windows.values.contains {
@@ -941,37 +807,12 @@ struct PlatformActionExecutor {
               let record = snapshot.windows[windowID] else {
             return false
         }
-        // 沉降门先验(v2,2026-08-25):门层刚对该窗口派发过 minimize(priorWindow 内)。
-        // 只作**肯定**信号合成进 knownMinimized——真最小化走实测锁死的 v3 还原序;其实没
-        // 最小化时 unminimize 是无害空操作 + 正常聚焦。绝不反向使用(affirmative-only)。
         let effectiveKnownMinimized = forcedMinimizedPrior || record.status == .minimized
 
-        if record.id.rawValue.hasPrefix("app-") {
-            return executeAppFallback(request: request, record: record)
-        }
-
-        // New window needs no window handle — just activate the app and send Cmd+N.
-        if request.kind == .newWindow {
-            return performNewWindow(record: record)
-        }
-
-        if request.kind == .hideApp || request.kind == .quitApp {
-            return executeAppFallback(request: request, record: record)
-        }
+        guard !record.id.rawValue.hasPrefix("app-") else { return false }
 
         let isFinderWindow = FinderWindowRules.isFinder(bundleIdentifier: record.bundleIdentifier)
 
-        // 提前聚焦（激活闪根治 2026-07-03）：仅 activate + 跨 App + 可见窗口，
-        // 访达也包含（confirmFocused 保护路径在后面照常执行；访达的多次捕获重试空窗更长，
-        // 曾是"只剩访达还闪"的原因）。必须发生在下面的句柄捕获之前 —— 捕获/恢复对目标 App
-        // 的 AX 问询可阻塞数百毫秒，这段空窗正是仍聚焦的旧前台 App（Ghostty / Chromium 系）
-        // 把窗口抢回顶层的窗口期。隐藏 App 的窗口不提前（unhide 流程另算）。
-        // 最小化窗口【不】提前（2026-07-05 探针 v0–v3）：B1 仍 order-out 时任何切前台都会
-        // 让 App 把可见兄弟 B2 提拔到旧前台之上（持久 z 序 bug）；改为 activate() 里
-        // unminimize 之后立即切换（见 knownCGWindowID 路径），实测同样无闪。
-        // 沉降门先验在飞时跳过提前聚焦(2026-08-25):连点风暴中快照可能仍陈旧地写着
-        // inactive,而窗口实际在 genie 中/屏外——此时提前聚焦的前台切换就是 07-05 矩阵里
-        // 3/3 提拔兄弟的裸切换(owner 点击日志实锤该路径在风暴中触发过)。
         if request.kind == .activateWindow,
            !forcedMinimizedPrior,
            let cgWindowID = record.cgWindowID,
@@ -981,16 +822,11 @@ struct PlatformActionExecutor {
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "earlyFocus")
         }
 
-        // If Finder is hidden, unhide it first so its AX windows become accessible.
-        // Then fall through to the normal window-level capture path — avoids regressing
-        // to app-level activate, which can raise the wrong window (guardrail in AGENTS.md).
         var justUnhid = false
         if isFinderWindow {
             let finderApp = NSRunningApplication(processIdentifier: record.pid)
             if finderApp?.isHidden == true {
                 finderApp?.unhide()
-                // Poll until the app transitions out of hidden (max ~200ms) so the AX
-                // element is accessible before the handle-capture below runs.
                 let deadline = Date().addingTimeInterval(0.2)
                 while finderApp?.isHidden == true, Date() < deadline {
                     usleep(20_000)
@@ -1001,9 +837,6 @@ struct PlatformActionExecutor {
 
         let target = AccessibilityWindowActionExecutor.WindowTarget(
             pid: record.pid, title: record.title, bounds: record.bounds)
-        // After unhide, skip the fast cgWindowID path — it may return a handle whose AX
-        // element is still transitioning. Use the retry-capable captureHandle instead.
-        // 命中的是哪一档，是这轮改动能不能证明有效的关键分类信息（缓存 / 快路径 / 全量链）。
         var captureTier = "none"
         let handle = WindowHandleCapturePlan.capture(
             cachedEnabled: switches.axElementCacheEnabled,
@@ -1046,7 +879,7 @@ struct PlatformActionExecutor {
             guard WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
                 requestKind: request.kind,
                 isFinderWindow: isFinderWindow,
-                minimizeAppFallbackEnabled: switches.minimizeAppFallbackEnabled,
+
                 knownMinimized: effectiveKnownMinimized
             ) else {
                 return false
@@ -1092,13 +925,6 @@ struct PlatformActionExecutor {
                     return retryExec.success
                 }
             }
-            // 还原动画期的写入丢弃（2026-08-26 Release 实测）：还原 genie 未结束时，
-            // kAXMinimized 写入与最小化按钮点击都被应用丢弃（11–16ms 快速失败、回读 false）。
-            // 中途反向打断不可行（scratch/minrestore_probe 2026-08-25），有界重试等窗口恢复
-            // 接受写入后立刻补上这一击——是能达到的最早收起时点。8×120ms 总覆盖 ~1s
-            //（访达 887ms 动画；同日 Release 实测 27/27 次首试 +250ms 即成功，故间隔收紧到
-            // 120ms 磨掉落地零头）；只走失败路径，正常收起零成本。全部失败则照旧返回失败、
-            // 乐观态回弹。
             if minExec.verifiedMinimized != true {
                 for attempt in 1...8 {
                     usleep(120_000)
@@ -1116,8 +942,6 @@ struct PlatformActionExecutor {
             }
             return false
         case .closeWindow:
-            // Same hand-off as minimize: closing the active app's key window otherwise makes AppKit
-            // raise that app's next window over whatever was directly beneath.
             let handoff = beginHandoff(handle: handle, record: record, snapshot: snapshot,
                                        onHandoffActivePrediction: onHandoffActivePrediction, patience: .close)
             if windowExecutor.close(handle) {
@@ -1131,10 +955,6 @@ struct PlatformActionExecutor {
                 }
             }
             return false
-        case .hideApp, .quitApp:
-            return executeAppFallback(request: request, record: record)
-        case .newWindow:
-            return performNewWindow(record: record)
         }
     }
 
@@ -1144,10 +964,6 @@ struct PlatformActionExecutor {
         var preSwitched = false
     }
 
-    /// How long the hand-off may wait on the target app's AX before acting anyway. Minimize keeps
-    /// the 100ms cap (the click must not lag behind the genie); close has no animation to protect,
-    /// and a loaded Finder answers AX in 100–400ms right after a front switch — closing before it
-    /// has processed the deactivation is exactly what promotes a sibling.
     struct HandoffPatience {
         let focusedReadBudget: TimeInterval
         let deactivationCap: TimeInterval
@@ -1155,8 +971,6 @@ struct PlatformActionExecutor {
         static let close = HandoffPatience(focusedReadBudget: 0.5, deactivationCap: 0.5)
     }
 
-    /// Front hand-off before the frontmost focused window leaves the screen (minimize or close):
-    /// whoever is directly beneath takes the front (`MinimizeHandoffTarget`).
     private func beginHandoff(
         handle: AccessibilityWindowActionExecutor.WindowHandle,
         record: WindowRecord,
@@ -1167,8 +981,6 @@ struct PlatformActionExecutor {
         let verdict = windowExecutor.findBackgroundActivationTarget(
             for: handle, record: record, snapshot: snapshot, focusedReadBudget: patience.focusedReadBudget
         )
-        // 接手者预测尽早回传（动作尚未执行）：越早写乐观 .active，越能覆盖极快的
-        // 「收窗 1 → 点窗 2」第二击。动作失败时预测由顶替清除自愈（目标仍 .active 兑现）。
         switch verdict {
         case .switchTo(_, _, let windowID), .siblingTakesOver(let windowID):
             onHandoffActivePrediction?(windowID)
@@ -1187,7 +999,6 @@ struct PlatformActionExecutor {
         return handoff
     }
 
-    /// After the window is gone: key the hand-off window, or activate its app if the pre-switch was unavailable.
     private func finishHandoff(_ handoff: Handoff) {
         if handoff.preSwitched, let targetPID = handoff.targetPID, let handoffWindowID = handoff.windowID {
             windowExecutor.makeKeyAfterHandoff(pid: targetPID, windowID: handoffWindowID)
@@ -1203,57 +1014,11 @@ struct PlatformActionExecutor {
     }
 
     private func executeAppFallback(request: PlatformActionRequest, record: WindowRecord) -> Bool {
-        let runningApp = NSRunningApplication(processIdentifier: record.pid)
-
-        switch request.kind {
-        case .activateWindow:
-            // Finder persistent chip (no open windows): open a new Finder window where Finder's own
-            // "New Finder windows show" setting points, as the system Dock does.
-            if record.id.rawValue.hasPrefix("app-"),
-               FinderWindowRules.isFinder(bundleIdentifier: record.bundleIdentifier) {
-                FinderNewWindowOpener.openNewWindow()
-                return true
-            }
-            return windowExecutor.activateAppWithWindowRecovery(pid: record.pid, runningApp: runningApp)
-        case .minimizeWindow, .hideApp:
-            return runningApp?.hide() ?? false
-        case .closeWindow:
-            return false
-        case .quitApp:
-            return runningApp?.terminate() ?? false
-        case .newWindow:
-            return performNewWindow(record: record)
-        }
+        guard request.kind == .activateWindow else { return false }
+        return windowExecutor.activateAppWithWindowRecovery(
+            pid: record.pid, runningApp: NSRunningApplication(processIdentifier: record.pid))
     }
 
-    /// Opens a new window for a window-backed app by activating it and synthesizing
-    /// the standard Cmd+N key equivalent.
-    ///
-    /// v1 limitations (accepted, documented in README/Backlog): apps where Cmd+N means
-    /// "new document" (Pages/TextEdit) yield a new document; apps not bound to Cmd+N
-    /// do nothing. Covers ~90% of common apps. v2 upgrade path is AX menu traversal
-    /// for a "New Window" item.
-    private func performNewWindow(record: WindowRecord) -> Bool {
-        guard let runningApp = NSRunningApplication(processIdentifier: record.pid) else { return false }
-        runningApp.activate(options: [.activateIgnoringOtherApps])
-        // Short tick so activation settles before the key equivalent is delivered.
-        usleep(80_000)
-        return postCommandN(toPID: record.pid)
-    }
-
-    private func postCommandN(toPID pid: pid_t) -> Bool {
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
-        let keyN: CGKeyCode = 45 // kVK_ANSI_N
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyN, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyN, keyDown: false) else {
-            return false
-        }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        keyDown.postToPid(pid)
-        keyUp.postToPid(pid)
-        return true
-    }
 }
 
 private func windows(for pid: pid_t) -> [AXUIElement] {
@@ -1283,8 +1048,6 @@ private func axBoolAttribute(_ attribute: CFString, from element: AXUIElement) -
 }
 
 private func axElementAttribute(_ attribute: CFString, from element: AXUIElement) -> AXUIElement? {
-    // 跨进程 AX 返回值的类型由对方进程决定，实现有 bug 的 App 可能返回别的 CF 类型。
-    // 不验类型直接 bitcast 是未定义行为，强制转换会直接 trap——代价都是整条任务条崩掉，先验类型再转。
     guard let value = axCopyAttributeValue(attribute, from: element),
           CFGetTypeID(value) == AXUIElementGetTypeID() else {
         return nil
@@ -1298,7 +1061,6 @@ private func axFrame(of element: AXUIElement) -> CGRect? {
         return nil
     }
 
-    // 同上：位置 / 尺寸也可能不是 AXValue，先验 CF 类型再转（`FrontmostWindowGeometryObserver` 同一条守则）。
     guard CFGetTypeID(positionAX) == AXValueGetTypeID(),
           CFGetTypeID(sizeAX) == AXValueGetTypeID() else {
         return nil

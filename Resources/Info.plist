@@ -26,7 +26,5 @@
   <string>Copyright © 2026 Moonbai Studio. Licensed under GPL-3.0-or-later.</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
-  <key>NSAppleEventsUsageDescription</key>
-  <string>用于读取当前访达窗口所在文件夹以显示快捷面板，以及显示废纸篓空满状态和清倒废纸篓。</string>
 </dict>
 </plist>

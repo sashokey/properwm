@@ -2221,4 +2221,14 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "A", relativeTo: "Z", after: false), ["A", "B"])
     }
 
+    func testAppOnlyEntriesCannotExecuteWindowActions() {
+        let id = WindowID(rawValue: "app-com.example.no-windows")
+        let state = snapshot(windowID: id, status: .inactive)
+        let executor = PlatformActionExecutor()
+        for kind in [PlatformActionRequest.ActionKind.activateWindow, .minimizeWindow, .closeWindow] {
+            XCTAssertFalse(executor.execute(
+                PlatformActionRequest(kind: kind, windowID: id),
+                snapshot: state, forcedMinimizedPrior: false, onHandoffActivePrediction: nil))
+        }
+    }
 }

@@ -22,7 +22,7 @@ final class MinimizeSettleGateTests: XCTestCase {
 
     /// 非 activate 的动作一律放行,即使锚还活着。
     func testNonActivateKindsAlwaysDispatch() {
-        let kinds: [PlatformActionRequest.ActionKind] = [.minimizeWindow, .hideApp, .closeWindow, .quitApp, .newWindow]
+        let kinds: [PlatformActionRequest.ActionKind] = [.minimizeWindow, .closeWindow]
         for kind in kinds {
             XCTAssertEqual(verdict(kind: kind, confirmed: false, elapsed: 0.1), .dispatchNow)
         }
