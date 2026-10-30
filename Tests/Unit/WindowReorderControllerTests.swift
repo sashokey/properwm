@@ -8,19 +8,15 @@ final class WindowReorderControllerTests: XCTestCase {
     private var controller: DragController!
     private let outsideZone = CGPoint(x: 500, y: 500)
 
-    override nonisolated func setUp() async throws {
-        try await super.setUp()
-        await MainActor.run {
-            _ = NSApplication.shared
-            self.controller = DragController(screensProvider: { NSScreen.screens })
-        }
+    @MainActor
+    override func setUp() async throws {
+        _ = NSApplication.shared
+        controller = DragController(screensProvider: { NSScreen.screens })
     }
 
-    override nonisolated func tearDown() async throws {
-        await MainActor.run {
-            self.controller.cancelDrag()
-        }
-        try await super.tearDown()
+    @MainActor
+    override func tearDown() async throws {
+        controller.cancelDrag()
     }
 
     private func payload(_ source: DragSource, _ bid: String) -> DragPayload {

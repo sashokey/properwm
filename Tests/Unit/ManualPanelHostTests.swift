@@ -41,11 +41,9 @@ final class ManualPanelHostTests: XCTestCase {
         override var intrinsicContentSize: NSSize { desiredSize }
     }
 
-    override nonisolated func setUp() async throws {
-        try await super.setUp()
-        await MainActor.run {
-            _ = NSApplication.shared
-        }
+    @MainActor
+    override func setUp() async throws {
+        _ = NSApplication.shared
     }
 
     func testHostedViewIsIsolatedFromPanelContentView() {

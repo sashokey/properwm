@@ -6,20 +6,16 @@ final class WindowOrderingTests: XCTestCase {
     private var suite: String!
     private var clock = Date(timeIntervalSince1970: 100)
 
-    override nonisolated func setUp() async throws {
-        try await super.setUp()
-        await MainActor.run {
-            self.suite = "properwm-order-tests-" + UUID().uuidString
-            self.defaults = UserDefaults(suiteName: self.suite)!
-            self.clock = Date(timeIntervalSince1970: 100)
-        }
+    @MainActor
+    override func setUp() async throws {
+        suite = "properwm-order-tests-" + UUID().uuidString
+        defaults = UserDefaults(suiteName: suite)!
+        clock = Date(timeIntervalSince1970: 100)
     }
 
-    override nonisolated func tearDown() async throws {
-        await MainActor.run {
-            self.defaults.removePersistentDomain(forName: self.suite)
-        }
-        try await super.tearDown()
+    @MainActor
+    override func tearDown() async throws {
+        defaults.removePersistentDomain(forName: suite)
     }
 
     private func makeStore(boot: Int = 1) -> StripOrderStore {
