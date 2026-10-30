@@ -193,6 +193,7 @@ final class ChipPillMetricsTests: XCTestCase {
 
 }
 
+@MainActor
 final class ScreenRectReaderTests: XCTestCase {
     private final class Task: ScreenRectDeliveryTask {
         private let action: () -> Void
