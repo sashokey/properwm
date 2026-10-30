@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           if [ -d build/TestResults.xcresult ] && xcrun xccov view --report build/TestResults.xcresult > build/coverage.txt; then
             xcrun xccov view --report --json build/TestResults.xcresult > build/coverage.json
-            cat build/coverage.txt >> "$GITHUB_STEP_SUMMARY"
+            python3 -c 'import json; report = json.load(open("build/coverage.json")); print("## Code coverage\n\n{:.2%} of instrumented lines ({:,}/{:,}).\n\nFull reports are in the `test-results` artifact.".format(report["lineCoverage"], report["coveredLines"], report["executableLines"]))' >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Coverage is unavailable because test execution did not produce a report." >> "$GITHUB_STEP_SUMMARY"
           fi
