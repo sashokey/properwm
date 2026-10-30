@@ -312,6 +312,8 @@
 		B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */; };
 		D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */; };
 		D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000008 /* DisplayTopologyStoreTests.swift */; };
+		EAA000000000000000000002 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
+		EAA000000000000000000003 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -533,6 +535,7 @@
 		A00000000000000000009770 /* WindowOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrderingTests.swift; sourceTree = "<group>"; };
 		A000000000000000000090B0 /* FullscreenClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenClassificationTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000059 /* ProperWMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ProperWMTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EAA000000000000000000001 /* AppIconResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconResolver.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -643,6 +646,7 @@
 			children = (
 				A00000000000000000001C20 /* IconBitmapRenderer.swift */,
 				A10CF0000000000000000000 /* AppIconFreshness.swift */,
+				EAA000000000000000000001 /* AppIconResolver.swift */,
 				E90000000000000000000031 /* DockStripView+Projection.swift */,
 				E90000000000000000000032 /* DockStripView+Hover.swift */,
 				E90000000000000000000010 /* StripProjection.swift */,
@@ -1148,6 +1152,7 @@
 			files = (
 				A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */,
 				A10CF0000000000000000001 /* AppIconFreshness.swift in Sources */,
+				EAA000000000000000000002 /* AppIconResolver.swift in Sources */,
 				E90000000000000000001031 /* DockStripView+Projection.swift in Sources */,
 				E90000000000000000001032 /* DockStripView+Hover.swift in Sources */,
 				E9000000000000000000102B /* PanelCoordinator+Visibility.swift in Sources */,
@@ -1372,6 +1377,7 @@
 				A00000000000000000009D03 /* WindowTitleTooltipTests.swift in Sources */,
 				A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */,
 				A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */,
+				EAA000000000000000000003 /* AppIconResolver.swift in Sources */,
 				A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */,
 				B1000000000000000000010F /* MinimizeHandoffTarget.swift in Sources */,
 				B10000000000000000000114 /* MinimizeSettleGate.swift in Sources */,
