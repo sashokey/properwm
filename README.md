@@ -1,33 +1,17 @@
 # ProperWM
 
-A macOS taskbar for open windows. Requires macOS 12 or newer; universal builds support Apple Silicon and Intel.
+ProperWM is a lightweight window manager for macOS, focused on open windows without unnecessary extras.
 
-- Switch to, restore, minimize, and close windows.
-- Reorder window buttons by dragging them.
-- Show a separate taskbar on each display, with that display's windows.
-- Show application names on hover.
-- Keep maximized windows above the taskbar.
-- Predict fullscreen transitions to prevent taskbar flicker.
+It brings your open windows together in a compact taskbar, making it easier to keep track of your work and move between tasks. It is designed for everyday multitasking, helping you find the window you need when several applications or displays are in use.
 
-The taskbar uses the fixed **Always** mode, while retaining fullscreen hiding.
-Its menu contains only **Open at Login** and **Taskbar Size**. Accessibility permission is requested when needed. The app follows the system appearance.
+Requires macOS 12 or later. Supports Apple Silicon and Intel Macs.
 
-## Builds and releases
+## Installation
 
-Builds run exclusively in GitHub Actions. **CI** runs the tests with coverage, checks localization and deployment compatibility, and packages a universal Release app. A successful run provides the **ProperWM** artifact containing the app ZIP and its SHA-256 checksum. Published releases use GitHub's standard **Source code (zip)** and **Source code (tar.gz)** downloads for the exact release tag; no duplicate source archive is uploaded. Test logs, coverage, and the result bundle are in **test-results**.
+Download the app ZIP from [Releases](https://github.com/sashokey/properwm/releases), move `ProperWM.app` to `/Applications`, and open it. Grant **Accessibility** permission when prompted so the app can manage windows.
 
-To publish through the GitHub plugin, commit a new version in [`.github/release.json`](.github/release.json) on `master`. Set `prerelease` and `draft` explicitly. That commit starts **Release**, which validates the request, runs CI, builds the exact commit, verifies checksums, and publishes after uploading all assets. Ordinary code commits do not publish releases; changing only the request file runs the release pipeline without a duplicate standalone CI run.
-
-A manual alternative remains available: open **Actions → Release → Run workflow**, enter a new version in `X.Y.Z` form, and choose **Mark as a pre-release** and **Keep as a draft**. The workflow tests and rebuilds that exact commit before creating `vX.Y.Z` and uploading the verified packages. Existing version tags are never replaced. Clear **Keep as a draft** to publish after all steps succeed.
-
-Packages are ad-hoc signed and are not notarized. No paid signing account or external publishing service is required. Install `ProperWM.app` in `/Applications` before granting Accessibility permission or enabling **Open at Login**. macOS may require **Privacy & Security → Open Anyway** on first launch.
-
-There are no third-party runtime packages. CI uses the newest installed Xcode 26 and pins official GitHub Actions to reviewed release commits.
-
-## Verification and maintenance
-
-[TESTING.md](TESTING.md) describes automated coverage and the Mac acceptance checks. [MAINTENANCE.md](MAINTENANCE.md) records the source baseline and how to restore removed code or transfer future fixes without reintroducing features.
+The app is currently ad-hoc signed and not notarized. macOS may require **Privacy & Security → Open Anyway** on first launch.
 
 ## License
 
-GPL-3.0-or-later. Required copyright, modification, and trademark notices are in [NOTICE](NOTICE); the complete license is in [LICENSE](LICENSE).
+Licensed under [GPL-3.0-or-later](LICENSE). Required legal notices are in [NOTICE](NOTICE).
