@@ -200,40 +200,6 @@ final class DiagnosticSnapshotAssemblyTests: XCTestCase {
 
 @MainActor
 final class DiagnosticSessionTests: XCTestCase {
-    func testTabOrderAndSymbol() {
-        XCTAssertEqual(SettingsTab.allCases, [.general, .advanced, .license, .feedback, .diagnostics, .about])
-        XCTAssertEqual(SettingsTab.diagnostics.symbolName, "stethoscope")
-        XCTAssertEqual(SettingsTab.diagnostics.title, String(localized: "Diagnostics"))
-    }
-
-    func testSwitchInvalidatesOldResultAndOutOfOrderCompletion() throws {
-        let session = DiagnosticsSession()
-        let first = try XCTUnwrap(session.begin())
-        XCTAssertNil(session.begin())
-        session.setIncludesTitles(true)
-        let second = try XCTUnwrap(session.begin())
-        XCTAssertFalse(session.complete(first, text: "old"))
-        XCTAssertTrue(session.isCollecting)
-        XCTAssertTrue(session.complete(second, text: "current"))
-        XCTAssertFalse(session.complete(first, text: "late"))
-        XCTAssertEqual(session.report, "current")
-        XCTAssertFalse(session.complete(second, text: "duplicate"))
-        session.setIncludesTitles(false)
-        XCTAssertNil(session.report)
-    }
-
-    func testCloseInvalidatesAndNewSessionDefaultsOff() throws {
-        let session = DiagnosticsSession()
-        session.setIncludesTitles(true)
-        let request = try XCTUnwrap(session.begin())
-        session.close()
-        XCTAssertFalse(session.complete(request, text: "private"))
-        XCTAssertNil(session.report)
-        XCTAssertNil(session.begin())
-        XCTAssertFalse(session.includesTitles)
-        XCTAssertFalse(DiagnosticsSession().includesTitles)
-    }
-
     func testThreeVisibilitySourcesCancellationTimeoutDedupAndRingLimit() {
         var history = DiagnosticVisibilityHistory()
         for source in ["ax", "green-button-prediction", "space-intent-right"] {

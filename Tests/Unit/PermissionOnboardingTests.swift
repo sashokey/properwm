@@ -19,15 +19,12 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertTrue(gate.completeProbe(generation: currentGeneration))
     }
 
-    // MARK: - 安装位置
-
     func testClassifiesStableLocations() {
         XCTAssertEqual(location("/Applications/Tungsten Edge.app"), .applications)
         XCTAssertEqual(
             location(NSHomeDirectory() + "/Applications/Tungsten Edge.app"),
             .applications
         )
-        // 可写的外置卷 / 网络盘是合法安装位置，不该被当成临时副本误伤。
         XCTAssertEqual(location("/Volumes/Samsung T7/Tungsten Edge.app", readOnly: false), .other)
         XCTAssertEqual(location("/Users/someone/Downloads/Tungsten Edge.app"), .other)
     }
@@ -40,7 +37,6 @@ final class PermissionOnboardingTests: XCTestCase {
         )
     }
 
-    /// App Translocation 的判据是路径，不是卷的读写性——先于卷判定命中。
     func testTranslocationWinsOverVolumeReadability() {
         XCTAssertEqual(
             location("/Volumes/Foo/AppTranslocation/XYZ/d/Tungsten Edge.app", readOnly: false),
@@ -48,7 +44,6 @@ final class PermissionOnboardingTests: XCTestCase {
         )
     }
 
-    /// 读不到卷信息时一律放行：宁可漏拦，也不要把位置正常的用户锁死在搬家页上。
     func testUnknownVolumeReadabilityIsTreatedAsWritable() {
         XCTAssertEqual(location("/Volumes/Whatever/Tungsten Edge.app", readOnly: nil), .other)
     }
@@ -63,13 +58,10 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertFalse(AppInstallLocation.applications.isTransient)
     }
 
-    /// 临时副本即使当前已受信也要先搬家：那份授权会随副本一起消失。
     func testRelocationWinsEvenWhenTransientCopyIsAlreadyTrusted() {
         let state = PermissionOnboardingState.initial(installLocation: .readOnlyVolume, isTrusted: true)
         XCTAssertEqual(state, .moveToApplications(.readOnlyVolume))
     }
-
-    // MARK: - 引导步骤
 
     func testWaitingBecomesStalledAtEightSecondsAndGrantedWhenTrusted() {
         let waiting = PermissionOnboardingState.waiting
@@ -82,8 +74,6 @@ final class PermissionOnboardingTests: XCTestCase {
         let state = PermissionOnboardingState.moveToApplications(.appTranslocation)
         XCTAssertEqual(state.updated(isTrusted: true, elapsed: 99, stallAfter: 8), state)
     }
-
-    // MARK: - 轮询模型
 
     func testTransientCopyNeverChecksOrRequestsPermission() {
         let spy = PermissionSpy(trusted: false)
@@ -160,13 +150,10 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(model.state, .granted)
     }
 
-    // MARK: - 丢失防抖
-
     func testFirstFalseIsUncertainAndTwoSustainedFalsesAreLost() {
         var detector = PermissionLossDetector()
         XCTAssertEqual(detector.record(trusted: true, at: 0), .stable)
         XCTAssertEqual(detector.record(trusted: false, at: 10), .uncertain)
-        // 连续两次但间隔不够（定时器和 didBecomeActive 可能挨着来）→ 还不算丢失。
         XCTAssertEqual(detector.record(trusted: false, at: 14.999), .uncertain)
         XCTAssertEqual(detector.record(trusted: false, at: 15), .lost)
     }
@@ -175,7 +162,6 @@ final class PermissionOnboardingTests: XCTestCase {
         var detector = PermissionLossDetector()
         XCTAssertEqual(detector.record(trusted: false, at: 0), .uncertain)
         XCTAssertEqual(detector.record(trusted: true, at: 100), .stable)
-        // 清零之后重新开始计数与计时。
         XCTAssertEqual(detector.record(trusted: false, at: 200), .uncertain)
     }
 
@@ -188,15 +174,12 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(detector.record(trusted: false, at: 7), .lost)
     }
 
-    /// 乱序/提前到达的采样不许把锚点往回拨，否则一串抖动能无限推迟判定。
     func testEarlyArrivingFalseDoesNotResetTheAnchor() {
         var detector = PermissionLossDetector()
         XCTAssertEqual(detector.record(trusted: false, at: 10), .uncertain)
         XCTAssertEqual(detector.record(trusted: false, at: 5), .uncertain)
         XCTAssertEqual(detector.record(trusted: false, at: 15), .lost)
     }
-
-    // MARK: - 状态机
 
     func testTransientLaunchNeverPromptsOrStartsApp() {
         var machine = PermissionRecoveryMachine()
@@ -263,7 +246,7 @@ final class PermissionOnboardingTests: XCTestCase {
 
         let restored = machine.handle(.windowsRestored(episode: episode))
         XCTAssertEqual(machine.phase, .relaunching(episode: episode))
-        XCTAssertEqual(restored, [.updateGuide, .releaseHotKey, .launchNewInstance(episode: episode)])
+        XCTAssertEqual(restored, [.updateGuide, .launchNewInstance(episode: episode)])
 
         XCTAssertEqual(machine.handle(.relaunchSucceeded(episode: episode)), [.terminateSelf])
     }
@@ -293,19 +276,18 @@ final class PermissionOnboardingTests: XCTestCase {
 
         let effects = machine.handle(.relaunchFailed(episode: episode, message: "找不到应用"))
         XCTAssertEqual(machine.phase, .relaunchFailed(episode: episode, message: "找不到应用"))
-        XCTAssertEqual(effects, [.registerHotKey, .updateGuide])
+        XCTAssertEqual(effects, [.updateGuide])
         XCTAssertFalse(effects.contains(.terminateSelf))
     }
 
-    /// 失败分支把热键注册回来了，重试必须再释放一次，不能因为「上次释放过」就跳过。
-    func testRetryReleasesTheHotKeyAgain() {
+    func testRetryStartsAnotherRelaunch() {
         var machine = relaunchingMachine()
         guard case let .relaunching(episode) = machine.phase else { return XCTFail("expected relaunching") }
         _ = machine.handle(.relaunchFailed(episode: episode, message: "找不到应用"))
 
         let effects = machine.handle(.retryRequested)
         XCTAssertEqual(machine.phase, .relaunching(episode: episode))
-        XCTAssertEqual(effects, [.updateGuide, .releaseHotKey, .launchNewInstance(episode: episode)])
+        XCTAssertEqual(effects, [.updateGuide, .launchNewInstance(episode: episode)])
     }
 
     func testTerminationPreemptsEverythingAndSwallowsLateEvents() {
@@ -321,10 +303,6 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(machine.handle(.retryRequested), [])
     }
 
-    // MARK: - 展示态
-
-    /// 首次授权和运行期恢复的排障文案必须分开：首次授权是当前进程继续启动，
-    /// 既没有「自动重启」，也不存在本轮被抬起的窗口残留。
     func testStalledAndRecoveryStalledArePresentedSeparately() {
         XCTAssertEqual(
             PermissionRecoveryMachine.presentation(phase: .onboarding(episode: 1), onboarding: .stalled),
@@ -350,11 +328,6 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertNil(PermissionRecoveryMachine.presentation(phase: .terminating, onboarding: .stalled))
     }
 
-    // MARK: - 协调器：episode 隔离
-
-    /// `didRequestPrompt` / `didNotifyGranted` 是模型的**终身**一次性门控。
-    /// 复用同一个模型的话，第二次（运行期恢复）既不会再弹系统请求框、也不会再回调——
-    /// 而 `tccutil reset` 之后本实例可能已经不在辅助功能列表里，不重新注册用户根本没东西可勾。
     func testRecoveryEpisodeUsesAFreshModelSoTheSystemPromptCanFireAgain() {
         var clock: TimeInterval = 0
         let spy = PermissionSpy(trusted: false)
@@ -382,14 +355,12 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(spy.promptCount, 1)
         XCTAssertEqual(coordinator.presentation, .waiting)
 
-        // 用户打开开关：当前进程直接继续启动，不重启、不还原窗口。
         spy.trusted = true
         made[0].checkNow()
         XCTAssertTrue(handler.calls.contains("startApp"))
         XCTAssertFalse(handler.calls.contains("launchNewInstance"))
         XCTAssertNil(coordinator.presentation)
 
-        // 运行中撤权：第一次 false 只冻结快照，第二次且持续够久才真的停运。
         spy.trusted = false
         clock = 10
         coordinator.sampleTrust(false)
@@ -406,7 +377,6 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertTrue(handler.calls.contains("suspendPanelsAndStores"))
         XCTAssertTrue(handler.calls.contains("stopWatchdog"))
 
-        // 收掉还在跑的轮询定时器，别让它漏进后面的测试。
         coordinator.quit()
     }
 
@@ -426,8 +396,6 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertFalse(handler.calls.contains("startApp"))
         XCTAssertFalse(handler.calls.contains("startWatchdog"))
     }
-
-    // MARK: - Helpers
 
     private func location(_ path: String, readOnly: Bool? = false) -> AppInstallLocation {
         AppInstallLocation(
@@ -458,7 +426,6 @@ final class PermissionOnboardingTests: XCTestCase {
     }
 }
 
-/// 只记录调用序列的副作用替身。
 @MainActor
 private final class EffectSpy: PermissionEffectHandler {
     var calls: [String] = []
@@ -477,8 +444,7 @@ private final class EffectSpy: PermissionEffectHandler {
     func unfreezeLiftSnapshots() { calls.append("unfreezeLift") }
     func restoreLiftedWindows(episode: UInt64) async { calls.append("restoreLiftedWindows") }
     func suspendPanelsAndStores() { calls.append("suspendPanelsAndStores") }
-    func releaseHotKey() { calls.append("releaseHotKey") }
-    func registerHotKey() { calls.append("registerHotKey") }
+
     func launchNewInstance(episode: UInt64) async -> Result<Void, Error> {
         calls.append("launchNewInstance")
         return launchResult
@@ -486,7 +452,6 @@ private final class EffectSpy: PermissionEffectHandler {
     func terminateSelf() { calls.append("terminateSelf") }
 }
 
-/// 记录 prompt 次数、可切换受信状态的替身。
 private final class PermissionSpy {
     var trusted: Bool
     private(set) var promptCount = 0
@@ -495,8 +460,6 @@ private final class PermissionSpy {
         self.trusted = trusted
     }
 
-    /// 强捕获，不用 `unowned`：模型的 1 秒轮询定时器活在主 runloop 上，
-    /// 测试结束后还可能再响一次——那时替身若已释放，`unowned` 会直接崩。
     var service: PermissionService {
         PermissionService(
             trustCheck: { self.trusted },

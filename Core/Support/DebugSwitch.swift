@@ -65,8 +65,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case spaceMembershipRepair = "DOCK_SPACE_MEMBERSHIP_REPAIR"
     /// 常驻面板钉进私有空间（桌面互滑不发灰）
     case overlaySpace = "DOCK_OVERLAY_SPACE"
-    /// 任务条上滚轮方向反转
-    case scrollReverser = "DOCK_SCROLL_REVERSER"
     /// 最大化窗口避让
     case windowLift = "DOCK_WINDOW_LIFT"
     /// 避让用动画写 frame
@@ -111,8 +109,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case labelProbe = "DOCK_LABEL_PROBE"
     /// 空间切换意图追踪
     case spaceIntentTrace = "DOCK_SPACE_INTENT_TRACE"
-    /// 滚轮反转事件打印
-    case scrollReverserTrace = "DOCK_SCROLL_REVERSER_TRACE"
     /// 窗口避让追踪
     case windowLiftTrace = "DOCK_WINDOW_LIFT_TRACE"
     /// 实验：最小化失败时退回 App 级 hide
@@ -174,8 +170,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case liquidGlassContentInset = "DOCK_LIQUID_GLASS_CONTENT_INSET"
     /// Private `NSGlassEffectView` variant for the plate (default 3 = the Dock's own material); `off` = SwiftUI plate
     case liquidGlassSystemVariant = "DOCK_LIQUID_GLASS_SYSTEM_VARIANT"
-    /// Appcast URL override for probing an unpublished feed (`SparkleUpdateService.feedURLString(for:)`)
-    case updateFeedURL = "DOCK_UPDATE_FEED_URL"
 
     var kind: Kind {
         switch self {
@@ -185,13 +179,13 @@ enum DebugSwitch: String, CaseIterable, Sendable {
              .handoffActivePrediction, .staleActiveGuard, .dragLanding, .liquidGlass, .liquidGlassDockRefraction,
              .liquidGlassDiagonalHighlight, .liquidGlassHighlightBoost, .stripBalancedInsets,
              .spaceIntent, .fullscreenIntent, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair,
-             .overlaySpace, .scrollReverser, .windowLift, .windowLiftAnim, .windowLiftTiles,
+             .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles,
              .menuHoverSuspend, .hoverMonitorLean, .stripHoverPoll, .resizeCursor, .barArrowCursor, .chipPressDown, .titleSettle,
              .finderReopenEvent:
             return .killSwitch
         case .displayTrace, .launchTrace, .chipProbe, .clickTrace,
              .hoverTrace, .edgehoverTrace, .stripWheelTrace, .chipAnimTrace, .labelProbe,
-             .spaceIntentTrace, .scrollReverserTrace, .windowLiftTrace, .minimizeAppFallback,
+             .spaceIntentTrace, .windowLiftTrace, .minimizeAppFallback,
              .simulateNoDestroy:
             return .trace
         case .reconcileAxTimeoutMs, .seedAxTimeoutMs, .dragFlightMs, .labelAnim, .inventoryLog,
@@ -200,7 +194,7 @@ enum DebugSwitch: String, CaseIterable, Sendable {
              .liquidGlassWhiteOverlay, .liquidGlassDimming, .liquidGlassBorder, .liquidGlassBorderEdge,
              .liquidGlassBorderCut, .liquidGlassBorderSpread, .liquidGlassBorderWidth, .liquidGlassBorderInner,
              .liquidGlassBackgroundOpacity, .liquidGlassWindowBlur, .liquidGlassContentInset,
-             .liquidGlassSystemVariant, .stackPopupSnapshot, .updateFeedURL:
+             .liquidGlassSystemVariant, .stackPopupSnapshot:
             return .value
         }
     }
