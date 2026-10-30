@@ -266,11 +266,7 @@ final class PanelCoordinator: NSObject {
     var runningApplicationStoreSubscription: AnyCancellable?
     var dragSpringSubscription: AnyCancellable?
     var dragInhibitorSubscription: AnyCancellable?
-    var edgeDelaySubscription: AnyCancellable?
-    var taskbarScreenPlacementSubscription: AnyCancellable?
     var displayTopologySubscription: AnyCancellable?
-    var showShelfSubscription: AnyCancellable?
-    var showTrashSubscription: AnyCancellable?
     var dockPanelHeightSubscription: AnyCancellable?
     /// Height-change transaction generation: swallows animated relayouts other paths queue
     /// while a height change is in flight (see `beginPanelHeightChange`).

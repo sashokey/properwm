@@ -160,7 +160,7 @@ final class SettingsCoordinatorTests: XCTestCase {
         let suite = "ProperWM.SettingsCoordinatorTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
-        defaults.set(launchAtLogin, forKey: "com.tungsten.edge.launchAtLogin")
+        defaults.set(launchAtLogin, forKey: "properwm.launchAtLogin")
         return AppSettingsStore(defaults: defaults)
     }
 }

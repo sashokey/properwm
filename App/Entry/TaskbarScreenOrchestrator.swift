@@ -41,7 +41,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     private let appMembershipController: AppMembershipController
     private let displayTopologyStore: DisplayTopologyStore
     private let topologySnapshotProvider: @MainActor () -> ScreenTopologySnapshot
-    private let seedRetryScheduler: TaskbarPerDisplaySeedController.ScheduleAfter
+    private let topologyRetryScheduler: DisplayTopologyRefreshController.ScheduleAfter
     private let logger = Logger(subsystem: "com.caye.macosdockcc.v2", category: "taskbar-screens")
 
     var onAddFolder: () -> Void = {} {
@@ -53,10 +53,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     private var started = false
     private var isSuspended = false
-    private var placementSubscription: AnyCancellable?
-    private var fullscreenIntentEnabledSubscription: AnyCancellable?
     private var fullscreenIntentMonitor: FullscreenIntentMonitor?
-    private var perDisplaySeedController: TaskbarPerDisplaySeedController?
+    private var topologyRefreshController: DisplayTopologyRefreshController?
 
     // MARK: 鼠标移动监视器（从 PanelCoordinator 抬上来，逐字保留语义）
     private var hoverLocalMouseMonitor: Any?
@@ -89,7 +87,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
          topologySnapshotProvider: @escaping @MainActor () -> ScreenTopologySnapshot = {
              DisplayIdentity.topologySnapshot()
          },
-         seedRetryScheduler: @escaping TaskbarPerDisplaySeedController.ScheduleAfter = { delay, action in
+         topologyRetryScheduler: @escaping DisplayTopologyRefreshController.ScheduleAfter = { delay, action in
              let item = DispatchWorkItem(block: action)
              DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
              return item
@@ -109,7 +107,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         self.appMembershipController = appMembershipController
         self.displayTopologyStore = displayTopologyStore
         self.topologySnapshotProvider = topologySnapshotProvider
-        self.seedRetryScheduler = seedRetryScheduler
+        self.topologyRetryScheduler = topologyRetryScheduler
         self.dragController = DragController(
             drawerStore: drawerStore,
             messagingStore: messagingStore,
@@ -128,7 +126,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     deinit {
         MainActor.assumeIsolated {
-            perDisplaySeedController?.cancel()
+            topologyRefreshController?.cancel()
             removeHoverMouseMonitorsOnly()
         }
         menuTrackingPollTimer?.invalidate()
@@ -154,8 +152,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     func start() {
         guard !started else { return }
         started = true
-        let seedController = makePerDisplaySeedController()
-        perDisplaySeedController = seedController
+        let seedController = makeTopologyRefreshController()
+        topologyRefreshController = seedController
         let snapshot = seedController.prepareForTopologyChange()
         rebuildUnits(reason: "start", connectedKeys: snapshot.identifiedDisplayUUIDs)
         // 载体面板提前建好，别让用户的第一次拖动付那 20ms + 一次 39ms 主线程卡顿
@@ -167,22 +165,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         observeMenuTracking()
         reconcileHoverMouseMonitors()
         reconcileFullscreenIntentMonitor()
-        placementSubscription = settingsStore.$taskbarScreenPlacement
-            .removeDuplicates()
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.rebuildUnits(
-                    reason: "placement",
-                    connectedKeys: self.displayTopologyStore.latestSnapshot.identifiedDisplayUUIDs
-                )
-                self.reconcileHoverMouseMonitors()
-            }
-        fullscreenIntentEnabledSubscription = settingsStore.$fullscreenIntentEnabled
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reconcileFullscreenIntentMonitor() }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersChanged),
@@ -209,10 +191,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             unit.coordinator.tearDown()
         }
         units = []
-        perDisplaySeedController?.cancel()
-        perDisplaySeedController = nil
-        placementSubscription = nil
-        fullscreenIntentEnabledSubscription = nil
+        topologyRefreshController?.cancel()
+        topologyRefreshController = nil
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -365,7 +345,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         // screen frames and reconciling hover monitors are core multi-display work that must not hang
         // off its lifetime.
         let snapshot: ScreenTopologySnapshot
-        if let seedController = perDisplaySeedController {
+        if let seedController = topologyRefreshController {
             snapshot = seedController.prepareForTopologyChange()
         } else {
             snapshot = topologySnapshotProvider()
@@ -377,32 +357,21 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         reconcileHoverMouseMonitors()  // 屏幕数量变了：单屏↔多屏切换监视器是否还有存在的必要
     }
 
-    private func makePerDisplaySeedController() -> TaskbarPerDisplaySeedController {
-        TaskbarPerDisplaySeedController(
+    private func makeTopologyRefreshController() -> DisplayTopologyRefreshController {
+        DisplayTopologyRefreshController(
             snapshotProvider: topologySnapshotProvider,
-            isSeedPending: { [weak settingsStore] in
-                settingsStore?.taskbarPerDisplaySeedPending ?? false
-            },
-            hasStoredPlacementChoice: { [weak settingsStore] in
-                settingsStore?.hasStoredTaskbarScreenChoice ?? true
-            },
             applySnapshot: { [weak displayTopologyStore] snapshot in
                 displayTopologyStore?.apply(snapshot)
             },
-            applySeed: { [weak self, weak settingsStore] in
-                settingsStore?.applyTaskbarPerDisplaySeed()
-                self?.logger.info("seeded allScreensPerDisplay for first multi-display topology")
-            },
-            consumeWithoutSeeding: { [weak settingsStore] in
-                settingsStore?.consumeTaskbarPerDisplaySeedIfPresent()
-            },
-            onRetrySeeded: { [weak self] snapshot in
+            onRetrySnapshot: { [weak self] snapshot in
                 self?.rebuildUnits(
-                    reason: "seed-retry",
+                    reason: "topology-retry",
                     connectedKeys: snapshot.identifiedDisplayUUIDs
                 )
+                self?.units.forEach { $0.coordinator.screenParametersChanged() }
+                self?.pushPanelScreensToIntentMonitor()
             },
-            scheduleAfter: seedRetryScheduler
+            scheduleAfter: topologyRetryScheduler
         )
     }
 

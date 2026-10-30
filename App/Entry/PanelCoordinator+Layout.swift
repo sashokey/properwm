@@ -98,33 +98,6 @@ extension PanelCoordinator {
     }
 
     func subscribeSettings() {
-        edgeDelaySubscription = settingsStore.$edgeAutoHideDelay
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.reconcilePanelVisibility()
-                self?.onHoverMonitorsNeedReconcile?()  // 边缘隐藏开关变了：监视器是否还有存在的必要
-            }
-        // 显示位置变化：dwell 作废；切到固定档立即搬到固定屏；监视器与唤醒武装按新档重估。
-        // dropFirst——启动路径 setupDockPanel 已消费过持久化的档位。
-        taskbarScreenPlacementSubscription = settingsStore.$taskbarScreenPlacement
-            .removeDuplicates()
-            .dropFirst()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.cancelHoverSwitch()
-                if let home = self.resolvedPinnedScreen(), let panel = self.dockPanel,
-                   self.panelCurrentScreen(panel: panel) != home {
-                    self.layoutPanels(contentWidth: self.lastDesiredWidth, on: home, animated: false)
-                }
-                self.onHoverMonitorsNeedReconcile?()
-                self.reconcilePanelVisibility()
-                // ③↔④ 不重建单元，只换投影层的过滤集合：SwiftUI 重画后没有别的路径回到这里量宽
-                //（owner 2026-09-02 首轮验收：切档后条长不变，要再点一下窗口才适应）。等这一轮布局跑完再量。
-                DispatchQueue.main.async { [weak self] in self?.relayout(animated: true) }
-            }
-        // 屏表变了（拔插 / 换主屏）：④ 下渲染集合会变（别的屏的卡落回主屏），同样要重新量宽。
         displayTopologySubscription = displayTopologyStore.$table
             .removeDuplicates()
             .dropFirst()
@@ -135,22 +108,6 @@ extension PanelCoordinator {
         // 中转格显隐会改变任务条内容宽度：只让 chip 消失不重排，面板会停在旧宽度，
         // 胶囊和打开着的抽屉也跟着停在旧位置。relayout 必须等 SwiftUI 这一轮布局跑完
         // （fittingSize 那时才是新值），所以再推一轮主队列。
-        showShelfSubscription = settingsStore.$showShelf
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                if self.folderPopupWantsOpen, self.openPopupContent == .shelf { self.closeFolderPopup() }
-                DispatchQueue.main.async { [weak self] in self?.relayout(animated: true) }
-            }
-        showTrashSubscription = settingsStore.$showTrash
-            .removeDuplicates()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                if self.folderPopupWantsOpen, self.openPopupContent == .trash { self.closeFolderPopup() }
-                DispatchQueue.main.async { [weak self] in self?.relayout(animated: true) }
-            }
         dockPanelHeightSubscription = heightResizePresentation
             .nonInteractiveHeightChanges(from: settingsStore.$dockPanelHeight)
             .sink { [weak self] _ in

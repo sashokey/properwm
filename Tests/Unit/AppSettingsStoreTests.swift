@@ -26,10 +26,10 @@ final class AppSettingsStoreTests: XCTestCase {
     func testStoredHeightClampsToSupportedRange() {
         let defaults = makeDefaults()
         for raw in [-1000.0, 1000.0] {
-            defaults.set(raw, forKey: "com.tungsten.edge.dockPanelHeight")
+            defaults.set(raw, forKey: "properwm.taskbarHeight")
             let store = AppSettingsStore(defaults: defaults)
             XCTAssertEqual(store.dockPanelHeight, DockPanelHeight(clamping: CGFloat(raw)))
-            XCTAssertEqual(defaults.double(forKey: "com.tungsten.edge.dockPanelHeight"),
+            XCTAssertEqual(defaults.double(forKey: "properwm.taskbarHeight"),
                            Double(store.dockPanelHeight.points))
         }
     }
@@ -38,7 +38,7 @@ final class AppSettingsStoreTests: XCTestCase {
         let values: [Any] = ["invalid", true, ["height": 73]]
         for value in values {
             let defaults = makeDefaults()
-            defaults.set(value, forKey: "com.tungsten.edge.dockPanelHeight")
+            defaults.set(value, forKey: "properwm.taskbarHeight")
             XCTAssertEqual(AppSettingsStore(defaults: defaults).dockPanelHeight, .default)
         }
     }
@@ -54,6 +54,25 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertTrue(heights.isEmpty)
         XCTAssertTrue(loginChoices.isEmpty)
         withExtendedLifetime((heightSubscription, loginSubscription)) {}
+    }
+
+    func testRemovedPreferencesCannotOverrideFixedBehavior() {
+        let defaults = makeDefaults()
+        defaults.set("followMouse", forKey: "com.tungsten.edge.taskbarScreen.mode")
+        defaults.set("quiet", forKey: "com.tungsten.edge.hoverStyle")
+        defaults.set(false, forKey: "com.tungsten.edge.windowLiftEnabled")
+        defaults.set(false, forKey: "com.tungsten.edge.fullscreenIntentEnabled")
+        defaults.set(true, forKey: "com.tungsten.edge.showShelf")
+        defaults.set(true, forKey: "com.tungsten.edge.showTrash")
+        defaults.set(2.0, forKey: "com.tungsten.edge.autoHide.edge.delay")
+        let store = AppSettingsStore(defaults: defaults)
+        XCTAssertEqual(store.taskbarScreenPlacement, .allScreensPerDisplay)
+        XCTAssertEqual(store.hoverStyle, .standard)
+        XCTAssertTrue(store.windowLiftEnabled)
+        XCTAssertTrue(store.fullscreenIntentEnabled)
+        XCTAssertFalse(store.edgeAutoHideEnabled)
+        XCTAssertFalse(store.showShelf)
+        XCTAssertFalse(store.showTrash)
     }
 
     private func makeDefaults() -> UserDefaults {

@@ -219,10 +219,8 @@
 		D90000000000000000000201 /* InstallLineage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000001 /* InstallLineage.swift */; };
 		D90000000000000000000102 /* ScreenTopologySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000002 /* ScreenTopologySnapshot.swift */; };
 		D90000000000000000000202 /* ScreenTopologySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000002 /* ScreenTopologySnapshot.swift */; };
-		D90000000000000000000103 /* TaskbarPerDisplaySeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000003 /* TaskbarPerDisplaySeed.swift */; };
-		D90000000000000000000203 /* TaskbarPerDisplaySeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000003 /* TaskbarPerDisplaySeed.swift */; };
-		D90000000000000000000104 /* TaskbarPerDisplaySeedController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* TaskbarPerDisplaySeedController.swift */; };
-		D90000000000000000000204 /* TaskbarPerDisplaySeedController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* TaskbarPerDisplaySeedController.swift */; };
+		D90000000000000000000104 /* DisplayTopologyRefreshController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* DisplayTopologyRefreshController.swift */; };
+		D90000000000000000000204 /* DisplayTopologyRefreshController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* DisplayTopologyRefreshController.swift */; };
 		D90000000000000000000209 /* DisplayTopologyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000136 /* DisplayTopologyStore.swift */; };
 		A0000000000000000000FF02 /* LaunchGateDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FF00 /* LaunchGateDecision.swift */; };
 		A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C00 /* IconRenditionChoice.swift */; };
@@ -499,8 +497,7 @@
 		B10000000000000000000147 /* StripPointerBoxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000146 /* StripPointerBoxTests.swift */; };
 		B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */; };
 		D90000000000000000000205 /* InstallLineageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000005 /* InstallLineageTests.swift */; };
-		D90000000000000000000206 /* TaskbarPerDisplaySeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000006 /* TaskbarPerDisplaySeedTests.swift */; };
-		D90000000000000000000207 /* TaskbarPerDisplaySeedControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* TaskbarPerDisplaySeedControllerTests.swift */; };
+		D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */; };
 		D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000008 /* DisplayTopologyStoreTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -808,11 +805,9 @@
 		B10000000000000000000136 /* DisplayTopologyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStore.swift; sourceTree = "<group>"; };
 		D90000000000000000000001 /* InstallLineage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallLineage.swift; sourceTree = "<group>"; };
 		D90000000000000000000002 /* ScreenTopologySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTopologySnapshot.swift; sourceTree = "<group>"; };
-		D90000000000000000000003 /* TaskbarPerDisplaySeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarPerDisplaySeed.swift; sourceTree = "<group>"; };
-		D90000000000000000000004 /* TaskbarPerDisplaySeedController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarPerDisplaySeedController.swift; sourceTree = "<group>"; };
+		D90000000000000000000004 /* DisplayTopologyRefreshController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshController.swift; sourceTree = "<group>"; };
 		D90000000000000000000005 /* InstallLineageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallLineageTests.swift; sourceTree = "<group>"; };
-		D90000000000000000000006 /* TaskbarPerDisplaySeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarPerDisplaySeedTests.swift; sourceTree = "<group>"; };
-		D90000000000000000000007 /* TaskbarPerDisplaySeedControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarPerDisplaySeedControllerTests.swift; sourceTree = "<group>"; };
+		D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshControllerTests.swift; sourceTree = "<group>"; };
 		D90000000000000000000008 /* DisplayTopologyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStoreTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FF20 /* AppLaunchTargetDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTargetDecision.swift; sourceTree = "<group>"; };
 		A00000000000000000009580 /* AppMembershipMenuPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMembershipMenuPlan.swift; sourceTree = "<group>"; };
@@ -1092,8 +1087,7 @@
 				B1000000000000000000011C /* TaskbarDisplaySet.swift */,
 				D90000000000000000000001 /* InstallLineage.swift */,
 				D90000000000000000000002 /* ScreenTopologySnapshot.swift */,
-				D90000000000000000000003 /* TaskbarPerDisplaySeed.swift */,
-				D90000000000000000000004 /* TaskbarPerDisplaySeedController.swift */,
+				D90000000000000000000004 /* DisplayTopologyRefreshController.swift */,
 				B10000000000000000000130 /* WindowDisplayAttribution.swift */,
 				B1000000000000000000013E /* WindowDisplayMove.swift */,
 				B10000000000000000000133 /* StripDisplayFilter.swift */,
@@ -1437,8 +1431,7 @@
 				B1000000000000000000011A /* TaskbarScreenPlacementTests.swift */,
 				B1000000000000000000011F /* TaskbarDisplaySetTests.swift */,
 				D90000000000000000000005 /* InstallLineageTests.swift */,
-				D90000000000000000000006 /* TaskbarPerDisplaySeedTests.swift */,
-				D90000000000000000000007 /* TaskbarPerDisplaySeedControllerTests.swift */,
+				D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */,
 				D90000000000000000000008 /* DisplayTopologyStoreTests.swift */,
 				B10000000000000000000138 /* WindowDisplayAttributionTests.swift */,
 				B10000000000000000000141 /* WindowDisplayMoveTests.swift */,
@@ -1692,8 +1685,7 @@
 					B10000000000000000000137 /* DisplayTopologyStore.swift in Sources */,
 					D90000000000000000000101 /* InstallLineage.swift in Sources */,
 					D90000000000000000000102 /* ScreenTopologySnapshot.swift in Sources */,
-					D90000000000000000000103 /* TaskbarPerDisplaySeed.swift in Sources */,
-					D90000000000000000000104 /* TaskbarPerDisplaySeedController.swift in Sources */,
+					D90000000000000000000104 /* DisplayTopologyRefreshController.swift in Sources */,
 					A00000000000000000001045 /* DrawerStore.swift in Sources */,
 					A000000000000000000019A0 /* MessagingAppStore.swift in Sources */,
 					A00000000000000000005011 /* StripOrderStore.swift in Sources */,
@@ -1969,8 +1961,7 @@
 					B1000000000000000000011E /* TaskbarDisplaySet.swift in Sources */,
 					D90000000000000000000201 /* InstallLineage.swift in Sources */,
 					D90000000000000000000202 /* ScreenTopologySnapshot.swift in Sources */,
-					D90000000000000000000203 /* TaskbarPerDisplaySeed.swift in Sources */,
-					D90000000000000000000204 /* TaskbarPerDisplaySeedController.swift in Sources */,
+					D90000000000000000000204 /* DisplayTopologyRefreshController.swift in Sources */,
 					D90000000000000000000209 /* DisplayTopologyStore.swift in Sources */,
 				B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */,
 				B10000000000000000000140 /* WindowDisplayMove.swift in Sources */,
@@ -2087,8 +2078,7 @@
 					B1000000000000000000011B /* TaskbarScreenPlacementTests.swift in Sources */,
 					B10000000000000000000120 /* TaskbarDisplaySetTests.swift in Sources */,
 					D90000000000000000000205 /* InstallLineageTests.swift in Sources */,
-					D90000000000000000000206 /* TaskbarPerDisplaySeedTests.swift in Sources */,
-					D90000000000000000000207 /* TaskbarPerDisplaySeedControllerTests.swift in Sources */,
+					D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */,
 					D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */,
 					B10000000000000000000139 /* WindowDisplayAttributionTests.swift in Sources */,
 					B10000000000000000000142 /* WindowDisplayMoveTests.swift in Sources */,

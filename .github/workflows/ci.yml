@@ -62,10 +62,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d build/TestResults.xcresult ]; then
-            xcrun xccov view --report build/TestResults.xcresult > build/coverage.txt
+          if [ -d build/TestResults.xcresult ] && xcrun xccov view --report build/TestResults.xcresult > build/coverage.txt; then
             xcrun xccov view --report --json build/TestResults.xcresult > build/coverage.json
             cat build/coverage.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage is unavailable because test execution did not produce a report." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload test results

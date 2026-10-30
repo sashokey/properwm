@@ -59,8 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var workspaceObservers: [NSObjectProtocol] = []
     private var messagingAutoRegisterSubscription: AnyCancellable?
     private var badgeContextSubscription: AnyCancellable?
-    private var windowLiftSettingSubscription: AnyCancellable?
-    private var trashSettingSubscription: AnyCancellable?
     private let permissionService = PermissionService()
     private var installLocation: AppInstallLocation = .other
     private var permissionCoordinator: PermissionRecoveryCoordinator?
@@ -86,8 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isFreshInstall = installLineage == .pristine
         if isFreshInstall {
-            settingsStore.seedWindowLiftEnabledForFreshInstall(lineage: installLineage)
-            settingsStore.armTaskbarPerDisplaySeedForFreshInstall(lineage: installLineage)
+
+
             pinnedFolderStore.seedDownloadsForFreshInstall(lineage: installLineage)
             keptAppStore.seedSystemAppLauncherForFreshInstall(lineage: installLineage) {
                 NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
@@ -186,7 +184,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         SystemResizeCursor.shared.reset()   // never leave the ▲▼ or a hidden pointer behind us
         SystemCursorHider.shared.show()
-        trashSettingSubscription = nil
         TrashStateStore.shared.stop()
 
         DocumentUsageStore.shared.stop()
@@ -253,7 +250,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startTaskbarRuntime() {
-        DiagnosticReport.armFirstActivationSnapshot()
         appMembershipController.reconcileInvalidMemberships()
         runningApplicationStore.start()
         runtime.start()
@@ -330,17 +326,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.windowLiftAvoidanceController = windowLiftAvoidanceController
         windowLiftAvoidanceController.setEnabledBySetting(settingsStore.windowLiftEnabled)
         windowLiftAvoidanceController.start()
-        windowLiftSettingSubscription = settingsStore.$windowLiftEnabled
-            .removeDuplicates()
-            .sink { [weak self] enabled in
-                self?.windowLiftAvoidanceController?.setEnabledBySetting(enabled)
-            }
         DocumentUsageStore.shared.start()
         TrashStateStore.shared.setEnabled(settingsStore.showTrash)
         TrashStateStore.shared.start(revealOpenedWindow: TrashStateStore.revealTrashWindow(runtime: runtime))
-        trashSettingSubscription = settingsStore.$showTrash
-            .removeDuplicates()
-            .sink { enabled in TrashStateStore.shared.setEnabled(enabled) }
         badgeStore.start()
     }
 
@@ -444,7 +432,6 @@ extension AppDelegate: PermissionEffectHandler {
     }
 
     func suspendPanelsAndStores() {
-        trashSettingSubscription = nil
         TrashStateStore.shared.stop()
         messagingAutoRegisterSubscription?.cancel()
         messagingAutoRegisterSubscription = nil
