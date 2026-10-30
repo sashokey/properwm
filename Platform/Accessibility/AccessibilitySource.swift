@@ -801,7 +801,7 @@ struct PlatformActionExecutor {
         _ request: PlatformActionRequest,
         snapshot: DockSnapshot,
         forcedMinimizedPrior: Bool,
-        onHandoffActivePrediction: ((WindowID) -> Void)?
+        onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?
     ) -> Bool {
         guard let windowID = request.windowID,
               let record = snapshot.windows[windowID] else {
@@ -975,7 +975,7 @@ struct PlatformActionExecutor {
         handle: AccessibilityWindowActionExecutor.WindowHandle,
         record: WindowRecord,
         snapshot: DockSnapshot,
-        onHandoffActivePrediction: ((WindowID) -> Void)?,
+        onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?,
         patience: HandoffPatience
     ) -> Handoff {
         let verdict = windowExecutor.findBackgroundActivationTarget(

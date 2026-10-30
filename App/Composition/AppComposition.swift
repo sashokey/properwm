@@ -292,7 +292,7 @@ final class AppRuntime: ObservableObject {
                 minimizeDispatchedAt: request.windowID.flatMap { recentMinimizeDispatchAtByWindowID[$0.rawValue] },
                 now: Date()
             )
-        let onHandoffActivePrediction: ((WindowID) -> Void)? =
+        let onHandoffActivePrediction: (@Sendable (WindowID) -> Void)? =
             ((request.kind == .minimizeWindow || request.kind == .closeWindow) && Self.handoffActivePredictionEnabled)
             ? { [weak self] windowID in
                 Task { @MainActor [weak self] in
@@ -306,14 +306,13 @@ final class AppRuntime: ObservableObject {
                 }
             }
             : nil
-        nonisolated(unsafe) let handoffPrediction = onHandoffActivePrediction
         Self.actionQueue.async { [weak self] in
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "execStart")
             let success = executor.execute(
                 request,
                 snapshot: capturedSnapshot,
                 forcedMinimizedPrior: forcedMinimizedPrior,
-                onHandoffActivePrediction: handoffPrediction
+                onHandoffActivePrediction: onHandoffActivePrediction
             )
             ClickLatencyTrace.end(windowID: request.windowID?.rawValue, success: success)
             Task { @MainActor [weak self] in
