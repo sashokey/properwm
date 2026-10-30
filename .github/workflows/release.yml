@@ -122,7 +122,7 @@ jobs:
               prerelease: process.env.RELEASE_PRERELEASE === 'true',
               generate_release_notes: true,
               body: [
-                'Universal macOS app (Apple Silicon and Intel). Ad-hoc signed; not notarized.',
+                'Apple Silicon app for macOS 26 or later. Ad-hoc signed; not notarized.',
                 'The app ZIP and its SHA-256 checksum are attached.',
                 "Source is available through GitHub's standard Source code archives for this release tag.",
                 'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo

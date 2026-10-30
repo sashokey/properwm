@@ -16,8 +16,8 @@ verify_release_binary() {
 
   [[ -f "$binary" ]] || { printf 'release binary not found: %s\n' "$binary" >&2; return 1; }
   archs="$(lipo -archs "$binary")" || { printf 'lipo could not read %s\n' "$binary" >&2; return 1; }
-  if [[ " $archs " != *' arm64 '* || " $archs " != *' x86_64 '* ]]; then
-    printf 'release binary must contain arm64 and x86_64, has: %s\n' "${archs:-<none>}" >&2
+  if [[ "$archs" != "arm64" ]]; then
+    printf 'release binary must contain only arm64, has: %s\n' "${archs:-<none>}" >&2
     return 1
   fi
 

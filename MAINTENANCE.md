@@ -19,7 +19,7 @@ Keep commits focused and explain what changed, why it was needed, what behavior 
 
 ## Platform and toolchain policy
 
-The deployment minimum is macOS 26. Keep its compatibility without adding a dedicated macOS 26 test matrix or special behavior. Tests run on the newest hosted macOS family available in GitHub Actions, currently `xcode-27`; its patch version follows GitHub's image updates. A newer Apple release can precede availability in hosted runners. Move the label forward when GitHub provides a newer family.
+The deployment minimum is macOS 26 on Apple Silicon. Keep its compatibility without adding a dedicated macOS 26 test matrix or special behavior. Tests run on the newest hosted macOS family available in GitHub Actions, currently `xcode-27`; its patch version follows GitHub's image updates. A newer Apple release can precede availability in hosted runners. Move the label forward when GitHub provides a newer family.
 
 Select the newest installed stable Xcode, resolving application symlinks before excluding beta and release-candidate bundles. Compile all targets in Swift 6 language mode. Node.js and Python are resolved to the newest stable releases for each CI run; their actual versions, Xcode, Swift, and macOS are recorded in the build log.
 

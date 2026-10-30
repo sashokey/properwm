@@ -108,7 +108,7 @@ jobs:
             echo "Coverage is unavailable because test execution did not produce a report." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Build universal package
+      - name: Build Apple Silicon package
         if: success()
         env:
           PROPERWM_VERSION: ${{ inputs.version }}
