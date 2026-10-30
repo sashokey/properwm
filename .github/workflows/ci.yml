@@ -32,7 +32,7 @@ jobs:
       - name: Set up latest stable Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: node
+          node-version: '*'
           check-latest: true
           package-manager-cache: false
 
@@ -42,6 +42,13 @@ jobs:
           python-version: '3.x'
           check-latest: true
           allow-prereleases: false
+
+      - name: Verify stable runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'if (process.versions.node.includes("-")) throw new Error("Prerelease Node.js is not allowed")'
+          python3 -c 'import sys; assert sys.version_info.releaselevel == "final", "Prerelease Python is not allowed"'
 
       - name: Verify build tooling
         run: python3 -m unittest discover -s Scripts -p 'test_*.py'
