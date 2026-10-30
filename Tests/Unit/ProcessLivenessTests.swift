@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 import XCTest
 
 final class ProcessLivenessTests: XCTestCase {
@@ -45,20 +46,36 @@ final class ProcessLivenessTests: XCTestCase {
     // MARK: - ProcessGenerationCache
 
     func testGenerationCacheServesOnlyTheSameProcessGeneration() {
-        var starts: [pid_t: timeval] = [42: timeval(tv_sec: 100, tv_usec: 5)]
-        let cache = ProcessGenerationCache<String>(startTime: { starts[$0] })
+        let starts = Mutex<[pid_t: timeval]>([42: timeval(tv_sec: 100, tv_usec: 5)])
+        let cache = ProcessGenerationCache<String>(startTime: { pid in starts.withLock { $0[pid] } })
         XCTAssertNil(cache.value(for: 42))
         cache.remember("psn", for: 42)
         XCTAssertEqual(cache.value(for: 42), "psn")
         // Same pid, new process: the remembered value is dropped, not served.
-        starts[42] = timeval(tv_sec: 100, tv_usec: 6)
+        starts.withLock { $0[42] = timeval(tv_sec: 100, tv_usec: 6) }
         XCTAssertNil(cache.value(for: 42))
-        starts[42] = timeval(tv_sec: 100, tv_usec: 5)
+        starts.withLock { $0[42] = timeval(tv_sec: 100, tv_usec: 5) }
         XCTAssertNil(cache.value(for: 42))
         // A dead process remembers nothing.
         cache.remember("dead", for: 7)
-        starts[7] = timeval(tv_sec: 1, tv_usec: 0)
+        starts.withLock { $0[7] = timeval(tv_sec: 1, tv_usec: 0) }
         XCTAssertNil(cache.value(for: 7))
+    }
+
+    func testGenerationCacheSupportsConcurrentReadersAndWriters() {
+        let cache = ProcessGenerationCache<Int>(startTime: { _ in timeval(tv_sec: 100, tv_usec: 0) })
+        let mismatches = Mutex(0)
+        DispatchQueue.concurrentPerform(iterations: 512) { index in
+            let pid = pid_t(index + 1)
+            cache.remember(index, for: pid)
+            if cache.value(for: pid) != index {
+                mismatches.withLock { $0 += 1 }
+            }
+        }
+        XCTAssertEqual(mismatches.withLock { $0 }, 0)
+        for index in 0..<512 {
+            XCTAssertEqual(cache.value(for: pid_t(index + 1)), index)
+        }
     }
 
     // MARK: - 实际 syscall 单测

@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 
 /// 进程存活判定的唯一合同（POSIX `kill(pid, 0)`）。
 ///
@@ -56,35 +57,34 @@ enum ProcessLiveness {
 /// instant `NSRunningApplication(processIdentifier:)` returns nil), and a value seen earlier stays
 /// correct as long as the pid still belongs to the same process. Thread-safe; readers sit on the
 /// concurrent action queue. `startTime` is injectable for tests only.
-final class ProcessGenerationCache<Value> {
-    private struct Entry {
+final class ProcessGenerationCache<Value: Sendable>: Sendable {
+    private struct Entry: Sendable {
         let startTime: timeval
         let value: Value
     }
 
-    private var entries: [pid_t: Entry] = [:]
-    private let lock = NSLock()
-    private let startTime: (pid_t) -> timeval?
+    private let entries = Mutex<[pid_t: Entry]>([:])
+    private let startTime: @Sendable (pid_t) -> timeval?
 
-    init(startTime: @escaping (pid_t) -> timeval? = ProcessLiveness.startTime(pid:)) {
+    init(startTime: @escaping @Sendable (pid_t) -> timeval? = ProcessLiveness.startTime(pid:)) {
         self.startTime = startTime
     }
 
     func remember(_ value: Value, for pid: pid_t) {
         guard let start = startTime(pid) else { return }
-        lock.lock(); defer { lock.unlock() }
-        entries[pid] = Entry(startTime: start, value: value)
+        entries.withLock { $0[pid] = Entry(startTime: start, value: value) }
     }
 
-    /// nil when nothing was remembered, the process is gone, or the pid now belongs to a new process.
     func value(for pid: pid_t) -> Value? {
         guard let start = startTime(pid) else { return nil }
-        lock.lock(); defer { lock.unlock() }
-        guard let entry = entries[pid],
-              entry.startTime.tv_sec == start.tv_sec, entry.startTime.tv_usec == start.tv_usec else {
-            entries[pid] = nil
-            return nil
+        return entries.withLock { values in
+            guard let entry = values[pid],
+                  entry.startTime.tv_sec == start.tv_sec,
+                  entry.startTime.tv_usec == start.tv_usec else {
+                values[pid] = nil
+                return nil
+            }
+            return entry.value
         }
-        return entry.value
     }
 }

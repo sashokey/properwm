@@ -87,7 +87,7 @@ enum AppDisplayNameResolver {
         return nameRegistry.knownNames(for: bundleID)
     }
 
-    private static func bundleDerivedNames(for bundleID: String) -> Set<String> {
+    nonisolated private static func bundleDerivedNames(for bundleID: String) -> Set<String> {
         var names: Set<String> = []
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
             let bundle = Bundle(url: url)
