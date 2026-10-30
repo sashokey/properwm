@@ -104,10 +104,7 @@ jobs:
             const fs = require('node:fs/promises');
             const crypto = require('node:crypto');
             const version = process.env.RELEASE_VERSION;
-            const names = [
-              'ProperWM-' + version + '.zip',
-              'ProperWM-' + version + '-source.zip'
-            ];
+            const names = ['ProperWM-' + version + '.zip'];
             const sums = await fs.readFile('dist/SHA256SUMS.txt', 'utf8');
             for (const name of names) {
               const bytes = await fs.readFile('dist/' + name);
@@ -126,7 +123,8 @@ jobs:
               generate_release_notes: true,
               body: [
                 'Universal macOS app (Apple Silicon and Intel). Ad-hoc signed; not notarized.',
-                'Source and SHA-256 checksums are attached.',
+                'The app ZIP and its SHA-256 checksum are attached.',
+                "Source is available through GitHub's standard Source code archives for this release tag.",
                 'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo
                   + '/blob/' + context.sha + '/TESTING.md'
               ].join('\n\n')

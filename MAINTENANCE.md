@@ -13,6 +13,6 @@ For future source-project fixes:
 5. Run CI and relevant Mac acceptance scenarios.
 6. Record the source commit, rationale, adaptations, and verification in the ProperWM commit message.
 
-Track source changes manually when requested; there is no automatic merge or background update service. Release source archives and this repository history provide the corresponding source for distributed binaries.
+Track source changes manually when requested; there is no automatic merge or background update service. GitHub's standard Source code archives for each release tag and this repository history provide the corresponding source for distributed binaries.
 
 Keep commits focused and explain what changed, why it was needed, what behavior was preserved, and how it was verified. Code changes follow SOLID, KISS, and DRY.

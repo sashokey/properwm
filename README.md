@@ -14,7 +14,7 @@ Its menu contains only **Open at Login** and **Taskbar Size**. Accessibility per
 
 ## Builds and releases
 
-Builds run exclusively in GitHub Actions. **CI** runs the tests with coverage, checks localization and deployment compatibility, and packages a universal Release app. A successful run provides the **ProperWM** artifact containing the app ZIP, matching source ZIP, and SHA-256 checksums. Test logs, coverage, and the result bundle are in **test-results**.
+Builds run exclusively in GitHub Actions. **CI** runs the tests with coverage, checks localization and deployment compatibility, and packages a universal Release app. A successful run provides the **ProperWM** artifact containing the app ZIP and its SHA-256 checksum. Published releases use GitHub's standard **Source code (zip)** and **Source code (tar.gz)** downloads for the exact release tag; no duplicate source archive is uploaded. Test logs, coverage, and the result bundle are in **test-results**.
 
 To publish through the GitHub plugin, commit a new version in [`.github/release.json`](.github/release.json) on `master`. Set `prerelease` and `draft` explicitly. That commit starts **Release**, which validates the request, runs CI, builds the exact commit, verifies checksums, and publishes after uploading all assets. Ordinary code commits do not publish releases; changing only the request file runs the release pipeline without a duplicate standalone CI run.
 

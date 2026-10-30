@@ -54,9 +54,7 @@ for notice in ["LICENSE", "NOTICE"]:
 PY
 
 ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/ProperWM-$VERSION.zip"
-git archive --format=zip --prefix="ProperWM-$VERSION-source/" \
-  --output="dist/ProperWM-$VERSION-source.zip" "$GITHUB_SHA"
 
 cd dist
-shasum -a 256 "ProperWM-$VERSION.zip" "ProperWM-$VERSION-source.zip" > SHA256SUMS.txt
+shasum -a 256 "ProperWM-$VERSION.zip" > SHA256SUMS.txt
 shasum -a 256 -c SHA256SUMS.txt

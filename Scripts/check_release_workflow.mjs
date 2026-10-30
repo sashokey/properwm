@@ -52,7 +52,7 @@ test('new version is accepted only when the tag lookup returns 404', async () =>
 });
 
 function fixture({ draft = true, corrupt = false, failUpload = false } = {}) {
-  const names = ['ProperWM-0.1.0.zip', 'ProperWM-0.1.0-source.zip'];
+  const names = ['ProperWM-0.1.0.zip'];
   const files = new Map(names.map((name, i) => ['dist/' + name, Buffer.from('archive-' + i)]));
   const sums = names.map(name => createHash('sha256').update(files.get('dist/' + name)).digest('hex')
     + '  ' + name).join('\n') + '\n';
@@ -66,7 +66,7 @@ function fixture({ draft = true, corrupt = false, failUpload = false } = {}) {
     },
     uploadReleaseAsset: async request => {
       calls.push(['upload', request]);
-      if (failUpload && request.name.endsWith('-source.zip')) throw new Error('upload failed');
+      if (failUpload && request.name === 'SHA256SUMS.txt') throw new Error('upload failed');
     },
     updateRelease: async request => { calls.push(['publish', request]); }
   } } };
@@ -85,21 +85,21 @@ function fixture({ draft = true, corrupt = false, failUpload = false } = {}) {
   return { calls, run: () => publish(github, context, core, require, process) };
 }
 
-test('draft upload attaches app, matching source, and checksums to the exact commit', async () => {
+test('draft upload attaches only the app and its checksum to the exact commit', async () => {
   const f = fixture();
   await f.run();
-  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload', 'upload']);
+  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload']);
   assert.equal(f.calls[0][1].draft, true);
   assert.equal(f.calls[0][1].prerelease, true);
   assert.equal(f.calls[0][1].target_commitish, context.sha);
   assert.deepEqual(f.calls.slice(1).map(call => call[1].name),
-    ['ProperWM-0.1.0.zip', 'ProperWM-0.1.0-source.zip', 'SHA256SUMS.txt']);
+    ['ProperWM-0.1.0.zip', 'SHA256SUMS.txt']);
 });
 
 test('publication happens only after all uploads succeed', async () => {
   const f = fixture({ draft: false });
   await f.run();
-  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload', 'upload', 'publish']);
+  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload', 'publish']);
   assert.equal(f.calls.at(-1)[1].draft, false);
 });
 
