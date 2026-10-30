@@ -229,6 +229,7 @@ extension WindowReorderControllerTests {
         XCTAssertNil(controller.draggingPayload)
         XCTAssertNil(controller.landing)
         XCTAssertNil(controller.hiddenSlotPayload)
+        waitUntil { !controller.isCarrying }
         XCTAssertFalse(controller.isCarrying)
     }
 
@@ -239,5 +240,17 @@ extension WindowReorderControllerTests {
         controller.endDrag()
         XCTAssertEqual(controller.landing?.kind, .returnToSlot)
         XCTAssertEqual(controller.landing?.flight.isStationary, false)
+    }
+
+    func testOldCancellationCannotRetireANewerDrag() {
+        begin(.strip, "first-window", at: outsideZone, surface: "display-A")
+        controller.cancelDrag()
+        begin(.strip, "second-window", at: outsideZone, surface: "display-B")
+        let nextTurn = expectation(description: "Cancellation handoff completed")
+        DispatchQueue.main.async { nextTurn.fulfill() }
+        wait(for: [nextTurn], timeout: 1)
+        XCTAssertEqual(controller.draggingPayload?.id, "second-window")
+        XCTAssertEqual(controller.activeStripSurfaceID, "display-B")
+        XCTAssertTrue(controller.isCarrying)
     }
 }
