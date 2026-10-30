@@ -300,11 +300,12 @@ final class DragController: ObservableObject {
         landingGrabTimer?.invalidate()
         refreshLandingGrabState()
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-            Task { @MainActor in
-                guard let self else { timer.invalidate(); return }
-                guard self.landing != nil else { timer.invalidate(); return }
+            let shouldContinue = MainActor.assumeIsolated {
+                guard let self, self.landing != nil else { return false }
                 self.refreshLandingGrabState()
+                return true
             }
+            if !shouldContinue { timer.invalidate() }
         }
         RunLoop.main.add(timer, forMode: .common)
         landingGrabTimer = timer
@@ -334,14 +335,15 @@ final class DragController: ObservableObject {
         hoverHoldOrigin = NSEvent.mouseLocation
         hoverHoldStartedAt = CACurrentMediaTime()
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
-            Task { @MainActor in
-                guard let self else { timer.invalidate(); return }
-                guard self.hoverHoldPayload != nil else { timer.invalidate(); return }
+            let shouldContinue = MainActor.assumeIsolated {
+                guard let self, self.hoverHoldPayload != nil else { return false }
                 let now = NSEvent.mouseLocation
                 let moved = hypot(now.x - self.hoverHoldOrigin.x, now.y - self.hoverHoldOrigin.y) > 0.5
                 let expired = CACurrentMediaTime() - self.hoverHoldStartedAt > DragLandingPlan.hoverHoldMaximum
                 if moved || expired { self.endHoverHold() }
+                return true
             }
+            if !shouldContinue { timer.invalidate() }
         }
         RunLoop.main.add(timer, forMode: .common)
         hoverHoldTimer = timer
