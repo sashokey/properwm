@@ -270,7 +270,7 @@ final class WindowLiftAvoidanceController {
 
     private static let trackedProbeInterval = WindowLiftAvoidance.trackedSessionProbeInterval
     /// For the static restore path, which cannot reach the instance logger.
-    private static let restoreLogger = Logger(
+    nonisolated private static let restoreLogger = Logger(
         subsystem: "io.github.sashokey.properwm",
         category: "WindowLiftAvoidance"
     )

@@ -8,8 +8,8 @@ import Foundation
 /// 复用它会让「运行期权限丢失 → 恢复」这条路径彻底哑掉。
 @MainActor
 final class AccessibilityPermissionModel: ObservableObject {
-    static let pollInterval: TimeInterval = 1
-    static let defaultStallInterval: TimeInterval = 8
+    nonisolated static let pollInterval: TimeInterval = 1
+    nonisolated static let defaultStallInterval: TimeInterval = 8
 
     @Published private(set) var state: PermissionOnboardingState
 

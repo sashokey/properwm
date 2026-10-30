@@ -24,21 +24,43 @@ concurrency:
 jobs:
   test:
     name: Build and test
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Set up latest stable Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: node
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Set up latest stable Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.x'
+          check-latest: true
+          allow-prereleases: false
+
+      - name: Verify build tooling
+        run: python3 -m unittest discover -s Scripts -p 'test_*.py'
+
       - name: Verify release workflow behavior
         run: node --test Scripts/check_release_workflow.mjs
 
-      - name: Select newest Xcode 26
+      - name: Select newest stable Xcode
         shell: bash
         run: |
           set -euo pipefail
-          XCODE="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
+          XCODE="$(python3 Scripts/select_xcode.py)"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          xcrun swift --version
+          sw_vers
+          node --version
+          python3 --version
+          python3 -c 'import platform; assert int(platform.mac_ver()[0].split(".")[0]) >= 27, "Tests require the newest macOS runner family"'
 
       - name: Check localization
         run: python3 Scripts/check_localization.py

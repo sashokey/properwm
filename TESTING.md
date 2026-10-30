@@ -4,10 +4,13 @@
 
 Every CI run must pass before its app artifact is uploaded:
 
+- Stable Xcode selection, including rejection of beta/RC aliases and old toolchains.
+- Deployment-checker regressions for unavailable APIs and missing build logs.
+
 - Release workflow validation, duplicate-tag rejection, checksum rejection, and publication only after successful asset uploads.
 - Localization completeness and format placeholders.
 - Debug-switch registration and absence of unused switches.
-- Debug build and XCTest execution with code coverage.
+- Swift 6 Debug build and XCTest execution with code coverage.
 - Deployment-availability checks for the macOS 26 minimum.
 - Universal Release build for arm64 and x86_64.
 - Release binary checks for both architectures, stripped symbols, and absence of coverage instrumentation.

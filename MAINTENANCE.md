@@ -16,3 +16,11 @@ For future source-project fixes:
 Track source changes manually when requested; there is no automatic merge or background update service. GitHub's standard Source code archives for each release tag and this repository history provide the corresponding source for distributed binaries.
 
 Keep commits focused and explain what changed, why it was needed, what behavior was preserved, and how it was verified. Code changes follow SOLID, KISS, and DRY.
+
+## Platform and toolchain policy
+
+The deployment minimum is macOS 26. Keep its compatibility without adding a dedicated macOS 26 test matrix or special behavior. Tests run on the newest hosted macOS family available in GitHub Actions, currently `xcode-27`; its patch version follows GitHub's image updates. A newer Apple release can precede availability in hosted runners. Move the label forward when GitHub provides a newer family.
+
+Select the newest installed stable Xcode, resolving application symlinks before excluding beta and release-candidate bundles. Compile all targets in Swift 6 language mode. Node.js and Python are resolved to the newest stable releases for each CI run; their actual versions, Xcode, Swift, and macOS are recorded in the build log.
+
+Official GitHub Actions are pinned to full release commit SHAs. Dependabot checks them daily and opens update pull requests; merge those updates after CI passes. Keep the source, release workflow, and packaging free of third-party runtime packages. The system frameworks are supplied by macOS and the selected Xcode SDK.
