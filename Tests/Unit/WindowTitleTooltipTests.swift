@@ -155,47 +155,12 @@ final class ChipPillMetricsTests: XCTestCase {
     ///
     /// 封顶规则在 40pt 卡上算出 1.15，被 `quietHoverScale` 上限截回 1.10 ——
     /// 收敛只该咬到宽到会挤的卡。四种图标卡（窗口卡 / kept / 消息区 / 中转格）都是这个宽度。
-    func testIconCardKeepsTheAcceptedFullScale() {
-        for tier in sampleDockHeights {
-            let width = ChipPillMetrics.cardWidth * tier.scale
-            XCTAssertEqual(
-                ChipPillMetrics.quietHoverScale(forCardWidth: width, scale: tier.scale),
-                ChipPillMetrics.quietHoverScale, accuracy: 0.0001,
-                "档位 \(tier) 的图标卡必须仍是 1.10"
-            )
-        }
-    }
 
     /// 任何卡宽下，每侧向外长出的量都不超预算——这才是「不再挤」的直接判据。
     /// （倍数本身是多少无所谓，用户看见的是边缘位移。）
-    func testNoCardGrowsBeyondTheEdgeBudget() {
-        for tier in sampleDockHeights {
-            let budget = ChipPillMetrics.quietHoverEdgeBudget * tier.scale
-            for base in [40, 60, 96, 140, 168.5, 196, 400] as [CGFloat] {
-                let width = base * tier.scale
-                let s = ChipPillMetrics.quietHoverScale(forCardWidth: width, scale: tier.scale)
-                let growthPerSide = width * (s - 1) / 2
-                XCTAssertLessThanOrEqual(growthPerSide, budget + 0.0001,
-                                         "卡宽 \(base) 档位 \(tier) 每侧外扩 \(growthPerSide) 超预算")
-            }
-        }
-    }
 
     /// 两张满宽标题卡相邻：放大之后仍要剩得下缝。
     /// 静息可见缝 = `2 * titledCardInset + chipSpacing` = 10pt，预算 3pt → 至少剩 7pt。
-    func testTwoWidestTitledCardsStillLeaveAVisibleGap() {
-        let scale: CGFloat = 1
-        let longTitle = String(repeating: "very-long-window-title-", count: 20)
-        let cardWidth = ChipPillMetrics.width(title: longTitle, scale: scale)
-            + 2 * ChipPillMetrics.titledCardInset * scale
-        let restingGap = 2 * ChipPillMetrics.titledCardInset * scale + 2 /* Style.chipSpacing */
-        let s = ChipPillMetrics.quietHoverScale(forCardWidth: cardWidth, scale: scale)
-        let remaining = restingGap - cardWidth * (s - 1) / 2
-
-        XCTAssertEqual(restingGap, 10, accuracy: 0.001, "静息缝的构成变了，这条判据要跟着重算")
-        XCTAssertGreaterThanOrEqual(remaining, 7 - 0.001,
-                                    "放大后只剩 \(remaining)pt，宽卡又会挤到邻居")
-    }
 
     /// 未读角标的尺寸：中档逐字等于历史字面值，其余档位整体跟着 `scale` 走。
     ///
@@ -210,10 +175,6 @@ final class ChipPillMetricsTests: XCTestCase {
     }
 
     /// 宽度为 0（还没量到）不能算出 NaN / 无穷大。
-    func testZeroWidthFallsBackToTheCap() {
-        XCTAssertEqual(ChipPillMetrics.quietHoverScale(forCardWidth: 0, scale: 1),
-                       ChipPillMetrics.quietHoverScale)
-    }
 
     /// 药丸在卡内水平居中 → midX 直接沿用卡片的；竖向全部来自常量。
     func testPillRectIsHorizontallyCenteredOnTheCard() {
@@ -231,7 +192,6 @@ final class ChipPillMetricsTests: XCTestCase {
     }
 
 }
-
 
 final class ScreenRectReaderTests: XCTestCase {
     private final class Task: ScreenRectDeliveryTask {
@@ -284,8 +244,6 @@ final class ScreenRectReaderTests: XCTestCase {
         XCTAssertEqual(scheduler.scheduled.count, 0)
     }
 
-
-
     func testPendingDeliveryUsesTheLatestCallback() {
         let scheduler = Scheduler()
         var old: [CGRect] = []
@@ -314,7 +272,6 @@ final class ScreenRectReaderTests: XCTestCase {
         scheduler.runAll()
         XCTAssertTrue(reported.isEmpty, "detach 之后排队的投递必须作废")
     }
-
 
     /// 窗口移动 / 换屏必须重新上报。
     ///

@@ -97,14 +97,10 @@ final class PanelCoordinator: NSObject {
     var spaceMembershipRepairInFlight = false
     var lastActiveApplicationPID: pid_t?
     var visibilityState = PanelVisibilityState()
+    var isTaskbarMenuOpen = false
     var panelsAreVisible = true
     var diagnosticFullscreenSource = "not recorded"
     var diagnosticFullscreenVerdict: Bool?
-    var edgeIdleHideTimer: Timer?
-    var edgeWakeTimer: Timer?
-    var edgeWakeTargetScreen: NSScreen?
-    var edgeWakeRequiresHotZone = true
-    var onHoverMonitorsNeedReconcile: (() -> Void)?
     var onPanelScreenChanged: (() -> Void)?
     var onAccessoryWillOpen: ((PanelCoordinator, AccessoryKind) -> Void)?
 
@@ -143,7 +139,6 @@ final class PanelCoordinator: NSObject {
         subscribeSnapshotWidth()
         subscribeSettings()
         setupFullscreenMonitor()
-        if Self.hoverVerboseLogging { logScreenMap() }
     }
 
     deinit {
@@ -157,9 +152,6 @@ final class PanelCoordinator: NSObject {
             dismissWindowTitleTooltip()
             tearDownTaskbarGlassBackground()
         }
-        hoverSwitchTimer?.invalidate()
-        edgeIdleHideTimer?.invalidate()
-        edgeWakeTimer?.invalidate()
         workspaceObserverTokens.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
@@ -185,10 +177,6 @@ final class PanelCoordinator: NSObject {
         clearFullscreenSpaceArrowIntent()
 
         dismissWindowTitleTooltip()
-        cancelHoverSwitch()
-        cancelEdgeWake()
-        edgeIdleHideTimer?.invalidate()
-        edgeIdleHideTimer = nil
 
         dockContentHost = nil
         windowTitleTooltipHosting = nil
@@ -212,8 +200,7 @@ final class PanelCoordinator: NSObject {
     var isLogicallyVisible: Bool { panelsAreVisible }
 
     func windowLiftAvoidanceContext() -> WindowLiftAvoidanceContext? {
-        guard !settingsStore.edgeAutoHideEnabled,
-              visibilityState.isVisible,
+        guard visibilityState.isVisible,
               panelsAreVisible,
               let panel = dockPanel else {
             return nil
@@ -273,30 +260,11 @@ final class PanelCoordinator: NSObject {
 
     static let slsVerdictEnabled = DebugSwitch.fullscreenSlsVerdict.isEnabled(in: ProcessInfo.processInfo.environment)
 
-    let hoverLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "HoverSwitch")
-    static let hoverHotZone: CGFloat = 4.0
-    static let hoverSwitchDwell: TimeInterval = 0.35   // 光标驻留热区 ≥ 350ms 才切换，路过不算
-    static let hoverVerboseLogging = false
-    static let edgeHoverTraceEnabled = DebugSwitch.edgehoverTrace.isEnabled(in: ProcessInfo.processInfo.environment)
-    var hoverLastScreenIndex: Int? = nil
-    var hoverLastInHotZone: Bool? = nil
-    var hoverSwitchTimer: Timer?
-    var hoverSwitchTargetScreen: NSScreen? = nil
-
-    var hoverScreenSwitchingEnabled: Bool {
-        switch unitPlacement {
-        case .followSettings: return settingsStore.taskbarScreenPlacement.allowsHoverScreenSwitching
-        case .fixed: return false
-        }
-    }
-
     var fixedDisplayUUID: String? {
         switch unitPlacement {
         case .fixed(let uuid): return uuid
-        case .followSettings: return settingsStore.taskbarScreenPlacement.pinnedSelection?.uuid
+        case .primary: return nil
         }
     }
-
-    private static let outerMargin: CGFloat = PanelLayoutMetrics.properWM.outerMargin
 
 }

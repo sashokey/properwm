@@ -1,35 +1,14 @@
 import Combine
 import Foundation
 
-enum HoverStyle: String, CaseIterable {
-    case standard
-    case quiet
-
-    static let `default` = HoverStyle.quiet
-
-    var isExpressive: Bool { self == .standard }
-
-    func showsExpressiveHover(isHovering: Bool) -> Bool { isExpressive && isHovering }
-
-    func showsQuietHoverFeedback(isHovering: Bool) -> Bool {
-        !isExpressive && isHovering
-    }
-}
-
 @MainActor
 final class AppSettingsStore: ObservableObject {
-    static let neverHideDelay: Double = -1
-    static let neverWakeDelay: Double = 999
 
     @Published private(set) var launchAtLogin: Bool
     @Published private(set) var dockPanelHeight: DockPanelHeight
 
-    let hoverStyle = HoverStyle.standard
     let windowLiftEnabled = true
     let fullscreenIntentEnabled = true
-    let taskbarScreenPlacement = TaskbarScreenPlacement.allScreensPerDisplay
-    let edgeAutoHideEnabled = false
-    let edgeAutoHideDelay = AppSettingsStore.neverHideDelay
 
     private let defaults: UserDefaults
 

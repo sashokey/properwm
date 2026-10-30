@@ -74,7 +74,6 @@ extension PanelCoordinator {
         interactiveResize = DockHeightDragSession(startHeight: settingsStore.dockPanelHeight.points,
                                                   startPointerY: pointer.y)
         showResizeCursor(at: pointer)
-        setAutoHideInhibitor(.interactiveResize, active: true)
         onInteractiveHeightResizeSession?(true)
         if !interactiveHeightResizeActive { setInteractiveHeightResizeActive(true) }
     }
@@ -101,7 +100,6 @@ extension PanelCoordinator {
     func endInteractiveResize() {
         guard interactiveResize != nil else { return }
         interactiveResize = nil
-        setAutoHideInhibitor(.interactiveResize, active: false)
         onInteractiveHeightResizeSession?(false)
         if interactiveHeightResizeActive { setInteractiveHeightResizeActive(false) }
     }
@@ -263,7 +261,6 @@ extension PanelCoordinator {
     }
 
     func screenParametersChanged() {
-        cancelHoverSwitch()
         dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
         guard dockPanel != nil else { return }
         if let home = resolvedPinnedScreen(), let panel = dockPanel,

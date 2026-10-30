@@ -44,7 +44,7 @@ extension DockStripView {
     }
 
     func bubbleRequest(projection: StripProjection) -> WindowTitleTooltipRequest? {
-        guard !isPanelHeightResizing, hoverStyle.isExpressive,
+        guard !isPanelHeightResizing,
               let id = hoveredEntryID,
               let anchor = hoveredAnchor,
               let entry = projection.entries.first(where: { $0.id == id }),

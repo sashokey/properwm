@@ -31,13 +31,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     private var fullscreenIntentMonitor: FullscreenIntentMonitor?
     private var topologyRefreshController: DisplayTopologyRefreshController?
 
-    private var hoverLocalMouseMonitor: Any?
-    private var hoverGlobalMouseMonitor: Any?
-    private var hoverPollThrottle = HoverPollThrottle(minInterval: 1.0 / 30.0)
     private var menuTrackingDepth = 0
-    private var menuTrackingPollTimer: Timer?
-    private static let menuHoverSuspensionEnabled = DebugSwitch.menuHoverSuspend.isEnabled(in: ProcessInfo.processInfo.environment)
-    private static let hoverMonitorLeanEnabled = DebugSwitch.hoverMonitorLean.isEnabled(in: ProcessInfo.processInfo.environment)
 
     init(
         runtime: AppRuntime,
@@ -67,9 +61,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     deinit {
         MainActor.assumeIsolated {
             topologyRefreshController?.cancel()
-            removeHoverMouseMonitorsOnly()
         }
-        menuTrackingPollTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -84,7 +76,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             dragController?.prewarmCarrier()
         }
         observeMenuTracking()
-        reconcileHoverMouseMonitors()
         reconcileFullscreenIntentMonitor()
         NotificationCenter.default.addObserver(
             self,
@@ -101,8 +92,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         setSettingsHeightSessionActive(false)
         dragController.cancelDrag()
         dragController.closeCarrierSurfaces()
-        removeHoverMouseMonitors()
-        stopMenuTrackingPoll()
         fullscreenIntentMonitor?.stop()
         fullscreenIntentMonitor = nil
         for unit in units {
@@ -123,7 +112,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         guard started, !isSuspended else { return }
         cancelInteractiveHeightResize()
         let desired = TaskbarDisplaySet.desiredUnitKeys(
-            placement: settingsStore.taskbarScreenPlacement,
             connectedKeys: connectedKeys
         )
         let current = units.map(\.key)
@@ -144,7 +132,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     private func makeUnit(key: String?) -> Unit {
-        let placement: TaskbarUnitPlacement = key.map { .fixed(displayUUID: $0) } ?? .followSettings
+        let placement: TaskbarUnitPlacement = key.map { .fixed(displayUUID: $0) } ?? .primary
         let coordinator = PanelCoordinator(
             placement: placement,
             dragController: dragController,
@@ -155,7 +143,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             displayTopologyStore: displayTopologyStore
         )
         coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu
-        coordinator.onHoverMonitorsNeedReconcile = { [weak self] in self?.reconcileHoverMouseMonitors() }
         coordinator.onPanelScreenChanged = { [weak self] in self?.pushPanelScreensToIntentMonitor() }
         coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
             self?.closeAccessories(exceptFor: unit, opening: kind)
@@ -184,7 +171,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     private var settingsHeightSessionActive = false
-    private weak var settingsHeightSessionWakeUnit: PanelCoordinator?
 
     func setSettingsHeightSessionActive(_ active: Bool) {
         guard settingsHeightSessionActive != active else { return }
@@ -192,13 +178,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         settingsHeightSessionActive = active
         if active {
             cancelInteractiveHeightResize()
-            let wakeUnit = (unitContainingMouse() ?? units.first)?.coordinator
-            settingsHeightSessionWakeUnit = wakeUnit
             units.forEach { $0.coordinator.setInteractiveHeightResizeActive(true) }
-            wakeUnit?.setAutoHideInhibitor(.interactiveResize, active: true)
         } else {
-            settingsHeightSessionWakeUnit?.setAutoHideInhibitor(.interactiveResize, active: false)
-            settingsHeightSessionWakeUnit = nil
             units.forEach { $0.coordinator.setInteractiveHeightResizeActive(false) }
         }
     }
@@ -233,7 +214,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         rebuildUnits(reason: "screens", connectedKeys: snapshot.identifiedDisplayUUIDs)
         units.forEach { $0.coordinator.screenParametersChanged() }
         pushPanelScreensToIntentMonitor()
-        reconcileHoverMouseMonitors()  // 屏幕数量变了：单屏↔多屏切换监视器是否还有存在的必要
     }
 
     private func makeTopologyRefreshController() -> DisplayTopologyRefreshController {
@@ -313,24 +293,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         fullscreenIntentMonitor?.updatePanelScreens(currentPanelScreenCGFrames)
     }
 
-    private var hoverMonitorsNeeded: Bool {
-        guard Self.hoverMonitorLeanEnabled else { return true }
-        return (NSScreen.screens.count > 1 && settingsStore.taskbarScreenPlacement.allowsHoverScreenSwitching)
-            || settingsStore.edgeAutoHideEnabled
-            || PanelCoordinator.edgeHoverTraceEnabled
-    }
-
-    private func reconcileHoverMouseMonitors() {
-        guard started, !isSuspended else { return }
-        guard menuTrackingDepth == 0 else { return }   // 菜单跟踪期间由挂起逻辑接管
-        if hoverMonitorsNeeded {
-            installHoverMouseMonitors()
-            pollAllUnits()
-        } else {
-            removeHoverMouseMonitors()
-        }
-    }
-
     private func observeMenuTracking() {
         NotificationCenter.default.addObserver(
             self,
@@ -350,90 +312,12 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         menuTrackingDepth += 1
         guard menuTrackingDepth == 1 else { return }
         setTaskbarMenuOpen(true)
-        guard Self.menuHoverSuspensionEnabled else { return }
-        removeHoverMouseMonitorsOnly()
-        startMenuTrackingPollIfNeeded()
     }
 
     @objc private func menuTrackingDidEnd() {
         menuTrackingDepth = max(0, menuTrackingDepth - 1)
         guard menuTrackingDepth == 0 else { return }
         setTaskbarMenuOpen(false)
-        stopMenuTrackingPoll()
-        reconcileHoverMouseMonitors()
     }
 
-    private func startMenuTrackingPollIfNeeded() {
-        guard menuTrackingPollTimer == nil, started, !isSuspended, hoverMonitorsNeeded else { return }
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.pollAllUnits() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        menuTrackingPollTimer = timer
-    }
-
-    private func stopMenuTrackingPoll() {
-        menuTrackingPollTimer?.invalidate()
-        menuTrackingPollTimer = nil
-    }
-
-    private func installHoverMouseMonitors() {
-        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
-        if hoverLocalMouseMonitor == nil {
-            hoverLocalMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
-                MainActor.assumeIsolated { self?.hoverPollEventArrived() }
-                return event
-            }
-        }
-        if hoverGlobalMouseMonitor == nil {
-            hoverGlobalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
-                MainActor.assumeIsolated { self?.hoverPollEventArrived() }
-            }
-        }
-    }
-
-    private func hoverPollEventArrived() {
-        guard Self.hoverMonitorLeanEnabled else {
-            Task { @MainActor [weak self] in self?.pollAllUnits() }
-            return
-        }
-        switch hoverPollThrottle.eventArrived(now: CACurrentMediaTime()) {
-        case .run:
-            pollAllUnits()
-        case .scheduleTrailing(let after):
-            DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.hoverPollThrottle.trailingFired(now: CACurrentMediaTime())
-                    self.pollAllUnits()
-                }
-            }
-        case .drop:
-            break
-        }
-    }
-
-    private func pollAllUnits() {
-        units.forEach { $0.coordinator.pollMousePosition() }
-    }
-
-    private func removeHoverMouseMonitorsOnly() {
-        if let monitor = hoverLocalMouseMonitor {
-            NSEvent.removeMonitor(monitor)
-            hoverLocalMouseMonitor = nil
-        }
-        if let monitor = hoverGlobalMouseMonitor {
-            NSEvent.removeMonitor(monitor)
-            hoverGlobalMouseMonitor = nil
-        }
-    }
-
-    private func removeHoverMouseMonitors() {
-        removeHoverMouseMonitorsOnly()
-        hoverPollThrottle.reset()
-        for unit in units {
-            unit.coordinator.cancelHoverSwitch()
-            unit.coordinator.cancelEdgeWake()
-        }
-    }
 }

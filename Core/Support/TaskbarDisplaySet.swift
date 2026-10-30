@@ -24,8 +24,8 @@ enum TaskbarDisplaySet {
 
     /// 期望存在的单元 key：①② 恰好一个「跟随设置」的单元（nil），③④ 每块在场屏一个。
     /// `connectedKeys` 为空时（所有屏都拔了、或 UUID 全读不到）退化为单单元，任务条不会凭空消失。
-    static func desiredUnitKeys(placement: TaskbarScreenPlacement, connectedKeys: [String]) -> [String?] {
-        guard placement.showsOnEveryDisplay, !connectedKeys.isEmpty else { return [nil] }
+    static func desiredUnitKeys(connectedKeys: [String]) -> [String?] {
+        guard !connectedKeys.isEmpty else { return [nil] }
         return connectedKeys
     }
 }

@@ -308,12 +308,6 @@ extension View {
     /// `cardWidth` 是**这张卡自己的宽度**（已按档位缩放），用来把每侧外扩量封顶——
     /// 等比放大在 168pt 的标题卡上会外扩 8.4pt，把 10pt 的卡间缝挤掉（owner 2026-08-17 报）。
     /// **故意不给默认值**：漏传必须是编译错误，同 `scale` / `hoverStyle` 那条既有规矩。
-    func chipQuietHoverScale(_ isActive: Bool, cardWidth: CGFloat, scale: CGFloat) -> some View {
-        let target = ChipPillMetrics.quietHoverScale(forCardWidth: cardWidth, scale: scale)
-        return self
-            .scaleEffect(isActive ? target : 1, anchor: .bottom)
-            .animation(.easeOut(duration: 0.12), value: isActive)
-    }
 
     /// 给毛玻璃底板加背景提饱和。**1.0 时整个修饰符都不挂**——`.saturation(1.0)` 虽是恒等，
     /// 但仍可能触发离屏渲染，多一层就可能破坏深色的逐像素冻结（同厚度层的理由）。

@@ -13,22 +13,15 @@ final class TaskbarDisplaySetTests: XCTestCase {
         XCTAssertEqual(diff, TaskbarDisplaySet.Diff(added: ["A"], removed: [], kept: []))
     }
 
-    func testDesiredUnitKeysSingleUnitForFollowMouseAndPinned() {
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(placement: .followMouse, connectedKeys: ["A", "B"]), [nil])
-        let pinned = TaskbarScreenPlacement.pinned(PinnedScreenSelection(uuid: "B", name: "LG"))
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(placement: pinned, connectedKeys: ["A", "B"]), [nil])
-    }
-
     func testDesiredUnitKeysOnePerDisplayForAllScreensModes() {
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(placement: .allScreens, connectedKeys: ["A", "B"]), ["A", "B"])
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["A", "B"]), ["A", "B"])
         XCTAssertEqual(
-            TaskbarDisplaySet.desiredUnitKeys(placement: .allScreensPerDisplay, connectedKeys: ["B"]),
+            TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["B"]),
             ["B"]
         )
     }
 
-    /// 屏集合空（全拔了 / UUID 全读不到）退化为单单元，任务条不会凭空消失。
     func testDesiredUnitKeysFallsBackToSingleUnitWhenNoDisplays() {
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(placement: .allScreens, connectedKeys: []), [nil])
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: []), [nil])
     }
 }

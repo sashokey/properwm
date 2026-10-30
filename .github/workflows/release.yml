@@ -33,7 +33,7 @@ jobs:
         with:
           script: |
             const version = process.env.RELEASE_VERSION;
-            if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            if (!/^\d+\.\d+\.\d+$/.test(version) || version !== version.trim()) {
               throw new Error('Version must be X.Y.Z');
             }
             try {

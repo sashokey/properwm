@@ -306,7 +306,6 @@ extension PanelCoordinator {
         var parts: [String] = []
         if reasons.contains(.fullscreen) { parts.append("fullscreen") }
         if reasons.contains(.fullscreenTransitionPending) { parts.append("pending") }
-        if reasons.contains(.edgeAutoHide) { parts.append("edge") }
         let reasonText = parts.isEmpty ? "none" : parts.joined(separator: "+")
         logger.info(
             "[fullscreen] active=\(isFullscreen, privacy: .public) source=\(source, privacy: .public) reasons=\(reasonText, privacy: .public) pid=\(self.lastActiveApplicationPID ?? -1, privacy: .public)"
@@ -333,10 +332,6 @@ extension PanelCoordinator {
         visibilityState.beginFullscreenTransition(generation: generation)
 
         diagnosticFullscreenSource = request.source.rawValue + "-prediction"
-
-        edgeIdleHideTimer?.invalidate()
-        edgeIdleHideTimer = nil
-        cancelEdgeWake()
 
         orderOutPanelsForFullscreenPrediction()
         fullscreenIntentLogger.notice(
@@ -378,9 +373,6 @@ extension PanelCoordinator {
     }
 
     private func orderOutPanelsForFullscreenPrediction() {
-        edgeIdleHideTimer?.invalidate()
-        edgeIdleHideTimer = nil
-        cancelEdgeWake()
 
         dragController.cancelDrag()
         dismissWindowTitleTooltip(suppressCurrentUntilExit: true)

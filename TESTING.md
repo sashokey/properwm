@@ -4,6 +4,7 @@
 
 Every CI run must pass before its app artifact is uploaded:
 
+- Release workflow validation, duplicate-tag rejection, checksum rejection, and publication only after successful asset uploads.
 - Localization completeness and format placeholders.
 - Debug-switch registration and absence of unused switches.
 - Debug build and XCTest execution with code coverage.

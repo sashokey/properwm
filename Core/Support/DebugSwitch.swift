@@ -31,8 +31,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case windowLift = "DOCK_WINDOW_LIFT"
     case windowLiftAnim = "DOCK_WINDOW_LIFT_ANIM"
     case windowLiftTiles = "DOCK_WINDOW_LIFT_TILES"
-    case menuHoverSuspend = "DOCK_MENU_HOVER_SUSPEND"
-    case hoverMonitorLean = "DOCK_HOVER_MONITOR_LEAN"
     case stripHoverPoll = "DOCK_STRIP_HOVER_POLL"
     case resizeCursor = "DOCK_RESIZE_CURSOR"
     case barArrowCursor = "DOCK_BAR_ARROW_CURSOR"
@@ -43,7 +41,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case chipProbe = "DOCK_CHIP_PROBE"
     case clickTrace = "DOCK_CLICK_TRACE"
     case hoverTrace = "DOCK_HOVER_TRACE"
-    case edgehoverTrace = "DOCK_EDGEHOVER_TRACE"
     case stripWheelTrace = "DOCK_STRIP_WHEEL_TRACE"
     case chipAnimTrace = "DOCK_CHIP_ANIM_TRACE"
     case labelProbe = "DOCK_LABEL_PROBE"
@@ -86,10 +83,10 @@ enum DebugSwitch: String, CaseIterable, Sendable {
              .liquidGlassDiagonalHighlight, .liquidGlassHighlightBoost, .stripBalancedInsets,
              .spaceIntent, .fullscreenIntent, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair,
              .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles,
-             .menuHoverSuspend, .hoverMonitorLean, .stripHoverPoll, .resizeCursor, .barArrowCursor, .chipPressDown, .titleSettle:
+             .stripHoverPoll, .resizeCursor, .barArrowCursor, .chipPressDown, .titleSettle:
             return .killSwitch
         case .displayTrace, .chipProbe, .clickTrace,
-             .hoverTrace, .edgehoverTrace, .stripWheelTrace, .chipAnimTrace, .labelProbe,
+             .hoverTrace, .stripWheelTrace, .chipAnimTrace, .labelProbe,
              .spaceIntentTrace, .windowLiftTrace, .simulateNoDestroy:
             return .trace
         case .reconcileAxTimeoutMs, .seedAxTimeoutMs, .dragFlightMs, .labelAnim, .inventoryLog,

@@ -35,20 +35,13 @@ extension DockStripView {
         }
         return StripProjection(
             otherDisplayIDs: otherDisplayIDs,
-            snapshotItems: snapshotItems,
-            snapshotBundleIDs: Set(snapshotItems.compactMap(\.bundleIdentifier)),
-            hiddenBundleIDs: Set(snapshotItems.filter { $0.status == "hidden" }.compactMap(\.bundleIdentifier)),
-            messaging: [],
             liveNatural: liveNatural,
             liveOrderIDs: liveOrderIDs,
             appKeyByChipID: appKeys,
             labelTitleByChipID: labels,
             entries: entries,
             layoutKeys: entries.map(StripLayoutKey.init),
-            messagingIDs: [],
-            draggingID: draggingID,
-            badgeEntryIDByBundle: [:],
-            frontWindowChipIDs: []
+            draggingID: draggingID
         )
     }
 
@@ -75,7 +68,6 @@ extension DockStripView {
         Dictionary(liveNatural.map { entry -> (String, String) in
             switch entry {
             case let .window(item): return (entry.id, item.bundleIdentifier ?? item.appID)
-            default: return (entry.id, entry.id)
             }
         }, uniquingKeysWith: { first, _ in first })
     }

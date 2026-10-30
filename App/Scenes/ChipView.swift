@@ -38,25 +38,17 @@ struct ChipView: View {
     let item: StripItem
     let labelTitle: String
     let scale: CGFloat
-    let hoverStyle: HoverStyle
     let isHovered: Bool
-    let isFrontWindow: Bool
-    var iconOnly: Bool = false
-    var showRunningDot: Bool = false
     @Environment(\.isDragCarrierSnapshot) private var isDragCarrierSnapshot
     @Environment(\.chipPillUsesGlass) private var pillUsesGlass
     @Environment(\.displayScale) private var displayScale
     @Environment(\.isPanelHeightResizing) private var isPanelHeightResizing
-    var pulseNonce: Int = 0
     var slotHidden: Bool = false
     @State private var isTapPressed = false
 
-    private var showsHover: Bool { hoverStyle.showsExpressiveHover(isHovering: isHovered) }
-    private var quietHoverFeedback: Bool {
-        hoverStyle.showsQuietHoverFeedback(isHovering: isHovered)
-    }
+    private var showsHover: Bool { isHovered }
     private var animationTraceKind: String {
-        !iconOnly && item.showsTitle ? "window" : "icon"
+        item.showsTitle ? "window" : "icon"
     }
 
     private func recordPressEvent(_ pressed: Bool) {
@@ -75,7 +67,7 @@ struct ChipView: View {
             kind: animationTraceKind,
             event: ChipAnimationTraceEvent.hover(hovering),
             isTapPressed: isTapPressed,
-            showsHover: hoverStyle.isExpressive && hovering
+            showsHover: hovering
         )
     }
 
@@ -92,7 +84,7 @@ struct ChipView: View {
 
     var body: some View {
         Group {
-            if !iconOnly && item.showsTitle {
+            if item.showsTitle {
                 multiWindowChip
             } else {
                 bareIconChip
@@ -125,18 +117,14 @@ struct ChipView: View {
         .frame(width: ChipPillMetrics.cardWidth * scale,
                height: ChipPillMetrics.chipHeight * scale)
         .overlay(alignment: .bottom) {
-            if showRunningDot && !isDragCarrierSnapshot {
+            if !isDragCarrierSnapshot {
                 Capsule()
                     .fill(theme.runningDot.color)
-                    .frame(width: (isFrontWindow ? ChipPillMetrics.frontWindowBarWidth : ChipPillMetrics.runningDotSize) * scale,
-                           height: (isFrontWindow ? ChipPillMetrics.frontWindowBarHeight : ChipPillMetrics.runningDotSize) * scale)
+                    .frame(width: ChipPillMetrics.runningDotSize * scale,
+                           height: ChipPillMetrics.runningDotSize * scale)
                     .padding(.bottom, ChipPillMetrics.runningDotBottomPadding * scale)
-                    .animation(.easeInOut(duration: ChipPillMetrics.frontWindowBarAnimation), value: isFrontWindow)
             }
         }
-        .chipQuietHoverScale(quietHoverFeedback,
-                             cardWidth: ChipPillMetrics.cardWidth * scale,
-                             scale: scale)
         .chipPressScale(isTapPressed)
         .contentShape(Rectangle())
         .onChange(of: isHovered) { recordHoverEvent($0) }
@@ -145,7 +133,6 @@ struct ChipView: View {
         }
         .chipPressGesture(
             isPressed: $isTapPressed,
-            pulseNonce: pulseNonce,
             onEvent: recordPressEvent
         )
         .nativeContextMenu { buildChipMenu() }
@@ -203,24 +190,7 @@ struct ChipView: View {
             Spacer(minLength: 0)
         }
         .frame(height: ChipPillMetrics.chipHeight * scale)
-        .overlay(alignment: .bottom) {
-            if !isDragCarrierSnapshot {
-                Capsule()
-                    .fill(theme.runningDot.color)
-                    .frame(width: isFrontWindow ? ChipPillMetrics.frontWindowBarWidth * scale : 0,
-                           height: ChipPillMetrics.frontWindowBarHeight * scale)
-                    .opacity(isFrontWindow ? 1 : 0)
-                    .padding(.bottom, ChipPillMetrics.runningDotBottomPadding * scale)
-                    .animation(.easeInOut(duration: ChipPillMetrics.frontWindowBarAnimation), value: isFrontWindow)
-            }
-        }
         .padding(.horizontal, ChipPillMetrics.titledCardInset * scale)
-        .chipQuietHoverScale(
-            quietHoverFeedback,
-            cardWidth: ChipPillMetrics.width(title: capturedDisplayTitle, scale: scale)
-                + 2 * ChipPillMetrics.titledCardInset * scale,
-            scale: scale
-        )
         .chipPressScale(isTapPressed)
         .contentShape(Rectangle())
         .onChange(of: isHovered) { recordHoverEvent($0) }
@@ -229,7 +199,6 @@ struct ChipView: View {
         }
         .chipPressGesture(
             isPressed: $isTapPressed,
-            pulseNonce: pulseNonce,
             onEvent: recordPressEvent
         )
         .nativeContextMenu { buildChipMenu() }

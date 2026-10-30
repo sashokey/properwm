@@ -35,7 +35,6 @@ struct DockStripView: View {
 
     private var metrics: PanelLayoutMetrics { settingsStore.dockPanelHeight.metrics }
     var dockScale: CGFloat { settingsStore.dockPanelHeight.scale }
-    var hoverStyle: HoverStyle { settingsStore.hoverStyle }
     private var theme: DockThemeTokens { .resolved(for: colorScheme) }
     private var taskbarCornerRadius: CGFloat { Style.cornerRadius * dockScale }
     var chipFrames: [String: CGRect] { frames.chipFrames }
@@ -328,10 +327,7 @@ struct DockStripView: View {
                 item: item,
                 labelTitle: projection.labelTitleByChipID[item.id] ?? item.title,
                 scale: dockScale,
-                hoverStyle: hoverStyle,
                 isHovered: hovered,
-                isFrontWindow: false,
-                showRunningDot: true,
                 slotHidden: projection.draggingID == item.id
             )
         }
