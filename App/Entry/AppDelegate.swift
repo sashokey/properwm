@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? "Tungsten Edge"
     }
 
-    private let installLineage = InstallLineage.capture()
     private let inventoryLog = WindowInventoryAnomalyLog()
     let displayTopologyStore = DisplayTopologyStore(initialSnapshot: DisplayIdentity.topologySnapshot())
     private(set) lazy var runtime = AppRuntime(
@@ -20,25 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         displayTableProvider: { [displayTopologyStore] in displayTopologyStore.table },
         isAccessibilityTrusted: { [weak self] in self?.cachedAccessibilityTrusted ?? false }
     )
-    let drawerStore = DrawerStore()
-    let messagingStore = MessagingAppStore()
-    let badgeStore = BadgeStore()
-    let keptAppStore = KeptAppStore()
     lazy var stripOrderStore = StripOrderStore(inventoryLog: inventoryLog)
-    let drawerOrderStore = DrawerOrderStore()
     let settingsStore = AppSettingsStore()
-    let pinnedFolderStore = PinnedFolderStore()
-    let shelfStore = ShelfStore()
-    let runningApplicationStore = RunningApplicationStore()
-    private(set) lazy var appMembershipController = AppMembershipController(
-        keptAppStore: keptAppStore,
-        drawerStore: drawerStore,
-        messagingStore: messagingStore
-    )
-    private(set) lazy var folderCoverStore = PinnedFolderCoverStore(
-        sortOrderProvider: { [pinnedFolderStore] path in pinnedFolderStore.sortOrder(for: path) },
-        isUnopenedSeed: { [pinnedFolderStore] path in pinnedFolderStore.isUnopenedSeed(path) }
-    )
     private var panelCoordinator: TaskbarScreenOrchestrator?
     private var windowLiftAvoidanceController: WindowLiftAvoidanceController?
     private lazy var launchAtLoginService = LaunchAtLoginService()
@@ -50,9 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainLoopStallProbe: Timer?
     private var permissionWindow: NSWindow?
     private var permissionHostingView: NSHostingView<PermissionOnboardingWindowContent>?
-    private var workspaceObservers: [NSObjectProtocol] = []
-    private var messagingAutoRegisterSubscription: AnyCancellable?
-    private var badgeContextSubscription: AnyCancellable?
     private let permissionService = PermissionService()
     private var installLocation: AppInstallLocation = .other
     private var permissionCoordinator: PermissionRecoveryCoordinator?
@@ -74,17 +53,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setvbuf(stdout, nil, _IOLBF, 0)
 
         startMainLoopStallProbeIfTracing()
-        StackPopupSnapshotProbe.runIfRequested()
-
-        let isFreshInstall = installLineage == .pristine
-        if isFreshInstall {
-
-
-            pinnedFolderStore.seedDownloadsForFreshInstall(lineage: installLineage)
-            keptAppStore.seedSystemAppLauncherForFreshInstall(lineage: installLineage) {
-                NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
-            }
-        }
 
         NSApp.appearance = nil
 
@@ -178,9 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         SystemResizeCursor.shared.reset()   // never leave the ▲▼ or a hidden pointer behind us
         SystemCursorHider.shared.show()
-        TrashStateStore.shared.stop()
 
-        DocumentUsageStore.shared.stop()
         permissionCoordinator?.terminationRequested()
         windowLiftAvoidanceController?.stop()
         panelCoordinator?.overlaySpaceHost?.tearDown()
@@ -244,99 +210,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startTaskbarRuntime() {
-        appMembershipController.reconcileInvalidMemberships()
-        runningApplicationStore.start()
         runtime.start()
-
-        messagingAutoRegisterSubscription = runningApplicationStore.$runningBundleIDs
-            .combineLatest(runtime.$snapshot)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] running, snapshot in
-                guard let self else { return }
-                let identifiable = MessagingZoneAdmission.mainWindowIdentifiableBundleIDs(
-                    windows: StripItem.items(from: snapshot).map {
-                        .init(bundleID: $0.bundleIdentifier ?? "",
-                              title: $0.title,
-                              isAppLevelFallback: $0.isAppLevelFallback)
-                    },
-                    titleMatchesAppName: { title, bundleID in
-                        AppDisplayNameResolver.titleMatchesAppName(title, bundleID: bundleID)
-                    }
-                )
-                self.appMembershipController.autoRegisterMessaging(
-                    runningBundleIDs: running,
-                    mainWindowIdentifiableBundleIDs: identifiable
-                )
-            }
-
-        badgeContextSubscription = Publishers.CombineLatest3(
-            messagingStore.$bundleIDs,
-            drawerStore.$bundleIDs,
-            runningApplicationStore.$runningBundleIDs
-        )
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] _, drawer, running in
-            guard let self else { return }
-            self.badgeStore.updateMessagingContext(
-                visibleMessagingIDs: AppMembershipProjection.badgeEligibleIDs(
-                    isMessagingApp: { self.messagingStore.isMessagingApp($0) },
-                    drawerIDs: drawer,
-                    runningIDs: running
-                ),
-                runningBundleIDs: running
-            )
-        }
-
         let coordinator = TaskbarScreenOrchestrator(
             runtime: runtime,
-            drawerStore: drawerStore,
-            messagingStore: messagingStore,
-            badgeStore: badgeStore,
             stripOrderStore: stripOrderStore,
-            drawerOrderStore: drawerOrderStore,
             settingsStore: settingsStore,
-            pinnedFolderStore: pinnedFolderStore,
-            folderCoverStore: folderCoverStore,
-            shelfStore: shelfStore,
-            keptAppStore: keptAppStore,
-            runningApplicationStore: runningApplicationStore,
-            appMembershipController: appMembershipController,
             displayTopologyStore: displayTopologyStore
         )
         panelCoordinator = coordinator
-        runtime.onToggleDrawer = { [weak coordinator] in coordinator?.toggleDrawer() }
         settingsCoordinator.taskbarHeightSessionHandler = { [weak coordinator] editing in
             coordinator?.setSettingsHeightSessionActive(editing)
         }
         settingsCoordinator.taskbarHeightUpdateHandler = { [weak coordinator] in
             coordinator?.commitSettingsPanelHeight()
         }
-        coordinator.onAddFolder = { [weak self] in self?.presentAddPinnedFolderPanel() }
         coordinator.onRequestTaskbarMenu = { [weak self] event, view in
             self?.statusMenuController.popUpFromTaskbar(with: event, in: view)
         }
         coordinator.start()
-        let windowLiftAvoidanceController = WindowLiftAvoidanceController(host: coordinator)
-        self.windowLiftAvoidanceController = windowLiftAvoidanceController
-        windowLiftAvoidanceController.setEnabledBySetting(settingsStore.windowLiftEnabled)
-        windowLiftAvoidanceController.start()
-        DocumentUsageStore.shared.start()
-        TrashStateStore.shared.setEnabled(settingsStore.showTrash)
-        TrashStateStore.shared.start(revealOpenedWindow: TrashStateStore.revealTrashWindow(runtime: runtime))
-        badgeStore.start()
-    }
-
-    func presentAddPinnedFolderPanel() {
-        NSApp.activate(ignoringOtherApps: true)
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.prompt = String(localized: "Pin")
-        panel.message = String(localized: "Choose a folder to pin to the taskbar")
-        if panel.runModal() == .OK {
-            for url in panel.urls { pinnedFolderStore.add(url.path) }
-        }
+        let lift = WindowLiftAvoidanceController(host: coordinator)
+        windowLiftAvoidanceController = lift
+        lift.setEnabledBySetting(true)
+        lift.start()
     }
 
     private func startMainLoopStallProbeIfTracing() {
@@ -426,19 +321,9 @@ extension AppDelegate: PermissionEffectHandler {
     }
 
     func suspendPanelsAndStores() {
-        TrashStateStore.shared.stop()
-        messagingAutoRegisterSubscription?.cancel()
-        messagingAutoRegisterSubscription = nil
-        badgeContextSubscription?.cancel()
-        badgeContextSubscription = nil
-        runtime.onToggleDrawer = nil
-
-        DocumentUsageStore.shared.stop()
         panelCoordinator?.suspendAndRelease()
         panelCoordinator = nil
-        badgeStore.stop()
         runtime.stop()
-        runningApplicationStore.stop()
     }
 
     func restoreLiftedWindows(episode: UInt64) async {

@@ -5,13 +5,7 @@ import QuartzCore
 import SwiftUI
 import os
 
-// PanelCoordinator · 显隐：多屏悬停切屏、边缘自动隐藏 / 唤醒、可见性状态机的应用。
-// 2026-09-05 从 PanelCoordinator.swift 按 extension 拆出，只搬不改。
 extension PanelCoordinator {
-    /// 固定档下把 display UUID 解析成当前的 NSScreen（固定屏缺席回落主屏 / 首屏）；
-    /// 跟随鼠标档返回 nil。刻意**无持久运行态**：每次屏幕参数 / 设置变化都重解析一遍，
-    /// 固定的屏一接回来自然搬回去，不需要任何「记住上次在哪」的状态机。
-    /// ③④ 的 `.fixed` 单元同样走这里：屏刚拔掉、编排层还没来得及拆它的那一瞬回落主屏，不会飞到 nil。
     func resolvedPinnedScreen() -> NSScreen? {
         guard let pinnedUUID = fixedDisplayUUID else { return nil }
         let screens = NSScreen.screens
@@ -28,9 +22,6 @@ extension PanelCoordinator {
         }
     }
 
-    // 鼠标移动监视器（安装 / 节流 / 菜单跟踪期间挂起）整体在编排层 `TaskbarScreenOrchestrator`：
-    // 全进程一套，回调转发给每个单元的 `pollMousePosition()`。单元只保留探测与武装逻辑。
-
     func logScreenMap() {
         let screens = NSScreen.screens
         for (i, screen) in screens.enumerated() {
@@ -40,7 +31,6 @@ extension PanelCoordinator {
         }
     }
 
-    /// 每次（节流后的）鼠标移动都进这里，由编排层转发。别的屏上的移动在 `handleBottomEdgeProbe` 廉价早退。
     func pollMousePosition() {
         let mouse = NSEvent.mouseLocation
         let screens = NSScreen.screens
@@ -92,7 +82,6 @@ extension PanelCoordinator {
 
     private func commitHoverSwitch() {
         hoverSwitchTimer = nil
-        // 保险：350ms dwell 窗口内设置可能翻到固定档，武装时的判定已过期。
         guard hoverScreenSwitchingEnabled else {
             hoverSwitchTargetScreen = nil
             return
@@ -102,7 +91,6 @@ extension PanelCoordinator {
             return
         }
         hoverSwitchTargetScreen = nil
-        // Confirm the cursor is still on the target screen (it may have left within the last poll gap).
         guard targetScreen.frame.contains(NSEvent.mouseLocation) else { return }
         let panelScreen = panelCurrentScreen(panel: panel)
         guard targetScreen != panelScreen else { return }   // panel already moved (e.g. screenParametersChanged)
@@ -114,7 +102,6 @@ extension PanelCoordinator {
             on: Self.screenGeometry(targetScreen),
             metrics: layoutMetrics
         ).width - Self.shadowPadding * 2
-        closeFolderPopup()   // 切屏后旧锚点在旧屏,弹窗收起
         dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
         layoutPanels(contentWidth: lastDesiredWidth, on: targetScreen, animated: false)
         hoverLogger.info("switch toScreen=\(toIdx, privacy: .public) name=\(targetScreen.localizedName, privacy: .public) actualWidth=\(actualWidth, privacy: .public) fromScreen=\(fromIdx, privacy: .public)")
@@ -130,7 +117,6 @@ extension PanelCoordinator {
 
         let panelScreen = panelCurrentScreen(panel: panel)
         if screen != panelScreen {
-            // 固定到某屏：别的屏的底边热区什么都不武装——dwell 计时器根本不该起。
             guard hoverScreenSwitchingEnabled else {
                 cancelEdgeWake()
                 cancelHoverSwitch()
@@ -162,7 +148,6 @@ extension PanelCoordinator {
         }
     }
 
-    /// 钨极菜单开着时停掉边缘自动隐藏，否则空闲计时照跑、任务条会从菜单底下缩掉。
     func setTaskbarMenuOpen(_ open: Bool) {
         setAutoHideInhibitor(.taskbarMenuOpen, active: open)
         resizeCursorMenuVisibilityChanged(open)
@@ -237,9 +222,6 @@ extension PanelCoordinator {
     }
 
     private func armEdgeWakeIfNeeded(on screen: NSScreen, requiresHotZone: Bool = true) {
-        // 固定到某屏：唤醒探测只认**面板实际所在的屏**（不是存的固定屏——固定屏被拔、
-        // 条落在回退屏时，回退屏照常唤醒）。这里是所有武装路径的单一咽喉，
-        // 包括 reconcilePanelVisibility 里按 screenContainingMouse() 的那条。
         if !hoverScreenSwitchingEnabled,
            let panel = dockPanel, panelCurrentScreen(panel: panel) != screen {
             return
@@ -269,8 +251,6 @@ extension PanelCoordinator {
         }
         edgeWakeTargetScreen = nil
         edgeWakeRequiresHotZone = true
-        // 顺带搬屏只属于跟随鼠标档；固定档下武装已被上面的咽喉拦住，这里再挡一道
-        // arm 与 fire 之间屏幕集合变化的漂移。
         if hoverScreenSwitchingEnabled, let panel = dockPanel, panelCurrentScreen(panel: panel) != screen {
             layoutPanels(contentWidth: lastDesiredWidth, on: screen, animated: false)
         }
@@ -297,42 +277,27 @@ extension PanelCoordinator {
         let shouldShow = visibilityState.isVisible
         guard shouldShow != panelsAreVisible else { return }
         noteVisibilityChange(visible: shouldShow, source: diagnosticFullscreenSource)
-        // 角标轮询的零感知门控跟着任务条逻辑显隐走（编排层按「任一单元可见」合并）；恢复时 BadgeStore 会立即读一次。
-        onLogicalVisibilityChanged?(shouldShow)
         if Self.edgeHoverTraceEnabled { logEdgeHoverTrace(shouldShow: shouldShow) }
         if shouldShow {
-            // 全屏之后的回归淡入（owner 2026-08-30：硬弹出 vs 原生的入场动画）。
-            // 只给「因全屏藏过」的揭示做，边缘自动隐藏的唤出保持原来的即时手感。
             let fadeIn = lastHideWasForFullscreen
             lastHideWasForFullscreen = false
-            let fadingPanels = [dockGlassBackgroundPanel, dockPanel, capsulePanel].compactMap { $0 }
+            let fadingPanels = [dockGlassBackgroundPanel, dockPanel].compactMap { $0 }
             if fadeIn { for panel in fadingPanels { panel.alphaValue = 0 } }
             orderDockSurfaceFront()
-            capsulePanel?.orderFrontRegardless()
-            if drawerWantsOpen { drawerPanel?.orderFrontRegardless() }
-            // 实测 orderOut/orderFront 不掉私有空间成员资格，这里只是一次读回；掉了才真的补。
             pinResidentPanelsIfNeeded()
             if fadeIn {
                 NSAnimationContext.runAnimationGroup { ctx in
-                    // 0.32s + ease-out（owner 2026-08-31「淡入再缓一些、更柔和」）：
-                    // 前半段就明显可见（感知上更及时），收尾轻。淡出维持 0.15s 不动。
                     ctx.duration = 0.32
                     ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     for panel in fadingPanels { panel.animator().alphaValue = 1 }
                 }
             }
-            // 藏起来的这段时间里可能有全屏空间被销毁，系统会顺手把面板从别的桌面上摘掉
-            // （issue #19）。健康时这里只是一次 SkyLight 读，不做任何事。
             repairAllSpacesMembershipIfNeeded()
         } else {
             lastHideWasForFullscreen = visibilityState.hideReasons.contains(.fullscreen)
-            if lastHideWasForFullscreen { closeDrawer() }
-            closeFolderPopup()
             dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
             orderDockSurfaceOut()
-            capsulePanel?.orderOut(nil)
-            // 淡入若被中途打断，alpha 可能停在半路；藏着的时候归 1，下次显示不带残值。
-            for panel in [dockGlassBackgroundPanel, dockPanel, capsulePanel] { panel?.alphaValue = 1 }
+            for panel in [dockGlassBackgroundPanel, dockPanel] { panel?.alphaValue = 1 }
         }
     }
 
@@ -346,13 +311,10 @@ extension PanelCoordinator {
         panelsAreVisible = visible
     }
 
-    /// `DOCK_EDGEHOVER_TRACE=1` 时每次实际 SHOW/HIDE 切换打一行：单调时钟（`CACurrentMediaTime`，
-    /// 不受墙钟调整影响，用于量切换间隔）+ 鼠标坐标 + 是否在底边热区 + 是否在任务条/胶囊矩形内 +
-    /// 当前唤醒延迟设置——足够从这一行日志本身看出"为什么"切换，而不只是"切换了"。
     private func logEdgeHoverTrace(shouldShow: Bool) {
         let mouse = NSEvent.mouseLocation
         let inHotZone = dockPanel.map { isMouseInBottomHotZone(on: panelCurrentScreen(panel: $0)) } ?? false
-        let inPanelRect = (dockPanel?.frame.contains(mouse) ?? false) || (capsulePanel?.frame.contains(mouse) ?? false)
+        let inPanelRect = (dockPanel?.frame.contains(mouse) ?? false)
         print(String(
             format: "[edgehover] %@ t=%.4f mouse=(%.1f,%.1f) hotZone=%@ panelRect=%@ delay=%.2f reasons=%@",
             shouldShow ? "SHOW" : "HIDE",
@@ -379,13 +341,6 @@ extension PanelCoordinator {
     func isMouseOutsideInteractivePanels() -> Bool {
         let mouse = NSEvent.mouseLocation
         if let dock = dockPanel, dock.frame.contains(mouse) { return false }
-        if let capsule = capsulePanel, capsule.frame.contains(mouse) { return false }
-        if drawerWantsOpen, let drawer = drawerPanel,
-           PanelGeometry.folderPopupPlateFrame(panelFrame: drawer.frame).contains(mouse) { return false }
-        if folderPopupContains(mouse) { return false }
-        // 唤醒热区贯穿整条屏幕底边，比居中的任务条/胶囊窄矩形宽得多；停在热区内但任务条范围外
-        // 若判"已离开"会立刻武装 idle-hide，与刚触发的唤醒反复打架（唤醒→隐藏→唤醒…闪烁）。
-        // 只在有限唤醒延迟下才压住——999/-1 两种模式没有这种打架，不该额外改变行为（见规则注释）。
         if EdgeAutoHideRuntimeRules.bottomHotZoneSuppressesIdleHide(delay: settingsStore.edgeAutoHideDelay),
            let dock = dockPanel, isMouseInBottomHotZone(on: panelCurrentScreen(panel: dock)) {
             return false

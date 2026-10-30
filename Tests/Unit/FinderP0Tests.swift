@@ -25,7 +25,6 @@ final class FinderP0Tests: XCTestCase {
 
     func testToggleUsesSnapshotStatus() {
         let id = WindowID(rawValue: "cg-1")
-        // 前台轴走注入桩（真实读数对测试假 pid 永远 false，无法覆盖 minimize 分支）。
         let frontmostPlanner = LifecycleActionPlanner(isAppFrontmost: { _ in true })
         let backgroundPlanner = LifecycleActionPlanner(isAppFrontmost: { _ in false })
         let activeSnapshot = snapshot(windowID: id, status: .active)
@@ -36,7 +35,6 @@ final class FinderP0Tests: XCTestCase {
             frontmostPlanner.plan(intent: .toggle(id), snapshot: activeSnapshot).kind,
             .minimizeWindow
         )
-        // active 但非前台 → 仍是 activate（带到前台），不是 minimize。
         XCTAssertEqual(
             backgroundPlanner.plan(intent: .toggle(id), snapshot: activeSnapshot).kind,
             .activateWindow
@@ -51,9 +49,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    /// 可打断（2026-06-13）：快照还停在 active（没翻面）时，乐观态说已 minimized →
-    /// 下一次 toggle 必须规划 activate（还原），而不是重复 minimize。这是连点
-    /// 严格交替的根。
     func testToggleAlternatesViaOptimisticStateWhileSnapshotIsStale() {
         let id = WindowID(rawValue: "cg-optimistic")
         let planner = LifecycleActionPlanner(isAppFrontmost: { _ in true })
@@ -76,9 +71,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    /// 回归（2026-07-05）：激活 B1 后 4s 内切去别的 App，乐观 .active 残留未兑现；
-    /// 此时再点 B1 卡片，App 已非前台（即时读 false）→ 必须规划 activate（提前），
-    /// 绝不能被残留乐观态带成 minimize（曾把该激活的点击直接最小化）。
     func testToggleWithStaleOptimisticActiveButAppNotFrontmostPlansActivate() {
         let id = WindowID(rawValue: "cg-stale-optimistic")
         let planner = LifecycleActionPlanner(isAppFrontmost: { _ in false })
@@ -109,8 +101,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    // hidden 状态 toggle 应规划 activateWindow，而非其他动作（确保 unhide 路径
-    // 对应正确的 intent，不因 hidden 状态退化成 minimizeWindow 等）。
     func testToggleOnHiddenWindowPlansActivate() {
         let id = WindowID(rawValue: "cg-hidden")
         let planner = LifecycleActionPlanner()
@@ -1056,7 +1046,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    /// Widgetify's desktop widgets: `.regular`, empty title, AXStandardWindow, CG layer -20.
     func testAppTrackerEligibilityRejectsBelowNormalLayerWindowsForEveryApp() {
         let eligibility = AppTrackerWindowEligibility()
         func eligible(bundleID: String, title: String, below: Bool) -> Bool {
@@ -1442,8 +1431,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    // Finder reports every minimized window as AXDialog; only the min=true pair is admitted,
-    // and the frame / generic-title gates still apply to it.
     func testFinderTrackableAdmitsMinimizedDialogSubroleOnly() {
         let bounds = CGRect(x: 297, y: 611, width: 1227, height: 504)
 
@@ -1647,10 +1634,7 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(items.map(\.showsTitle), [false, false])
     }
 
-    // MARK: - 原生标签组合并（2026-06-14）
-
     func testStripItemsMergeNativeTabGroupWithIdenticalFrame() {
-        // 真机探路数据（2026-06-13 Ghostty pid 30201，两标签同 frame）
         let frame = CGRect(x: 172, y: 87, width: 1191, height: 831)
         let tabA = WindowRecord(
             id: WindowID(rawValue: "cgw-240522"),
@@ -1680,21 +1664,14 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(items.count, 1)
         let chip = items[0]
         XCTAssertEqual(Set(chip.memberWindowIDs), ["cgw-240522", "cgw-249469"])
-        // 单个标签组 → 图标-only（与单窗口一致），sameAppCardCount 按合并后的卡计数
         XCTAssertFalse(chip.showsTitle)
         XCTAssertEqual(chip.sameAppCardCount, 1)
-        // SwiftUI 身份锚 = AppTracker 分配的稳定座位 token（不随 active cgID 切换 → 不抖）
         XCTAssertEqual(chip.id, "tabgrp-30201-s1")
-        // 动作落点 + 标题 = 聚焦（active）标签
         XCTAssertEqual(chip.actionWindowID, "cgw-249469")
         XCTAssertEqual(chip.title, "程序坞-规划")
     }
 
     func testStripItemsBackgroundedTabGroupRepresentsVisibleTab() {
-        // 真机数据（2026-06-14）：原生标签组里，非当前标签在 AX 报告为 .minimized；
-        // 后台窗口（app 非前台）没有任何 .active member。representative 必须选「可见标签」
-        // （唯一 min=0 的那个），而不是 fallback 到最小 cgID 的 anchor——anchor 这里恰好
-        // 落在一个被最小化的后台标签上，旧逻辑会显示错误标题。
         let frame = CGRect(x: 82, y: 107, width: 1191, height: 809)
         let bgLow = WindowRecord(   // 最小 cgID = anchor，但它是后台（最小化）标签
             id: WindowID(rawValue: "cgw-249469"),
@@ -1734,15 +1711,12 @@ final class FinderP0Tests: XCTestCase {
 
         XCTAssertEqual(items.count, 1)
         let chip = items[0]
-        // 身份锚仍是稳定座位 token（稳定不抖）
         XCTAssertEqual(chip.id, "tabgrp-30201-s1")
-        // 但标题/动作落点 = 可见标签，不是 anchor
         XCTAssertEqual(chip.title, "发生的")
         XCTAssertEqual(chip.actionWindowID, "cgw-254022")
     }
 
     func testStripItemsDoNotMergeWhenFrameDiffers() {
-        // 同 app 两窗口、近似但不逐像素相同（Chrome 实测高度差 25px）→ 不合并
         let a = WindowRecord(
             id: WindowID(rawValue: "cgw-1"),
             appID: AppID(rawValue: "com.google.Chrome"),
@@ -1771,7 +1745,6 @@ final class FinderP0Tests: XCTestCase {
     }
 
     func testStripItemsDoNotMergeAcrossDifferentApps() {
-        // 同 frame 但不同 app（Illustrator/Photoshop 实测同 frame）→ pid+bundle 隔离
         let frame = CGRect(x: 0, y: 32, width: 2560, height: 1410)
         let ai = WindowRecord(
             id: WindowID(rawValue: "cgw-10"),
@@ -1799,9 +1772,6 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(items.count, 2)
     }
 
-    /// 兄弟顶替即清（2026-08-22）：乐观 .active 落空、同 App 兄弟窗口已被快照证实 .active
-    /// → 该预测必须被清掉，否则残留满 4 秒会把下一次点击误规划成 minimize（macOS 26
-    /// SkyLight make-key 静默失效时的真实症状）。只清 .active 预测，且只认同 pid 的兄弟。
     func testOptimisticActiveSupersededByActiveSibling() {
         let w1 = WindowID(rawValue: "cg-sibling-1")
         let w2 = WindowID(rawValue: "cg-sibling-2")
@@ -1830,39 +1800,31 @@ final class FinderP0Tests: XCTestCase {
             )
         }
 
-        // 同 pid 兄弟已 .active → 顶替成立
         XCTAssertTrue(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active)])
         ))
-        // 兄弟 .active 但属于别的 pid → 不算顶替
         XCTAssertFalse(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 2, status: .active)])
         ))
-        // 没有任何兄弟 .active → 预测继续等兑现/超时
         XCTAssertFalse(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .inactive)])
         ))
-        // 预测不是 .active（minimize 类）→ 与兄弟状态无关，永不因顶替被清
         XCTAssertFalse(superseded(
             predicted: .minimized,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active)])
         ))
-        // 自己 .active 不算「兄弟」——兑现路径由 optimisticConfirmed 负责
         XCTAssertFalse(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .active)])
         ))
-        // 在飞折扣（2026-08-26）：兄弟快照 .active 但它自己有在飞的乐观 .minimized
-        //（用户刚收起它）→ 那是残影，不算顶替者
         XCTAssertFalse(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active)]),
             optimisticStates: [w2.rawValue: OptimisticWindowState(status: .minimized, createdAt: now)]
         ))
-        // 兄弟在飞的是乐观 .active（用户点了它）→ 快照 .active 可信，顶替照常成立
         XCTAssertTrue(superseded(
             predicted: .active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active)]),
@@ -1870,11 +1832,6 @@ final class FinderP0Tests: XCTestCase {
         ))
     }
 
-    /// 还原宽限（2026-08-26）：还原出身的乐观 .active 在 1.5s 宽限内不被兄弟顶替清掉。
-    /// 访达实测：还原动画期 App 已前台、焦点仍挂可见兄弟，快照短暂证实兄弟 .active，
-    /// 预测 10–530ms 就被顶掉，之后 ~1s 内的收起点击全成了空 activate（「点了不收」）。
-    /// 让位条件：非还原出身 / 过宽限 / 兄弟自己也有乐观 .active（用户真点了兄弟卡）/
-    /// 杀开关关 —— 任一成立即回到 2026-08-22 顶替原语义。
     func testRestoreOriginOptimisticActiveSurvivesTransientSiblingActive() {
         let w1 = WindowID(rawValue: "cg-restore-1")
         let w2 = WindowID(rawValue: "cg-restore-2")
@@ -1891,33 +1848,28 @@ final class FinderP0Tests: XCTestCase {
             )
         }
         let now = Date()
-        // 还原动画期的真实快照形态：刚还原的 w1 尚未兑现，兄弟 w2 被短暂证实 .active。
         let handoffSnapshot = makeSnapshot([
             record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active),
         ])
         let restoreOrigin = OptimisticWindowState(status: .active, createdAt: now, focusHandoffGrace: true)
 
-        // 还原出身 + 宽限内 + 无兄弟在飞 → 豁免，预测存活
         XCTAssertFalse(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue, state: restoreOrigin, now: now,
             optimisticStates: [w1.rawValue: restoreOrigin],
             snapshot: handoffSnapshot, handoffGraceEnabled: true
         ))
-        // 非还原出身（普通激活）→ 顶替原语义照清
         XCTAssertTrue(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue,
             state: OptimisticWindowState(status: .active, createdAt: now),
             now: now, optimisticStates: [:],
             snapshot: handoffSnapshot, handoffGraceEnabled: true
         ))
-        // 过宽限 → 照清
         XCTAssertTrue(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue, state: restoreOrigin,
             now: now.addingTimeInterval(OptimisticWindowState.handoffSupersessionGrace + 0.1),
             optimisticStates: [w1.rawValue: restoreOrigin],
             snapshot: handoffSnapshot, handoffGraceEnabled: true
         ))
-        // 兄弟自己也持有乐观 .active（用户点了兄弟卡，焦点真被拿走）→ 照清
         XCTAssertTrue(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue, state: restoreOrigin, now: now,
             optimisticStates: [
@@ -1926,13 +1878,11 @@ final class FinderP0Tests: XCTestCase {
             ],
             snapshot: handoffSnapshot, handoffGraceEnabled: true
         ))
-        // 杀开关关 → 照清
         XCTAssertTrue(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue, state: restoreOrigin, now: now,
             optimisticStates: [w1.rawValue: restoreOrigin],
             snapshot: handoffSnapshot, handoffGraceEnabled: false
         ))
-        // 没有兄弟被证实 .active → 核心判定就不成立，与豁免无关
         XCTAssertFalse(OptimisticWindowState.supersededByActiveSibling(
             windowID: w1.rawValue, state: restoreOrigin, now: now,
             optimisticStates: [w1.rawValue: restoreOrigin],
@@ -1943,9 +1893,6 @@ final class FinderP0Tests: XCTestCase {
         ))
     }
 
-    /// 系统预测证伪（2026-08-26）：交接预测落在实际已收起的窗上时（快照滞后 + 动画期 CG
-    /// 在屏残留），快照 minimized/hidden 即矛盾 → 立即清除，唤醒点击回到 activate。
-    /// 用户自己「还原→再收起」的交替态（非系统预测的 .active + 快照 minimized）绝不能清。
     func testSystemPredictionFalsifiedOnlyClearsSystemPredictions() {
         let now = Date()
         let prediction = OptimisticWindowState(
@@ -1953,23 +1900,16 @@ final class FinderP0Tests: XCTestCase {
         )
         let userRestore = OptimisticWindowState(status: .active, createdAt: now, focusHandoffGrace: true)
 
-        // 系统预测 + 快照 minimized / hidden → 证伪
         XCTAssertTrue(OptimisticWindowState.systemPredictionFalsified(state: prediction, actual: .minimized))
         XCTAssertTrue(OptimisticWindowState.systemPredictionFalsified(state: prediction, actual: .hidden))
-        // 快照 inactive（还在等兑现）→ 不证伪
         XCTAssertFalse(OptimisticWindowState.systemPredictionFalsified(state: prediction, actual: .inactive))
-        // 用户还原出身（非系统预测）→ 交替态正常在飞，绝不清
         XCTAssertFalse(OptimisticWindowState.systemPredictionFalsified(state: userRestore, actual: .minimized))
-        // 非 .active 预测与证伪无关
         XCTAssertFalse(OptimisticWindowState.systemPredictionFalsified(
             state: OptimisticWindowState(status: .minimized, createdAt: now, systemPredicted: true),
             actual: .inactive
         ))
     }
 
-    /// 兄弟激活在飞（2026-08-25）：同 App 另一窗口的乐观 .active 尚未兑现 → toggle 的收起
-    /// 判定必须降级为 activate——来回快点两个可见窗口时，快照/乐观 active 都可能是焦点交接
-    /// 迟滞的残影，误收起是 Release 实测症状。宁可多余激活，绝不错误收起。
     func testSiblingActivationInFlightDowngradesMinimizeToActivate() {
         let w1 = WindowID(rawValue: "cg-inflight-1")
         let w2 = WindowID(rawValue: "cg-inflight-2")
@@ -1988,28 +1928,23 @@ final class FinderP0Tests: XCTestCase {
         let planner = LifecycleActionPlanner(isAppFrontmost: { _ in true })
         let optimisticW2Active = ["cg-inflight-2": OptimisticWindowState(status: .active, createdAt: Date())]
 
-        // 纯函数：兄弟乐观 .active 未兑现 → 在飞
         XCTAssertTrue(OptimisticWindowState.siblingActivationInFlight(
             windowID: w1.rawValue, optimisticStates: optimisticW2Active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .active), record(w2, pid: 1, status: .inactive)])
         ))
-        // 兄弟已兑现（快照 .active）→ 不在飞
         XCTAssertFalse(OptimisticWindowState.siblingActivationInFlight(
             windowID: w1.rawValue, optimisticStates: optimisticW2Active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .inactive), record(w2, pid: 1, status: .active)])
         ))
-        // 兄弟属别的 pid → 不相干
         XCTAssertFalse(OptimisticWindowState.siblingActivationInFlight(
             windowID: w1.rawValue, optimisticStates: optimisticW2Active,
             snapshot: makeSnapshot([record(w1, pid: 1, status: .active), record(w2, pid: 2, status: .inactive)])
         ))
-        // 自己的乐观态不算兄弟
         XCTAssertFalse(OptimisticWindowState.siblingActivationInFlight(
             windowID: w1.rawValue,
             optimisticStates: ["cg-inflight-1": OptimisticWindowState(status: .active, createdAt: Date())],
             snapshot: makeSnapshot([record(w1, pid: 1, status: .active)])
         ))
-        // 规划接线：W1 快照 active + 前台，但 W2 激活在飞 → 降级为 activate
         XCTAssertEqual(
             planner.plan(
                 intent: .toggle(w1),
@@ -2018,7 +1953,6 @@ final class FinderP0Tests: XCTestCase {
             ).kind,
             .activateWindow
         )
-        // 无在飞兄弟 → 收起判定原样（护栏不扰动正常 toggle）
         XCTAssertEqual(
             planner.plan(
                 intent: .toggle(w1),
@@ -2026,8 +1960,6 @@ final class FinderP0Tests: XCTestCase {
             ).kind,
             .minimizeWindow
         )
-        // 乐观陈旧路径：W1 的乐观 .active 是**更旧的**残留 + W2 在飞（用户后点了 W2）
-        // → 焦点正流向 W2，照旧降级（08-25 语义，2026-08-26 起以时间先后为准）
         let base = Date()
         var both = ["cg-inflight-2": OptimisticWindowState(status: .active, createdAt: base)]
         both["cg-inflight-1"] = OptimisticWindowState(status: .active, createdAt: base.addingTimeInterval(-1.0))
@@ -2039,8 +1971,6 @@ final class FinderP0Tests: XCTestCase {
             ).kind,
             .activateWindow
         )
-        // 时序裁决（2026-08-26）：W1 自己的乐观 .active 比 W2 的**更新**（批量还原后用户
-        // 最近点的就是 W1）→ 第二击是同窗严格交替，不降级、正常收起
         var ownNewer = ["cg-inflight-2": OptimisticWindowState(status: .active, createdAt: base)]
         ownNewer["cg-inflight-1"] = OptimisticWindowState(status: .active, createdAt: base.addingTimeInterval(1.0))
         XCTAssertEqual(
@@ -2051,7 +1981,6 @@ final class FinderP0Tests: XCTestCase {
             ).kind,
             .minimizeWindow
         )
-        // 同刻（时间戳相等）→ 保守降级
         var tied = ["cg-inflight-2": OptimisticWindowState(status: .active, createdAt: base)]
         tied["cg-inflight-1"] = OptimisticWindowState(status: .active, createdAt: base)
         XCTAssertEqual(
@@ -2064,9 +1993,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    /// 还原前预激活（2026-08-22 还原时序矩阵）：只有目标 App 除目标外全为最小化窗口时
-    /// 才允许「先切前台再还原」；任何非最小化兄弟（含 hidden——App 被激活会整体 unhide，
-    /// 同样有可提拔对象）都禁用。别的 App 的窗口不算兄弟。
     func testMinimizedRestorePreActivation() {
         let t1 = WindowID(rawValue: "cg-restore-1")
         let t2 = WindowID(rawValue: "cg-restore-2")
@@ -2084,21 +2010,16 @@ final class FinderP0Tests: XCTestCase {
         }
         let target = record(t1, pid: 1, status: .minimized)
 
-        // 没有任何兄弟 → 可预激活
         XCTAssertTrue(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target]), target: target))
-        // 兄弟也是最小化 → 可预激活
         XCTAssertTrue(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target, record(t2, pid: 1, status: .minimized)]), target: target))
-        // 兄弟可见（inactive / active）→ 禁用
         XCTAssertFalse(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target, record(t2, pid: 1, status: .inactive)]), target: target))
         XCTAssertFalse(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target, record(t2, pid: 1, status: .active)]), target: target))
-        // 兄弟 hidden → 保守禁用
         XCTAssertFalse(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target, record(t2, pid: 1, status: .hidden)]), target: target))
-        // 别的 App 的可见窗口不算兄弟
         XCTAssertTrue(MinimizedRestorePreActivation.canPreActivate(
             snapshot: makeSnapshot([target, record(t2, pid: 2, status: .active)]), target: target))
     }
@@ -2222,29 +2143,22 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    // MARK: - 任务条拖动重排 · A 路线排序原语（slice 1，纯逻辑）
-
-    /// 防打乱核心：手动排成 C A B 后，快照刷新（顺序不变的另一次对账）仍是 C A B。
     func testReconcileKeepsManualOrderOnUnchangedRefresh() {
         let manual = ["C", "A", "B"]
         let result = StripOrdering.reconcile(remembered: manual, current: ["A", "B", "C"])
         XCTAssertEqual(result, ["C", "A", "B"])
     }
 
-    /// 新窗口进末尾：C A B 状态下新开 D → C A B D（按 current 自然序追加）。
     func testReconcileAppendsNewcomersAtTail() {
         let result = StripOrdering.reconcile(remembered: ["C", "A", "B"], current: ["A", "B", "C", "D"])
         XCTAssertEqual(result, ["C", "A", "B", "D"])
     }
 
-    /// 多个新窗口同时出现：按 current 里的相对顺序追加到末尾。
     func testReconcileAppendsMultipleNewcomersInCurrentOrder() {
         let result = StripOrdering.reconcile(remembered: ["B", "A"], current: ["A", "B", "D", "C"])
         XCTAssertEqual(result, ["B", "A", "D", "C"])
     }
 
-    /// 贴同伴：G 是 ghostty 窗口，拖标签出来成独立窗口 G2(同 app)。即便 ghostty chip 被手动拖到
-    /// 中间，新窗口 G2 也插在 G 右边，而非任务条最右。app 键映射驱动。
     func testReconcileInsertsNewWindowNextToSameAppSibling() {
         let appKeyOf = ["A": "a", "G": "ghostty", "B": "b", "G2": "ghostty"]
         let result = StripOrdering.reconcile(
@@ -2255,7 +2169,6 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(result, ["A", "G", "G2", "B"])
     }
 
-    /// 全新 app 的窗口（没有同 app 同伴）仍追加到末尾，不乱插。
     func testReconcileAppendsBrandNewAppAtTail() {
         let appKeyOf = ["A": "a", "G": "ghostty", "B": "b", "X": "x"]
         let result = StripOrdering.reconcile(
@@ -2266,77 +2179,46 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(result, ["G", "A", "B", "X"])
     }
 
-    /// 关闭（座位真结束 → 从 snapshot 消失）：C A B D 中 A 关闭 → C B D，其余顺序不动。
     func testReconcileDropsClosedAndPreservesRest() {
         let result = StripOrdering.reconcile(remembered: ["C", "A", "B", "D"], current: ["B", "C", "D"])
         XCTAssertEqual(result, ["C", "B", "D"])
     }
 
-    /// 打散后不自动聚回：同 app 两窗（A1 A2）被手动拆到两端，刷新后仍保持打散，不重新相邻。
     func testReconcileDoesNotRegroupScatteredSameAppChips() {
         let scattered = ["A1", "B", "A2"]
         let result = StripOrdering.reconcile(remembered: scattered, current: ["A1", "A2", "B"])
         XCTAssertEqual(result, ["A1", "B", "A2"])
     }
 
-    /// 关闭 + 新开复合：旧序里掉一个、又来一个新的，存活项保序、新项进末尾。
     func testReconcileHandlesSimultaneousCloseAndOpen() {
         let result = StripOrdering.reconcile(remembered: ["C", "A", "B"], current: ["C", "B", "E"])
         XCTAssertEqual(result, ["C", "B", "E"])
     }
 
-    /// 空记忆（首次）→ 直接采用 current 的自然顺序。
     func testReconcileWithEmptyMemoryAdoptsCurrentOrder() {
         let result = StripOrdering.reconcile(remembered: [], current: ["A", "B", "C"])
         XCTAssertEqual(result, ["A", "B", "C"])
     }
 
-    /// 拖动落右半边：A 拖到 C 右边 → B C A。
     func testReorderingDropsAfterTarget() {
         let result = StripOrdering.reordering(["A", "B", "C"], move: "A", relativeTo: "C", after: true)
         XCTAssertEqual(result, ["B", "C", "A"])
     }
 
-    /// 拖动落左半边：A 拖到 C 左边 → B A C。
     func testReorderingDropsBeforeTarget() {
         let result = StripOrdering.reordering(["A", "B", "C"], move: "A", relativeTo: "C", after: false)
         XCTAssertEqual(result, ["B", "A", "C"])
     }
 
-    /// 从右往左拖：C 拖到 A 左边 → C A B。
     func testReorderingMovesLeftBeforeTarget() {
         let result = StripOrdering.reordering(["A", "B", "C"], move: "C", relativeTo: "A", after: false)
         XCTAssertEqual(result, ["C", "A", "B"])
     }
 
-    /// 落到自己、或任一 id 不存在 → 原样返回。
     func testReorderingGuardsSelfAndMissing() {
         XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "A", relativeTo: "A", after: true), ["A", "B"])
         XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "Z", relativeTo: "A", after: true), ["A", "B"])
         XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "A", relativeTo: "Z", after: false), ["A", "B"])
     }
 
-    /// 落盘保留 tabgrp-* + kept 的 app-*；非 kept 的 app-* / cgw-* 临时键不写盘，且保持相对顺序。
-    func testPersistableLiveOrderKeepsOnlyWindowChips() {
-        let order = ["tabgrp-1-s1", "app-com.x", "cgw-legacy", "tabgrp-2-s1", "app-com.y"]
-        // 无 keptIDs：所有 app-* 不落盘（旧行为）
-        XCTAssertEqual(StripOrdering.persistableLiveOrder(order), ["tabgrp-1-s1", "tabgrp-2-s1"])
-        // 有 keptIDs：com.x 是 kept → app-com.x 落盘；com.y 不是 → 不落
-        XCTAssertEqual(
-            StripOrdering.persistableLiveOrder(order, keptIDs: ["com.x"]),
-            ["tabgrp-1-s1", "app-com.x", "tabgrp-2-s1"]
-        )
-    }
-
-    /// app-* 升级成真窗口：新 id 顶替旧 id，继承原位置（rank）。
-    func testSubstitutingInheritsRankOnUpgrade() {
-        let result = StripOrdering.substituting(["C", "app-com.x", "B"], oldID: "app-com.x", newID: "cgw-42")
-        XCTAssertEqual(result, ["C", "cgw-42", "B"])
-    }
-
-    /// 顶替的防御：旧 id 不在序列、或新 id 已在序列（防重复）→ 原样返回。
-    func testSubstitutingIsGuardedAgainstMissingOrDuplicate() {
-        XCTAssertEqual(StripOrdering.substituting(["A", "B"], oldID: "Z", newID: "cgw-42"), ["A", "B"])
-        XCTAssertEqual(StripOrdering.substituting(["A", "B"], oldID: "A", newID: "B"), ["A", "B"])
-    }
 }

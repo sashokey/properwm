@@ -5,8 +5,6 @@ import QuartzCore
 import SwiftUI
 import os
 
-// PanelCoordinator · 全屏：监听、CG 同步探测、AX 异步探测、绿灯 / 空间切换的预测隐藏与回滚。
-// 2026-09-05 从 PanelCoordinator.swift 按 extension 拆出，只搬不改。
 struct FullscreenIntentTransaction {
     let generation: UInt64
     let pid: pid_t
@@ -20,13 +18,9 @@ struct FullscreenSpaceHold {
 }
 
 extension PanelCoordinator {
-    // MARK: - Fullscreen Monitor
 
     func setupFullscreenMonitor() {
         let nc = NSWorkspace.shared.notificationCenter
-        // token 式观察者（全仓库统一写法；selector 式是 unowned-unsafe）。queue 传 nil = 在投递线程
-        // 同步执行，这两条通知本就在主线程投递，所以时序与原 selector 路径逐字一致；assumeIsolated 只是
-        // 把这一事实告诉编译器，不额外加一跳（全屏预测隐藏对这一跳敏感）。
         workspaceObserverTokens.append(nc.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: nil
         ) { [weak self] _ in
@@ -44,7 +38,6 @@ extension PanelCoordinator {
         fullscreenReconcileTimer?.tolerance = 0.5
     }
 
-    /// 编排层接通 / 断开全屏意图路由。断开时取消在飞的预测（设置关掉、权限挂起、拆单元）。
     func setFullscreenIntentRouting(enabled: Bool) {
         fullscreenIntentRoutingEnabled = enabled && !isSuspendedForPermissionLoss
         guard !fullscreenIntentRoutingEnabled else { return }
@@ -61,7 +54,6 @@ extension PanelCoordinator {
             pid: lastActiveApplicationPID,
             confirmationDelay: FullscreenSpaceHoldDecision.postSpaceConfirmationDelay
         )
-        // Sync CG check: fires before the panel has a chance to appear, no AX = no main-thread risk
         let cgFullscreen = checkFullscreenViaCGSync()
         applyFullscreenVisibility(
             cgFullscreen,
@@ -71,19 +63,16 @@ extension PanelCoordinator {
             screenCGFrame: currentPanelScreenCGFrame(),
             expectedSpaceHoldGeneration: spaceHoldGeneration
         )
-        // Async AX secondary check: catches edge cases CG misses (e.g. games on a non-zero layer)
         if !cgFullscreen || fullscreenIntentTransaction == nil {
             triggerAsyncFullscreenCheck(
                 expectedSpaceHoldGeneration: spaceHoldGeneration,
                 source: "space-ax"
             )
         }
-        // 兜底：显隐路径之外也可能丢成员资格（issue #19），换桌面是用户唯一会察觉的时刻。
         repairAllSpacesMembershipIfNeeded()
     }
 
     private func handleAppActivated(_ note: Notification) {
-        // 用通知携带的"刚激活的 app"，不读滞后的 frontmostApplication（AGENTS 守则）
         let activated = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         lastActiveApplicationPID = activated?.processIdentifier
         let spaceHoldGeneration = beginFullscreenSpaceHold(
@@ -97,8 +86,6 @@ extension PanelCoordinator {
             source: "app-activation-ax"
         )
     }
-
-    // MARK: - Sync CG fullscreen probe (main thread only, no AX)
 
     private func checkFullscreenViaCGSync() -> Bool {
         guard let panel = dockPanel else { return false }
@@ -118,8 +105,6 @@ extension PanelCoordinator {
             && abs(cgBounds.minY   - screenCGFrame.minY)   < t
     }
 
-    // MARK: - Async AX fullscreen probe (secondary / fallback)
-
     private func triggerAsyncFullscreenCheck(
         pid explicitPID: pid_t? = nil,
         expectedSpaceHoldGeneration explicitSpaceHoldGeneration: UInt64? = nil,
@@ -128,7 +113,6 @@ extension PanelCoordinator {
         source: String = "ax"
     ) {
         guard let panel = dockPanel else { return }
-        // Convert to CG coords on main thread; AX kAXPositionAttribute also uses CG (top-left origin)
         let screenCGFrame = Self.toCGRect(panelCurrentScreen(panel: panel))
         let frontPID = explicitPID ?? lastActiveApplicationPID
         fullscreenProbeGeneration &+= 1
@@ -143,11 +127,6 @@ extension PanelCoordinator {
                     return
                 }
                 let verdict = probe.verdict
-                // 三态 → 交给现有 `applyFullscreenVisibility` 的仍是一个布尔；保持 / 120ms 确认 /
-                // 终审序列一概不变，变的只是「焦点窗口在别的屏上」时那个布尔从哪来：
-                // 多屏下（③④，以及固定档的条不在焦点屏时）AX 对本屏说不出话，改问 SkyLight
-                // 本屏的当前空间；读不到就是无信息——**不是 false**，否则 B 屏的条会冒到 B 的
-                // 全屏空间上。终审调用必须收尾，无信息时退回本屏的 CG 同步探测。
                 let fullscreen: Bool
                 let resolvedSource: String
                 switch verdict {
@@ -188,12 +167,6 @@ extension PanelCoordinator {
         }
     }
 
-    // MARK: - Overlay-hide watch (frame≈screen fallback has no ending event)
-
-    /// Runs after every AX verdict has been applied. A fullscreen verdict that came from the frame
-    /// fallback carries the window id and (re)arms the watch; any other outcome — revealed, held, or
-    /// fullscreen by the native flag — disarms it. The watch is not evidence by itself: a tick only
-    /// asks the AX path to judge again.
     private func reconcileOverlayWindowWatch(overlayWindowID: CGWindowID?) {
         guard let overlayWindowID, visibilityState.hideReasons.contains(.fullscreen) else {
             endOverlayWindowWatch()
@@ -238,7 +211,6 @@ extension PanelCoordinator {
         triggerAsyncFullscreenCheck(source: "overlay-gone-ax")
     }
 
-    /// nil = the window no longer exists in the window server.
     nonisolated private static func cgWindowObservation(of windowID: CGWindowID) -> (isOnscreen: Bool, bounds: CGRect?)? {
         guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
               let info = list.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID })
@@ -263,7 +235,6 @@ extension PanelCoordinator {
         isFinalSpaceHoldWindowedConfirmation: Bool = false,
         isFinalSpaceIntentVerdict: Bool = false
     ) {
-        // 方向键预测进行中：这一段由预测自己收口，不进下面的常规判定。
         if let spaceGeneration = fullscreenSpaceIntentGeneration {
             if isFullscreen {
                 guard visibilityState.confirmFullscreenTransition(generation: spaceGeneration) else {
@@ -273,8 +244,6 @@ extension PanelCoordinator {
                 fullscreenIntentLogger.notice(
                     "space-confirmed source=\(source, privacy: .public) generation=\(spaceGeneration, privacy: .public)"
                 )
-                closeDrawer()
-                closeFolderPopup()
                 dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
                 diagnosticFullscreenSource = source
                 diagnosticFullscreenVerdict = true
@@ -282,10 +251,6 @@ extension PanelCoordinator {
                 logFullscreenVerdict(true, source: source)
                 return
             }
-            // **不能采信空间切换那一刻的 false 判定**——2026-08-09 实测：桌面→全屏时
-            // `space-cg` 在通知当下一律返回 false（过渡期假判定），照它撤销就是把刚藏好的
-            // 任务条又放回全屏画面上，闪烁与「任务条停在全屏应用上面」都是这么来的。
-            // `FullscreenSpaceHold` 当初等 120ms 再定，就是为了躲同一个坑，这里沿用它的节奏。
             guard isFinalSpaceIntentVerdict else {
                 if source == "space-cg" {
                     scheduleFullscreenSpaceIntentVerdict(generation: spaceGeneration)
@@ -325,8 +290,6 @@ extension PanelCoordinator {
             } else {
                 visibilityState.setFullscreen(true)
             }
-            closeDrawer()
-            closeFolderPopup()
             dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
         } else {
             if fullscreenIntentTransaction != nil { return }
@@ -338,8 +301,6 @@ extension PanelCoordinator {
         logFullscreenVerdict(isFullscreen, source: source)
     }
 
-    /// 任务条被藏/被放出来时的唯一取证行。**必须带 source 和隐藏理由**：用户报「任务条不见了」时，
-    /// 只有这两项能区分是哪条判定动的手（issue #19 就是因为只打 active= 而无从下手）。
     private func logFullscreenVerdict(_ isFullscreen: Bool, source: String) {
         let reasons = visibilityState.hideReasons
         var parts: [String] = []
@@ -352,8 +313,6 @@ extension PanelCoordinator {
         )
     }
 
-    /// 编排层把 tap 的请求**广播**给每个单元；`screenCGFrame` 守卫让只有那块屏的单元动手
-    ///（一块屏进全屏只藏那块屏的条）。
     func beginFullscreenIntent(_ request: FullscreenIntentRequest) {
         guard fullscreenIntentRoutingEnabled,
               fullscreenIntentTransaction == nil,
@@ -418,44 +377,25 @@ extension PanelCoordinator {
         fullscreenIntentTimeoutTimer = nil
     }
 
-    /// 预测命中后把每一块面板都移出 WindowServer。抽屉/弹窗必须走「立即」路径：输入已经
-    /// 被 tap 扣住了，等不了淡出动画。
     private func orderOutPanelsForFullscreenPrediction() {
         edgeIdleHideTimer?.invalidate()
         edgeIdleHideTimer = nil
         cancelEdgeWake()
 
         dragController.cancelDrag()
-        closeDrawerImmediately()
-        closeFolderPopup(immediately: true)
         dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
 
         noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
-        // 预测路径也是「因全屏而藏」：之后的揭示同样走淡入。
         lastHideWasForFullscreen = true
-        // 全屏预测的快速隐藏路径不经过 applyPanelVisibility，角标门控要单独通知。
-        onLogicalVisibilityChanged?(false)
         orderDockSurfaceOut()
-        capsulePanel?.orderOut(nil)
-        drawerPanel?.orderOut(nil)
-        folderPopupPanels.forEach { $0.orderOut(nil) }
         windowTitleTooltipPanel?.orderOut(nil)
     }
 
-    // MARK: - 切换到全屏空间的预测隐藏（Control+←/→ 与三指水平滑动）
-
-    /// 从普通桌面切到全屏空间时，系统的空间切换通知晚于 WindowServer 抓取过渡快照，
-    /// 所以事后再藏一定来不及（`Docs/05` 已实测）。这里在**输入投递之前**先藏：
-    /// 方向键领先空间切换约 `550ms`，三指滑动约 `950–1130ms`，两者都已实测足够。
-    ///
-    /// 触发条件里「目标方向的相邻空间必须是全屏空间」那道闸在 `FullscreenIntentMonitor`
-    /// 里就判掉了，到这里的都是真要进全屏空间的。
     func beginFullscreenSpaceIntent(direction: SpaceSwitchDirection) {
         guard fullscreenIntentRoutingEnabled,
               fullscreenIntentTransaction == nil,
               fullscreenSpaceIntentGeneration == nil,
               !isSuspendedForPermissionLoss,
-              // 已经在全屏空间里（任务条本就藏着）→ 没有可闪的东西，别插手。
               !visibilityState.hideReasons.contains(.fullscreen) else {
             return
         }
@@ -467,29 +407,20 @@ extension PanelCoordinator {
 
         diagnosticFullscreenSource = "space-intent-" + direction.rawValue
 
-        // 淡出再藏（owner 2026-08-30 的入场/退场动画诉求）。**只有这条空间路径可以淡**：
-        // 方向键领先空间切换 ~550ms、三指滑 ~950–1130ms（实测），0.15s 淡出完成时离
-        // WindowServer 抓过渡快照还有充足余量；绿键路径领先只有几十 ms，必须维持
-        // 同步瞬时 orderOut。handoff 在淡出调度后立即返回，输入不被阻塞。
-        // 逻辑态立刻置「已藏」：不然本函数末尾的异步 reconcile 会看到 shouldShow=false、
-        // panelsAreVisible=true，直接走硬 orderOut 把淡出绕过去。视觉上的 orderOut 等淡出完。
         noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
         lastHideWasForFullscreen = true
-        onLogicalVisibilityChanged?(false)
-        let fadingPanels = [dockGlassBackgroundPanel, dockPanel, capsulePanel].compactMap { $0 }
+        let fadingPanels = [dockGlassBackgroundPanel, dockPanel].compactMap { $0 }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.15
             for panel in fadingPanels { panel.animator().alphaValue = 0 }
         }, completionHandler: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // 淡出期间预测可能已被取消（超时/终审否决），那时条不该藏——恢复 alpha 即可。
                 guard self.fullscreenSpaceIntentGeneration == generation else {
                     for panel in fadingPanels { panel.alphaValue = 1 }
                     return
                 }
                 self.orderOutPanelsForFullscreenPrediction()
-                // 藏好后 alpha 归位：下一次显示（无论哪条路径）不带残值。
                 for panel in fadingPanels { panel.alphaValue = 1 }
             }
         })
@@ -497,8 +428,6 @@ extension PanelCoordinator {
             "space-pending generation=\(generation, privacy: .public) direction=\(direction.rawValue, privacy: .public)"
         )
 
-        // 2s 而不是 1.2s：实测从输入到全屏确认要 1.05s，1.2s 只剩 130ms 余量，
-        // 系统稍慢一次就会超时把任务条弹回全屏画面上——正是这个功能要消掉的瑕疵。
         let timer = Timer(timeInterval: 2.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.cancelFullscreenSpaceArrowIntent(generation: generation, reason: "timeout")
@@ -535,8 +464,6 @@ extension PanelCoordinator {
         fullscreenSpaceIntentVerdictTimer = nil
     }
 
-    /// 空间已经切完，但那一刻的 CG 判定不可信。等和 `FullscreenSpaceHold` 同一个 120ms，
-    /// 再用 CG（不行就 AX 兜底）给最终判定；只有最终判定说"不是全屏"才撤销预测。
     private func scheduleFullscreenSpaceIntentVerdict(generation: UInt64) {
         guard fullscreenSpaceIntentVerdictTimer == nil else { return }
         let timer = Timer(
@@ -625,11 +552,6 @@ extension PanelCoordinator {
             return
         }
         fullscreenSpaceHoldTimer = nil
-        // 120ms 时的 CG true 不再是终点：退出全屏方向 CG 滞后 0.4~0.8s（2026-08-30 实测，
-        // `Docs/05`），此刻的 true 很可能仍是过渡残影，照它收口就回到「等 5 秒对账」。
-        // 一律让终审 AX 定夺——AX 在退出动画开始时就已翻 false（同日实测，比 CG 早），
-        // 是这个方向唯一可信的信号。全→全切换的代价是多一次 AX 读、确认晚 ~百 ms，
-        // 期间条本来就藏着。CG 读数保留进 source 供取证区分两条路径。
         let cgFullscreen = checkFullscreenViaCGSync()
         triggerAsyncFullscreenCheck(
             pid: hold.pid,
@@ -688,12 +610,9 @@ extension PanelCoordinator {
 
     struct FullscreenAXProbe {
         let verdict: FullscreenAXVerdict
-        /// Set only when `.fullscreen` came from the frame≈screen fallback (no AXFullScreen flag):
-        /// the window the overlay-hide watch keeps an eye on. Native fullscreen never sets it.
         let overlayWindowID: CGWindowID?
     }
 
-    /// 焦点窗口读不到（pid 为 nil / 无焦点窗口）仍是 `.windowed`——与三态引入前的 false 逐字等价。
     nonisolated private static func detectFullscreenViaAX(pid: pid_t?, screenCGFrame: CGRect) -> FullscreenAXProbe {
         guard let pid else { return FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil) }
         let reader = AXWindowReader()
@@ -707,9 +626,7 @@ extension PanelCoordinator {
 
         let role = reader.stringAttribute(kAXRoleAttribute as CFString, from: focused, maxAttempts: 1)
         let isAXFullscreen = reader.boolAttribute("AXFullScreen" as CFString, from: focused, maxAttempts: 1) ?? false
-        // AX kAXPositionAttribute uses CG coordinates (top-left origin) — matches screenCGFrame directly
         let windowFrame = reader.frame(of: focused, maxAttempts: 1)
-        // Only the frame fallback consults the layer, so skip the CG round-trip for native fullscreen.
         let cgWindowID = isAXFullscreen ? nil : reader.cgWindowID(for: focused, maxAttempts: 1)
         let windowLayer = cgWindowID.flatMap(Self.cgWindowLayer(of:))
 
@@ -733,8 +650,6 @@ extension PanelCoordinator {
         return (info[kCGWindowLayer as String] as? NSNumber)?.intValue
     }
 
-    /// 焦点窗口在别的屏上时，本屏的条问 SkyLight「本屏当前空间是不是原生全屏空间」
-    ///（`type == 4`，按显示器隔离、0.13ms/次，`Docs/05`）。读不到 → nil = 「无信息」。
     private func fullscreenVerdictFromSpaceLayout() -> Bool? {
         guard let panel = dockPanel,
               let uuid = DisplayIdentity.uuidString(for: panelCurrentScreen(panel: panel)),

@@ -16,7 +16,7 @@ final class ProcessEnvironmentScrubTests: XCTestCase {
     /// 自家开关、系统给的、路径类一律不碰。
     func testOwnSwitchesAndSystemVariablesSurvive() {
         let env = [
-            "DOCK_LAUNCH_TRACE": "1", "DOCK_INVENTORY_LOG": "1",
+            "DOCK_CHIP_PROBE": "1", "DOCK_INVENTORY_LOG": "1",
             "PATH": "/usr/bin", "HOME": "/Users/x", "TMPDIR": "/tmp",
             "__CF_USER_TEXT_ENCODING": "0x1F5:0x19:0x34", "__CFBundleIdentifier": "com.caye.macosdockcc.v2",
         ]
