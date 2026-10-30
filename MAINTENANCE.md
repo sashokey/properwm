@@ -24,3 +24,11 @@ The deployment minimum is macOS 26 on Apple Silicon. Keep its compatibility with
 Select the newest installed stable Xcode, resolving application symlinks before excluding beta and release-candidate bundles. Compile all targets in Swift 6 language mode. Node.js and Python are resolved to the newest stable releases for each CI run; their actual versions, Xcode, Swift, and macOS are recorded in the build log.
 
 Official GitHub Actions are pinned to full release commit SHAs. Dependabot checks them daily and opens update pull requests; merge those updates after CI passes. Keep the source, release workflow, and packaging free of third-party runtime packages. The system frameworks are supplied by macOS and the selected Xcode SDK.
+
+## Artifact storage
+
+Build and test artifacts expire after seven days. Artifact maintenance runs after CI or Release completes and when its policy changes. It tests the deletion policy before using Actions write permission.
+
+For each managed name (`ProperWM`, `test-results`, and legacy `xcodebuild-test-log`), keep the three newest completed artifacts and the newest successful result. Also keep artifacts from active runs, the triggering run, unknown runs, and unrelated artifact names. The maintenance workflow reads trusted `master` code and does not run for fork or pull-request completion events.
+
+Only GitHub Actions artifacts are deleted. Published release assets, tags, source, workflow runs, and their logs are not deletion targets.

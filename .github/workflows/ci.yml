@@ -53,8 +53,8 @@ jobs:
       - name: Verify build tooling
         run: python3 -m unittest discover -s Scripts -p 'test_*.py'
 
-      - name: Verify release workflow behavior
-        run: node --test Scripts/check_release_workflow.mjs
+      - name: Verify workflow behavior
+        run: node --test Scripts/check_*.mjs
 
       - name: Select newest stable Xcode
         shell: bash
@@ -125,7 +125,7 @@ jobs:
           name: ProperWM
           path: dist/*
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
       - name: Upload test results
         if: always()
@@ -139,4 +139,4 @@ jobs:
             build/coverage.txt
             build/coverage.json
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
