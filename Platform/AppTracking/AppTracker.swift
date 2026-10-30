@@ -2522,7 +2522,7 @@ final class AppTracker: ObservableObject {
             // 旁路（启动补扫轮 / DOCK_SCAN_GATE=0）：与改造前逐位一致，现场全量枚举。
             candidates = runningApplications.compactMap { app in
                 let pid = app.processIdentifier
-                guard isRegularNonSelf(app), !app.isTerminated, apps[pid] == nil else { return nil }
+                guard isRegularNonSelf(app), !isTerminatedForAdmission(app), apps[pid] == nil else { return nil }
                 scanDirtyPIDs.remove(pid)
                 return (pid, processIdentity(pid: pid, bundleID: app.bundleIdentifier))
             }
@@ -2586,7 +2586,7 @@ final class AppTracker: ObservableObject {
         var admitted = false
 
         for entry in probed {
-            guard let app = NSRunningApplication(processIdentifier: entry.pid) else {
+            guard let app = applicationForAdmission(pid: entry.pid) else {
                 scanMemos.removeValue(forKey: entry.pid)
                 noteAdmissionVerdict(pid: entry.pid, verdict: "skipProcessUnavailable", source: "scan")
                 recordAdmissionProbe(
@@ -2623,7 +2623,7 @@ final class AppTracker: ObservableObject {
                 probedIdentity: entry.identity,
                 currentIdentity: processIdentity(pid: entry.pid, bundleID: bundleID),
                 isRegularNonSelf: isRegularNonSelf(app),
-                isTerminated: app.isTerminated,
+                isTerminated: isTerminatedForAdmission(app),
                 alreadyTracked: apps[entry.pid] != nil
             )
             noteAdmissionVerdict(pid: entry.pid, verdict: inventoryAdmissionVerdict(verdict).rawValue, source: "scan")
@@ -2823,6 +2823,24 @@ final class AppTracker: ObservableObject {
         if isMinimized { return .minimized }
         if isFocused && pid == frontmostPID { return .active }
         return .inactive
+    }
+
+    private func applicationForAdmission(pid: pid_t) -> NSRunningApplication? {
+        #if DEBUG
+        if let fixture = admissionAppsForTesting?.first(where: { $0.processIdentifier == pid }) {
+            return fixture
+        }
+        #endif
+        return NSRunningApplication(processIdentifier: pid)
+    }
+
+    private func isTerminatedForAdmission(_ app: NSRunningApplication) -> Bool {
+        #if DEBUG
+        if admissionAppsForTesting?.contains(where: { $0.processIdentifier == app.processIdentifier }) == true {
+            return !processProvider.isAlive(pid: app.processIdentifier)
+        }
+        #endif
+        return app.isTerminated
     }
 
     private func isRegularNonSelf(_ app: NSRunningApplication) -> Bool {

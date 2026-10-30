@@ -44,10 +44,6 @@ extension EnvironmentValues {
 struct ChipView: View {
     @ObservedObject private var iconRevision = AppIconRevision.shared
     @EnvironmentObject var runtime: AppRuntime
-    @EnvironmentObject var drawerStore: DrawerStore
-    @EnvironmentObject var messagingStore: MessagingAppStore
-    @EnvironmentObject var keptAppStore: KeptAppStore
-    @EnvironmentObject var appMembershipController: AppMembershipController
     @Environment(\.colorScheme) private var colorScheme
     private var theme: DockThemeTokens { .resolved(for: colorScheme) }
     let item: StripItem
@@ -109,7 +105,7 @@ struct ChipView: View {
         hoverStyle.showsQuietHoverFeedback(isHovering: isHovered)
     }
     private var animationTraceKind: String {
-        !iconOnly && (item.showsTitle || isMessagingAppWindow) ? "window" : "icon"
+        !iconOnly && item.showsTitle ? "window" : "icon"
     }
 
     /// 按压状态的诊断出口。状态机本身在 `ChipPressFeedback` 里，这里只补 trace。
@@ -146,14 +142,9 @@ struct ChipView: View {
         return optimistic.status == .active
     }
 
-    private var isMessagingAppWindow: Bool {
-        guard let bid = item.bundleIdentifier else { return false }
-        return !item.isAppLevelFallback && messagingStore.contains(bid)
-    }
-
     var body: some View {
         Group {
-            if !iconOnly && (item.showsTitle || isMessagingAppWindow) {
+            if !iconOnly && item.showsTitle {
                 multiWindowChip
             } else {
                 bareIconChip
@@ -444,98 +435,29 @@ struct ChipView: View {
     // 可打断（2026-06-13）：菜单项不再按 pending 置灰；显隐类动作随时可点
     //（乐观 overlay 保证一致性），close / quit 的防重入由 runtime.trigger 兜底。
     // 状态分支读 effectiveStatus，刚点过最小化立刻右键也能看到「还原」。
-    private var isFinderChip: Bool { FinderTaskbarPolicy.isFinder(item.bundleIdentifier) }
-
-    /// Native AppKit menu rebuilt fresh on each right-click (captures live runtime
-    /// + store + optimistic state). See AppMenuFragments for why this isn't SwiftUI.
     private func buildChipMenu() -> NSMenu {
         let menu = NSMenu()
-        let bid = item.bundleIdentifier
-        // 窗口列表最前（仅应用级入口；次序见 Docs/27 2026-08-24）：✓ 前台窗，◇ 已最小化。
-        // 只读快照——菜单在右键瞬间同步构建，这条路径上不做任何 AX。
-        if showsWindowListInMenu, let listBid = bid {
-            AppMenuBuilder.appendWindowList(
-                to: menu,
-                entries: WindowListMenuPlan.entries(
-                    snapshot: runtime.snapshot,
-                    bundleID: listBid,
-                    fallbackTitle: AppDisplayNameResolver.displayName(for: listBid)
-                ),
-                activate: { runtime.activate(windowID: $0) }
-            )
-        }
-        // 最近项置顶：Finder 显示「最近使用的文件夹」（FXRecentFolders），其余 app 显示「最近使用的文件」。
-        if isFinderChip {
-            AppMenuBuilder.appendFinderRecentFolders(to: menu)
-        } else {
-            AppMenuBuilder.appendRecentDocuments(to: menu, bundleID: bid)
-        }
-        if item.isAppLevelFallback {
-            if isFinderChip { AppMenuBuilder.appendFinderItems(to: menu) }
-            if effectiveStatus == "hidden" {
-                menu.addItem(ClosureMenuItem(String(localized: "Show")) { runtime.activate(windowID: item.actionWindowID) })
-            } else {
-                menu.addItem(ClosureMenuItem(String(localized: "Hide")) { runtime.hide(windowID: item.actionWindowID) })
-            }
-            // 成员项在前、退出恒为末项——与下面的窗口卡片分支保持一致。
-            appendMembershipItems(to: menu)
-            menu.addItem(.separator())
-            AppMenuBuilder.appendQuitItems(to: menu, bundleID: bid) {
-                runtime.quit(windowID: item.actionWindowID)
-            }
-        } else {
-            if isFinderChip { AppMenuBuilder.appendFinderItems(to: menu) }
-            menu.addItem(ClosureMenuItem(String(localized: "New Window")) { runtime.newWindow(windowID: item.actionWindowID) })
-            if effectiveStatus == "minimized" {
-                menu.addItem(ClosureMenuItem(String(localized: "Restore")) { runtime.activate(windowID: item.actionWindowID) })
-            } else {
-                menu.addItem(ClosureMenuItem(String(localized: "Minimize")) { runtime.minimize(windowID: item.actionWindowID) })
-            }
-            if effectiveStatus == "hidden" {
-                menu.addItem(ClosureMenuItem(String(localized: "Show")) { runtime.activate(windowID: item.actionWindowID) })
-            } else {
-                menu.addItem(ClosureMenuItem(String(localized: "Hide App")) { runtime.hide(windowID: item.actionWindowID) })
-            }
-            appendMembershipItems(to: menu)
-            menu.addItem(.separator())
-            // 整组关闭（2026-06-14）：标签组的「关闭窗口」关掉组内每个标签；
-            // 普通窗口 memberWindowIDs == [id]，行为不变。
-            menu.addItem(ClosureMenuItem(String(localized: "Close Window")) {
-                for wid in item.memberWindowIDs { runtime.close(windowID: wid) }
+        let restoreTitle = effectiveStatus == "minimized"
+            ? String(localized: "Restore")
+            : String(localized: "Show")
+        menu.addItem(ClosureMenuItem(restoreTitle) {
+            runtime.activate(windowID: item.actionWindowID)
+        })
+        if item.canMinimize, effectiveStatus != "minimized" {
+            menu.addItem(ClosureMenuItem(String(localized: "Minimize")) {
+                runtime.minimize(windowID: item.actionWindowID)
             })
-            AppMenuBuilder.appendQuitItems(to: menu, bundleID: bid) {
-                runtime.quit(windowID: item.actionWindowID)
-            }
+        }
+        if item.canClose {
+            menu.addItem(ClosureMenuItem(String(localized: "Close Window")) {
+                for windowID in item.memberWindowIDs {
+                    runtime.close(windowID: windowID)
+                }
+            })
         }
         return menu
     }
 
-    /// Kept membership conversions go through the controller. Messaging remains
-    /// mutually exclusive with kept membership. 收纳（进抽屉）不给菜单入口——
-    /// 唯一路径是拖拽到胶囊/抽屉（owner 2026-07-10：右键只留「在程序坞中保留」与消息标记）。
-    private func appendMembershipItems(to menu: NSMenu) {
-        guard let bid = item.bundleIdentifier else { return }
-        let items = LauncherMembershipItem.items(
-            surface: .strip,
-            bundleID: bid,
-            isKept: keptAppStore.contains(bid),
-            isMessaging: messagingStore.contains(bid),
-            controller: appMembershipController
-        )
-        guard !items.isEmpty else { return }
-        menu.addItem(.separator())
-        for descriptor in items {
-            menu.addItem(AppMenuBuilder.membershipItem(descriptor))
-        }
-    }
-
-    // MARK: - Helpers
-
-    /// 卡上渲染的标签（投影层算好的 `labelTitle`）。
-    ///
-    /// **这一个字符串同时喂三处**——渲染的 `Text`、`ChipPillMetrics.width(title:scale:)` 派生的
-    /// `chipQuietHoverScale`、以及 `ChipPillMetrics.pillRect` 算出的气泡锚点。任何一处改回
-    /// `fullTitle`，悬停缩放上限和气泡尾巴就锚在一个不存在的宽度上。
     private var displayTitle: String { labelTitle }
 
     /// 未截短的完整标题，只给系统 tooltip 用：纯图标卡不显示任何文字，截短了应用名就哪儿都看不到。

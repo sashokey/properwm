@@ -608,7 +608,6 @@ struct DockStripView: View {
                                  hasCarried: current.contains("app-\(p.bundleID)"))
         }
         stripOrderStore.sync(current: current, appKeyOf: appKeys,
-                             headPreferred: Set(messagingStore.bundleIDs),
                              projectionSample: sample)
         // 拖动中被拖窗口消失 → 取消拖动，免得空位卡死。(松手无回调那条由 DragController 的轮询兜底。)
         if let p = dragController.draggingPayload, p.source == .strip, !current.contains(p.id) {

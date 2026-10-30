@@ -24,13 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let messagingStore = MessagingAppStore()
     let badgeStore = BadgeStore()
     let keptAppStore = KeptAppStore()
-    lazy var stripOrderStore = StripOrderStore(
-        keptIDsProvider: { [keptAppStore] in Set(keptAppStore.bundleIDs) },
-        stableKeptOrderProvider: { [keptAppStore, messagingStore] in
-            keptAppStore.bundleIDs.filter { !messagingStore.contains($0) }
-        },
-        inventoryLog: inventoryLog
-    )
+    lazy var stripOrderStore = StripOrderStore(inventoryLog: inventoryLog)
     let drawerOrderStore = DrawerOrderStore()
     let settingsStore = AppSettingsStore()
     let pinnedFolderStore = PinnedFolderStore()

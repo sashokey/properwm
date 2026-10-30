@@ -110,7 +110,17 @@ struct StripItem: Hashable {
     }
 
     static func items(from snapshot: DockSnapshot) -> [StripItem] {
-        let records = snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] }
+        makeItems(records: snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] })
+    }
+
+    static func openWindows(from snapshot: DockSnapshot) -> [StripItem] {
+        let records = snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] }.filter {
+            !$0.groupID.hasPrefix("app-") && $0.status != .disappeared
+        }
+        return makeItems(records: records)
+    }
+
+    private static func makeItems(records: [WindowRecord]) -> [StripItem] {
 
         // Collapse 原生标签组 (same app + identical frame) into one slot, preserving
         // first-appearance order. Non-groupable records (app-* fallback, frameless) stay solo.
