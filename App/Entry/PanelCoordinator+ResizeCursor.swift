@@ -132,13 +132,11 @@ extension PanelCoordinator {
         let deadline = CACurrentMediaTime() + Self.resizeCursorReassertWindow
         // 120Hz keeps a reset arrow under one display frame.
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
-            MainActor.assumeIsolated {
-                guard let self, CACurrentMediaTime() < deadline else {
-                    timer.invalidate()
-                    return
-                }
-                self.reassertResizeCursor()
+            guard let self, CACurrentMediaTime() < deadline else {
+                timer.invalidate()
+                return
             }
+            MainActor.assumeIsolated { self.reassertResizeCursor() }
         }
         RunLoop.main.add(timer, forMode: .common)
         resizeCursorReassertTimer = timer
