@@ -62,7 +62,6 @@ final class FrontmostWindowGeometryObserver {
 
         let app = AXUIElementCreateApplication(pid)
         _ = AXUIElementSetMessagingTimeout(app, 0.1)
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
         // App-level registration IPC off the main thread (see `registrationQueue`). The run-loop
         // source is added on main *first* so callbacks are wired before the notifications land.
         CFRunLoopAddSource(
@@ -70,7 +69,8 @@ final class FrontmostWindowGeometryObserver {
             AXObserverGetRunLoopSource(newObserver),
             .commonModes
         )
-        Self.registrationQueue.async {
+        Self.registrationQueue.async { [self] in
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
             AXObserverAddNotification(
                 newObserver,
                 app,
@@ -181,9 +181,9 @@ final class FrontmostWindowGeometryObserver {
         if let focusedElement, CFEqual(focusedElement, element) { return }
 
         unregisterFocusedElement(observer: observer)
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
         // Element-level registration IPC off the main thread (see `registrationQueue`).
-        Self.registrationQueue.async {
+        Self.registrationQueue.async { [self] in
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
             AXObserverAddNotification(
                 observer,
                 element,

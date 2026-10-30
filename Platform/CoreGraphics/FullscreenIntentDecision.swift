@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import os.lock
+import Synchronization
 
 enum FullscreenIntentSource: String, Equatable {
     case greenButton
@@ -372,19 +372,18 @@ struct FullscreenEventTapRecoveryPolicy: Equatable {
     }
 }
 
-final class FullscreenIntentHandoffGate {
-    enum State: Equatable {
+final class FullscreenIntentHandoffGate: Sendable {
+    enum State: Equatable, Sendable {
         case pending
         case executing
         case completed
         case cancelled
     }
 
-    private var lock = os_unfair_lock_s()
-    private var state: State = .pending
+    private let state = Mutex(State.pending)
 
     func beginExecution() -> Bool {
-        withLock {
+        state.withLock { state in
             guard state == .pending else { return false }
             state = .executing
             return true
@@ -392,7 +391,7 @@ final class FullscreenIntentHandoffGate {
     }
 
     func complete() {
-        withLock {
+        state.withLock { state in
             guard state == .executing else { return }
             state = .completed
         }
@@ -400,18 +399,12 @@ final class FullscreenIntentHandoffGate {
 
     @discardableResult
     func cancelIfPending() -> Bool {
-        withLock {
+        state.withLock { state in
             guard state == .pending else { return false }
             state = .cancelled
             return true
         }
     }
 
-    var currentState: State { withLock { state } }
-
-    private func withLock<T>(_ body: () -> T) -> T {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        return body()
-    }
+    var currentState: State { state.withLock { $0 } }
 }

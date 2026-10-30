@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+import Synchronization
 
 final class FullscreenIntentDecisionTests: XCTestCase {
     private let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
@@ -220,6 +221,20 @@ final class FullscreenIntentDecisionTests: XCTestCase {
         XCTAssertTrue(policy.recordDisable(at: 61))
         XCTAssertTrue(policy.recordDisable(at: 62))
         XCTAssertFalse(policy.isFused)
+    }
+
+    func testCancellationAndExecutionRaceHasExactlyOneWinner() {
+        for _ in 0..<128 {
+            let gate = FullscreenIntentHandoffGate()
+            let results = Mutex([false, false])
+            DispatchQueue.concurrentPerform(iterations: 2) { index in
+                let accepted = index == 0 ? gate.beginExecution() : gate.cancelIfPending()
+                results.withLock { $0[index] = accepted }
+            }
+            let accepted = results.withLock { $0 }
+            XCTAssertNotEqual(accepted[0], accepted[1])
+            XCTAssertEqual(gate.currentState, accepted[0] ? .executing : .cancelled)
+        }
     }
 
     func testLateHandoffCannotBeginAfterCancellation() {

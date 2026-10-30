@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import Foundation
 import OSLog
+import Synchronization
 import os.lock
 
 /// SkyLight 的空间布局读取。`Docs/05` 实测单次 `SLSCopyManagedDisplaySpaces` 约 0.132ms，
@@ -104,43 +105,43 @@ enum WindowSpaceMembershipReader {
     }
 }
 
-private final class FullscreenIntentAtomicState {
-    private var lock = os_unfair_lock_s()
-    private var snapshot: FullscreenIntentSnapshot?
-    private var spaceLayouts: SpaceLayoutDirectory?
-    private var naturalScrolling = true
-    private var tapEnabled = false
-
-    func currentSnapshot() -> FullscreenIntentSnapshot? {
-        withLock { tapEnabled ? snapshot : nil }
+private final class FullscreenIntentAtomicState: Sendable {
+    private struct State: Sendable {
+        var snapshot: FullscreenIntentSnapshot?
+        var spaceLayouts: SpaceLayoutDirectory?
+        var naturalScrolling = true
+        var tapEnabled = false
     }
 
-    /// 事件线程读：返回 nil 表示「没有一块屏的两侧有全屏空间」，调用方可以直接跳过，
-    /// 连 `NSEvent` 转换都不必做——手势事件一秒两百个，这个提前退出是常态路径。
+    private let storage = Mutex(State())
+
+    func currentSnapshot() -> FullscreenIntentSnapshot? {
+        storage.withLock { $0.tapEnabled ? $0.snapshot : nil }
+    }
+
     func currentSpaceContext() -> (layouts: SpaceLayoutDirectory, naturalScrolling: Bool)? {
-        withLock {
-            guard tapEnabled, let spaceLayouts, spaceLayouts.hasAnyFullscreenNeighbor else {
-                return nil
-            }
-            return (spaceLayouts, naturalScrolling)
+        storage.withLock { state in
+            guard state.tapEnabled, let layouts = state.spaceLayouts,
+                  layouts.hasAnyFullscreenNeighbor else { return nil }
+            return (layouts, state.naturalScrolling)
         }
     }
 
     func replaceSpaceLayout(_ value: SpaceLayoutDirectory?, naturalScrolling: Bool) {
-        withLock {
-            spaceLayouts = value
-            self.naturalScrolling = naturalScrolling
+        storage.withLock {
+            $0.spaceLayouts = value
+            $0.naturalScrolling = naturalScrolling
         }
     }
 
     func replaceSnapshot(_ value: FullscreenIntentSnapshot?) {
-        withLock { snapshot = value }
+        storage.withLock { $0.snapshot = value }
     }
 
     func updatePanelScreens(_ frames: [CGRect]) {
-        withLock {
-            guard let current = snapshot else { return }
-            snapshot = FullscreenIntentSnapshot(
+        storage.withLock { state in
+            guard let current = state.snapshot else { return }
+            state.snapshot = FullscreenIntentSnapshot(
                 generation: current.generation,
                 pid: current.pid,
                 focusedWindowID: current.focusedWindowID,
@@ -155,13 +156,7 @@ private final class FullscreenIntentAtomicState {
     }
 
     func setTapEnabled(_ enabled: Bool) {
-        withLock { tapEnabled = enabled }
-    }
-
-    private func withLock<T>(_ body: () -> T) -> T {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        return body()
+        storage.withLock { $0.tapEnabled = enabled }
     }
 }
 
@@ -176,9 +171,9 @@ private final class FullscreenIntentEventBridge {
 
     private let state: FullscreenIntentAtomicState
     private let logger: Logger
-    private let onIntent: (FullscreenIntentRequest) -> Void
-    private let onSpaceSwitchIntent: (SpaceSwitchDirection, _ displayUUID: String) -> Void
-    private let onGestureSample: (CGEvent) -> Void
+    private let onIntent: @MainActor @Sendable (FullscreenIntentRequest) -> Void
+    private let onSpaceSwitchIntent: @MainActor @Sendable (SpaceSwitchDirection, _ displayUUID: String) -> Void
+    private let onGestureSample: @Sendable (sending CGEvent) -> Void
     private let spaceSwitchEnabled: Bool
     private var gestureHopLock = os_unfair_lock_s()
     private var gestureHopInFlight = false
@@ -203,9 +198,9 @@ private final class FullscreenIntentEventBridge {
         state: FullscreenIntentAtomicState,
         logger: Logger,
         spaceSwitchEnabled: Bool,
-        onIntent: @escaping (FullscreenIntentRequest) -> Void,
-        onSpaceSwitchIntent: @escaping (SpaceSwitchDirection, _ displayUUID: String) -> Void,
-        onGestureSample: @escaping (CGEvent) -> Void
+        onIntent: @escaping @MainActor @Sendable (FullscreenIntentRequest) -> Void,
+        onSpaceSwitchIntent: @escaping @MainActor @Sendable (SpaceSwitchDirection, _ displayUUID: String) -> Void,
+        onGestureSample: @escaping @Sendable (sending CGEvent) -> Void
     ) {
         self.state = state
         self.logger = logger
@@ -251,8 +246,9 @@ private final class FullscreenIntentEventBridge {
             request = nil
         }
         guard let request else { return }
-        performHandoff(label: request.source.rawValue, pid: request.pid) { [weak self] in
-            self?.onIntent(request)
+        let onIntent = onIntent
+        performHandoff(label: request.source.rawValue, pid: request.pid) {
+            onIntent(request)
         }
     }
 
@@ -303,19 +299,20 @@ private final class FullscreenIntentEventBridge {
               !context.layouts.displays(withFullscreenNeighbor: direction).isEmpty else {
             return
         }
-        performHandoff(label: label, pid: nil) { [weak self] in
-            guard let self else { return }
-            let target = self.state.currentSpaceContext()?.layouts
+        let state = state
+        let onSpaceSwitchIntent = onSpaceSwitchIntent
+        performHandoff(label: label, pid: nil) {
+            let target = state.currentSpaceContext()?.layouts
                 .arrowTarget(direction, mouseLocation: NSEvent.mouseLocation)
             guard let target else { return }
-            self.onSpaceSwitchIntent(direction, target.displayUUID)
+            onSpaceSwitchIntent(direction, target.displayUUID)
         }
     }
 
     /// 命中后唯一的主线程交接：有上限地**同步**等待，`orderOut` 完成才放行原始输入 ——
     /// 这是唯一被实测证明有效的时序条件，不能改成 `main.async`。超时后迟到的 block 由
     /// `FullscreenIntentHandoffGate` 变成 no-op，输入原样放行（退化成今天的闪烁）。
-    private func performHandoff(label: String, pid: pid_t?, _ body: @escaping () -> Void) {
+    private func performHandoff(label: String, pid: pid_t?, _ body: @escaping @MainActor @Sendable () -> Void) {
         let gate = FullscreenIntentHandoffGate()
         let completion = DispatchSemaphore(value: 0)
         DispatchQueue.main.async {
@@ -521,7 +518,7 @@ final class FullscreenIntentMonitor {
         onGestureSample: { [weak self] event in
             // 触控点只有在主线程现造 NSEvent 才读得到（见 handleGesture 的注释）。
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.processGestureSample(event) }
+                self?.processGestureSample(event)
             }
         }
     )

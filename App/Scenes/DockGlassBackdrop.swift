@@ -211,6 +211,7 @@ enum DockGlassPresentation {
 
     /// The system-variant plates hosted in `window`, for diagnostics: their material is the one a
     /// same-size reference can be built for. Empty on the SwiftUI-clear and frosted paths.
+    @MainActor
     static func systemVariantGlassViews(in window: NSWindow) -> [NSView] {
         guard let root = window.contentView else { return [] }
         var found: [NSView] = []
