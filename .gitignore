@@ -1,0 +1,46 @@
+.DS_Store
+build/
+DerivedData/
+dist/
+*.xcuserstate
+xcuserdata/
+scratch/
+.build/
+DemoVideo/
+品牌视觉/
+
+# TRAE generated reports and local task artifacts
+.trae/
+.trae-html-share-packages/
+project-analysis/
+
+# Local coverage artifacts and scratch output
+default.profraw
+output/
+tmp/
+
+# Per-agent local config and memory — not part of this project.
+.claude/
+.workbuddy/
+
+# Internal engineering docs. They stay in the working tree at the same paths;
+# they are simply not published. The repo publishes what GPL-3.0 asks for:
+# the source, the build and install scripts, LICENSE, both READMEs and the
+# archived release notes.
+#
+# `Docs/*.md` is a PATTERN, not a list of filenames — a missed ignore cannot be
+# taken back once pushed, an extra one costs nothing. To publish a doc, add an
+# explicit `!` whitelist line below. The pattern matches only the top level of
+# Docs/, so Docs/Archive/Releases/ is unaffected.
+AGENTS.md
+CLAUDE.md
+.codex/
+Docs/*.md
+Docs/Archive/Diagnostics/
+Docs/Archive/Engineering/
+Docs/Archive/Planning/
+Docs/Archive/Samples/
+Docs/Plans/
+
+# Local-only demo helper; not part of the app.
+Scripts/demo_mode.sh

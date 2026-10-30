@@ -1,0 +1,15 @@
+ProperWM
+
+Copyright (C) 2026 Moonbai Studio.
+
+This software includes code originally developed by Moonbai Studio and is licensed under the GNU General Public License, version 3 or (at your option) any later version. The complete license is provided in LICENSE. Existing copyright and license notices in the source files remain in effect.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+Modification notice: on 2026-10-30, this independent repository was initialized with a source snapshot. Repository documentation was replaced and upstream promotional materials, release archives, and contribution templates were omitted. Application code, build resources, scripts, tests, and dependency versions were retained unchanged.
+
+Trademark reservation
+
+"Tungsten Edge", "钨极", and the original logo and app icon are trademarks of Moonbai Studio. The GPL covers the source code and does not grant rights to use these names or marks.
+
+Redistributed modified or self-built binaries must use a different name and icon, including in app bundle names, menu bars, websites, package-manager entries, and app-store listings. They must not be represented as official, endorsed by, or supported by Moonbai Studio. Confusingly similar product names, domain names, or social handles must not be used without written permission.

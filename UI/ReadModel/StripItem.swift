@@ -1,0 +1,316 @@
+import CoreGraphics
+import Foundation
+
+enum WindowDisplayTitle {
+    static func resolve(rawTitle: String?, fallbackName: String) -> String {
+        let title = rawTitle.flatMap { title in
+            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
+        } ?? fallbackName
+        return title == "macos-dock-cc-v2" ? String(localized: "Taskbar") : title
+    }
+
+    /// 卡片标签用：去掉窗口标题尾部那截「分隔符 + 应用名」（`local-dc02 - Google Chrome`
+    /// → `local-dc02`）。图标已经表明是哪个应用，后缀是纯重复，而且它把真正区分窗口的前半截
+    /// 挤过 `WindowTitleTextMetrics.maximumWidth`（140pt）被截断——issue #41 的截图里两张
+    /// Chrome 卡就是这样，一张只剩「local-dc02 - Google C…」。
+    ///
+    /// **只作用于渲染出来的标签**：`.help()` 的系统 tooltip 仍显示未截短的完整标题，
+    /// 否则纯图标卡（不显示任何文字）的应用名就哪儿都看不到了。
+    /// 菜单里的窗口清单（`WindowListMenuPlan`）刻意不走这里——菜单行宽裕、不截断。
+    static func trimmingAppNameSuffix(_ title: String, appName: String) -> String {
+        let app = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !app.isEmpty, title.hasSuffix(app), title != app else { return title }
+
+        var head = Substring(title).dropLast(app.count)
+        // 只吃一个分隔符：`A - B - Chrome` 去掉尾巴后应当是 `A - B`，不是 `A`。
+        guard let separator = separators.first(where: { head.hasSuffix($0) }) else { return title }
+        head = head.dropLast(separator.count)
+
+        let remainder = head.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 去完只剩空白 = 这个标题本来就只有应用名，原样留着。
+        return remainder.isEmpty ? title : remainder
+    }
+
+    /// 尾部分隔符。长的排前面，免得 ` - ` 先命中把 `–` / `—` 的场景吃掉半个。
+    private static let separators = [" - ", " — ", " – ", " | ", " · ", "-", "—", "–", "|"]
+}
+
+struct StripItem: Hashable {
+    let id: String
+    let title: String
+    let status: String
+    let appID: String
+    let bundleIdentifier: String?
+    let sameAppCardCount: Int
+    let showsTitle: Bool
+    let isAppLevelFallback: Bool
+    let canMinimize: Bool
+    let canHide: Bool
+    let canClose: Bool
+    let isOnDesktop: Bool
+    /// Current representative WindowServer id for this chip, if any. Live snapshot
+    /// fact only: never persisted, never used as chip identity.
+    let cgWindowID: CGWindowID?
+    /// Current representative frame in screen coordinates, if available.
+    let bounds: CGRect?
+    /// Current representative process id.
+    let pid: Int32
+    /// Which display the representative window sits on (coarse key; nil = unknown). Live fact only.
+    let displayUUID: String?
+    /// Window the显隐类动作 (toggle/activate/minimize/hide/newWindow) routes to, and the key
+    /// the乐观态 overlay is read/written under. For a 原生标签组 this is the focused (active)
+    /// tab; for a plain window it equals `id`.
+    let actionWindowID: String
+    /// All real windows behind this chip. A single window → `[id]`; a 标签组 → every tab,
+    /// so「关闭窗口」can close the whole group (2026-06-14 拍板「整组关闭」).
+    let memberWindowIDs: [String]
+
+    /// Builds a chip from one or more window records. ≥2 records means a 原生标签组
+    /// (same app + identical frame) collapsed into a single chip.
+    init(members: [WindowRecord], sameAppCardCount: Int = 1) {
+        // Stable SwiftUI identity = 该组的稳定 token（`groupID`）。它【不随激活标签的 CGWindowID
+        // 变化】，也不随成员增删（后台标签来去、最小化离开 AX）而变 → 合并卡永不换身份证、不跳不裂。
+        // 同组所有成员的 groupID 相同，取首个即可；app-* 兜底卡的 groupID = 自身 id（自成一组）。
+        let anchor = members.min { ($0.cgWindowID ?? .max) < ($1.cgWindowID ?? .max) } ?? members[0]
+        let token = members[0].groupID
+        // Display + action representative = the **visible** tab of the group. In a 原生标签组 the
+        // non-current tabs report to AX as `.minimized`; exactly one tab is on-screen. Prefer the
+        // truly-focused tab (`.active`, only set while the app is frontmost), else the lone visible
+        // (non-minimized) tab, else — whole group minimized/hidden — the stable anchor.
+        //
+        // Keying on visibility (min flag) rather than focus is what makes tab-switching feel instant:
+        // switching tabs fires Deminiaturized for the new tab (min→false) promptly, whereas the
+        // .active/focus flag lags. So the title follows the Deminiaturized notification, not focus.
+        let representative = members.first { $0.status == .active }
+            ?? members.first { $0.status != .minimized && $0.status != .hidden }
+            ?? anchor
+
+        self.id = token
+        self.actionWindowID = representative.id.rawValue
+        self.memberWindowIDs = members.map(\.id.rawValue)
+        self.title = representative.title
+        self.status = representative.status.rawValue
+        self.appID = representative.appID.rawValue
+        self.bundleIdentifier = representative.bundleIdentifier
+        self.sameAppCardCount = sameAppCardCount
+        self.showsTitle = sameAppCardCount >= 2
+        self.isAppLevelFallback = token.hasPrefix("app-")
+        self.canMinimize = self.isAppLevelFallback == false
+        self.canHide = true
+        self.canClose = self.isAppLevelFallback == false
+        self.isOnDesktop = representative.isOnDesktop
+        self.cgWindowID = representative.cgWindowID
+        self.bounds = representative.bounds
+        self.pid = representative.pid
+        self.displayUUID = representative.displayUUID
+    }
+
+    init(record: WindowRecord, sameAppCardCount: Int = 1) {
+        self.init(members: [record], sameAppCardCount: sameAppCardCount)
+    }
+
+    static func items(from snapshot: DockSnapshot) -> [StripItem] {
+        let records = snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] }
+
+        // Collapse 原生标签组 (same app + identical frame) into one slot, preserving
+        // first-appearance order. Non-groupable records (app-* fallback, frameless) stay solo.
+        var slots: [[WindowRecord]] = []
+        var slotIndexByKey: [String: Int] = [:]
+        for record in records {
+            let key = tabGroupKey(for: record)
+            if let key, let idx = slotIndexByKey[key] {
+                slots[idx].append(record)
+            } else {
+                if let key { slotIndexByKey[key] = slots.count }
+                slots.append([record])
+            }
+        }
+
+        let countByApp = Dictionary(grouping: slots) { appGroupingKey(for: $0[0]) }
+            .mapValues(\.count)
+
+        return slots.map { members in
+            StripItem(members: members, sameAppCardCount: countByApp[appGroupingKey(for: members[0])] ?? 1)
+        }
+    }
+
+    private static func appGroupingKey(for record: WindowRecord) -> String {
+        record.bundleIdentifier ?? record.appID.rawValue
+    }
+
+    /// Identity of the 原生标签组 a record belongs to = 跟踪层算好的稳定 `groupID` token。
+    /// 同一物理窗口的各标签共享同一 token（一旦分配不随激活标签 cgID / 后台标签 frame 漂移而变），
+    /// 据此合并；app-* 兜底卡的 groupID = 自身唯一 id，永不与别人撞键 → 自然独立、不误并。
+    /// 返回 nil 表示该记录不参与合并（无 cgWindowID 的兜底卡）。
+    private static func tabGroupKey(for record: WindowRecord) -> String? {
+        guard record.cgWindowID != nil else { return nil }
+        return record.groupID
+    }
+}
+
+/// 任务条拖动重排 · A 路线（会话内防打乱）的纯排序原语。
+///
+/// 设计见 `03 设计决策#任务条拖动重排`。本层只对一串 chip id 做无状态变换：
+/// 不接 UI、不落盘、不碰窗口身份模型。有状态的排序层（`StripOrderStore`）与拖动手势
+/// 在后续切片接入，复用这里的原语。
+///
+/// 关键前提：**座位生命周期在上游 `DockSnapshot` 已保证**——最小化 / 隐藏 / CG 临时消失
+/// 的窗口都保留在 snapshot 里（座位不释放），只有「真关闭」才从 snapshot 消失。所以本层
+/// 「当前列表里不在」即等于「座位真结束」，无需也不应在此重新判断窗口在不在。
+enum StripOrdering {
+    enum PlacementReason: String, Codable, Equatable {
+        case sameAppSibling
+        case headPreferred
+        case stableKeptRank
+        case tail
+    }
+
+    struct Placement: Equatable {
+        let chipID: String
+        let index: Int
+        let reason: PlacementReason
+    }
+
+    struct ReconcileResult: Equatable {
+        let order: [String]
+        let placements: [Placement]
+    }
+
+    /// 把「记住的显示顺序」和「当前还活着的 chip」对账，产出新的显示顺序。
+    ///
+    /// - 已记住且仍在 → 保持记住的相对顺序（**防打乱核心**：邻居增删不动既有排好的卡）。
+    /// - 新出现（当前有、没记过）→ 插到「同 app 已有 chip」的最后一个之后（贴同伴：拖标签出来
+    ///   成独立窗口 / Cmd+N 都紧跟本 app 现有 chip，不再甩到任务条最右）；该 app 一个都没有
+    ///   （= 全新 app）才追加末尾。`appKeyOf` 给空（默认）→ 退化为「一律追加末尾」的旧行为。
+    /// - 记住的但当前已不在 → 丢弃（座位真结束，见类型注释）。
+    /// `headPreferredKeys`：属这些 app 键的**新**窗口若无同伴，插到 live 区**头部**（而非末尾）——
+    /// 消息应用的弹出窗口紧邻消息区落地（owner 2026-07-12 #4）。只影响没记过的新 id；已记住的保持原位。
+    /// `stableKeptRanks`：普通 kept 应用的跨重启排名（appKey → 名次）。无同伴、非 head-preferred 的
+    /// 新 id 若属于排名内的应用，按名次落在已有排名卡之间，而非甩到末尾。
+    static func reconcile(remembered: [String], current: [String], appKeyOf: [String: String] = [:],
+                          headPreferredKeys: Set<String> = [],
+                          stableKeptRanks: [String: Int] = [:]) -> [String] {
+        reconcileWithTrace(
+            remembered: remembered,
+            current: current,
+            appKeyOf: appKeyOf,
+            headPreferredKeys: headPreferredKeys,
+            stableKeptRanks: stableKeptRanks
+        ).order
+    }
+
+    static func reconcileWithTrace(
+        remembered: [String],
+        current: [String],
+        appKeyOf: [String: String] = [:],
+        headPreferredKeys: Set<String> = [],
+        stableKeptRanks: [String: Int] = [:]
+    ) -> ReconcileResult {
+        let currentSet = Set(current)
+        let rememberedSet = Set(remembered)
+        // 已记住且仍在：保持记住的相对顺序
+        var result = remembered.filter { currentSet.contains($0) }
+        var placements: [Placement] = []
+        func rank(_ id: String) -> Int? { appKeyOf[id].flatMap { stableKeptRanks[$0] } }
+        // 新出现：① 有同 app 同伴 → 插同伴之后；② 无同伴且 app 属 head-preferred（消息应用弹出窗）→
+        // 插头部（排在已有 head-preferred 之后，保持彼此相对序）；③ 无同伴但属跨重启排名内的 kept
+        // 应用 → 按名次落在已排名卡之间；④ 否则末尾。按 current 顺序处理 → 同一 app 的多个新窗口
+        // 彼此也保持相对序。
+        for id in current where !rememberedSet.contains(id) {
+            let app = appKeyOf[id]
+            if let app, let pos = result.lastIndex(where: { appKeyOf[$0] == app }) {
+                result.insert(id, at: pos + 1)
+                placements.append(Placement(chipID: id, index: pos + 1, reason: .sameAppSibling))
+            } else if let app, headPreferredKeys.contains(app) {
+                let headPos = result.lastIndex { appKeyOf[$0].map(headPreferredKeys.contains) ?? false }
+                let index = headPos.map { $0 + 1 } ?? 0
+                result.insert(id, at: index)
+                placements.append(Placement(chipID: id, index: index, reason: .headPreferred))
+            } else if let app, let myRank = stableKeptRanks[app] {
+                let index = stableKeptInsertIndex(
+                    in: result,
+                    myRank: myRank,
+                    rank: rank,
+                    appKeyOf: appKeyOf,
+                    headPreferredKeys: headPreferredKeys
+                )
+                result.insert(id, at: index)
+                placements.append(Placement(chipID: id, index: index, reason: .stableKeptRank))
+            } else {
+                result.append(id)
+                placements.append(Placement(chipID: id, index: result.count - 1, reason: .tail))
+            }
+        }
+        return ReconcileResult(order: result, placements: placements)
+    }
+
+    /// 排名落点：排在最后一张「名次不比我靠后」的卡之后；没有这种卡就排在第一张更靠后的卡之前；
+    /// 一张已排名的卡都还没有，就落在 head-preferred 区之后（= 消息弹出窗右边、普通临时窗口左边）。
+    private static func stableKeptInsertIndex(
+        in result: [String],
+        myRank: Int,
+        rank: (String) -> Int?,
+        appKeyOf: [String: String],
+        headPreferredKeys: Set<String>
+    ) -> Int {
+        if let pos = result.lastIndex(where: { rank($0).map { $0 <= myRank } ?? false }) {
+            return pos + 1
+        }
+        if let pos = result.firstIndex(where: { rank($0).map { $0 > myRank } ?? false }) {
+            return pos
+        }
+        let headEnd = result.lastIndex { appKeyOf[$0].map(headPreferredKeys.contains) ?? false }
+        return headEnd.map { $0 + 1 } ?? 0
+    }
+
+    /// 应用一次拖动落位：把 `draggedID` 移到 `targetID` 的左边（`after == false`）或右边
+    /// （`after == true`）。任一 id 不在序列、或两者相同 → 原样返回。
+    static func reordering(_ order: [String], move draggedID: String, relativeTo targetID: String, after: Bool) -> [String] {
+        guard draggedID != targetID, order.contains(draggedID), order.contains(targetID) else { return order }
+        var result = order
+        result.removeAll { $0 == draggedID }
+        guard let t = result.firstIndex(of: targetID) else { return order }
+        result.insert(draggedID, at: after ? t + 1 : t)
+        return result
+    }
+
+    /// 整块落位（抽屉拖回任务条·精确落点）：把 `ids`（保持给定的内部相对序）整体移到 `targetID` 的
+    /// 左边（`after==false`）或右边（`after==true`）；`targetID==nil` → 整块移到**末尾**（append 不依赖
+    /// reconcile 的"新窗口贴同伴/末尾"规则，那正是本功能要覆盖的）。只移动**已在 `order` 里**的 id（防重复
+    /// 插入）；`targetID` 落在 `ids` 内或不在 `order` → 原样返回。
+    static func movingBlock(_ order: [String], move ids: [String], relativeTo targetID: String?, after: Bool) -> [String] {
+        let idSet = Set(ids)
+        let block = ids.filter { order.contains($0) }
+        guard !block.isEmpty else { return order }
+        var result = order.filter { !idSet.contains($0) }
+        if let targetID {
+            guard !idSet.contains(targetID), let t = result.firstIndex(of: targetID) else { return order }
+            result.insert(contentsOf: block, at: after ? t + 1 : t)
+        } else {
+            result.append(contentsOf: block)
+        }
+        return result
+    }
+
+    /// 用 `newID` 顶替 `oldID`，**继承其位置（rank）**。用于：app-\* 占位升级成真窗口、
+    /// 标签组 anchor 因成员关闭而迁移。`oldID` 不在序列、或 `newID` 已在序列中（防重复）→ 原样返回。
+    static func substituting(_ order: [String], oldID: String, newID: String) -> [String] {
+        guard order.contains(oldID), !order.contains(newID) else { return order }
+        return order.map { $0 == oldID ? newID : $0 }
+    }
+
+    /// 落盘子集：保留 `tabgrp-*`（真实窗口座位键）+ `app-*` 中属于 kept 应用的（保留图标位置抗本 app 重启）。
+    /// 普通 app-* 兼容 fallback 仍不落盘。访达 2026-08-20 起也是普通 kept 应用，勾着保留时
+    /// `app-com.apple.finder` 跟着落盘（从此也有位置记忆），取消勾选后自然掉出这个子集。
+    /// 跨重启由 `StripOrderStore` 的 `kern.boottime` 守卫整份丢弃。
+    static func persistableLiveOrder(_ order: [String], keptIDs: Set<String> = []) -> [String] {
+        order.filter { id in
+            if id.hasPrefix("tabgrp-") { return true }
+            if id.hasPrefix("app-") {
+                let bid = String(id.dropFirst(4))
+                return keptIDs.contains(bid)
+            }
+            return false
+        }
+    }
+}

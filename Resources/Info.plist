@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleDisplayName</key>
+  <string>Tungsten Edge 钨极</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>Tungsten Edge 钨极</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © 2026 Moonbai Studio. Licensed under GPL-3.0-or-later.</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>用于读取当前访达窗口所在文件夹以显示快捷面板，以及显示废纸篓空满状态和清倒废纸篓。</string>
+  <!-- Sparkle 自动更新。SUFeedURL 一旦 404，所有已安装用户的自动更新静默失效；
+       SUPublicEDKey 对应的私钥只在 owner 的登录钥匙串里，丢了不可恢复。见 Docs/29。 -->
+  <key>SUFeedURL</key>
+  <string>https://tungstenedge.app/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>oOwdzOmmoDnopf5WceY+Ts8l3fEFK2zr3aFKc76uFuc=</string>
+  <!-- 默认自动检查。关闭入口在设置窗口「关于」区——不给关的后台联网检查比多一个勾选项糟糕。 -->
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <!-- 定时检查的间隔，6 小时。Sparkle 不设这个键时默认一天一次，于是发版当天用户基本
+       不会被告知（owner 2026-08-20 实测：只有手点「检查更新」才知道有新版）。
+       这只是初始值，用户改过的值由 Sparkle 自己存进偏好，我们代码里不写 updateCheckInterval。 -->
+  <key>SUScheduledCheckInterval</key>
+  <integer>21600</integer>
+</dict>
+</plist>
