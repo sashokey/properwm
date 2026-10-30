@@ -46,8 +46,8 @@ final class AppWindowObserver {
         self.clock = clock
     }
 
-    deinit {
-        MainActor.assumeIsolated { stop() }
+    isolated deinit {
+        stop()
     }
 
     func start() {

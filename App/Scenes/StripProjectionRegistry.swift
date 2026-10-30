@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class StripProjectionRegistry {
     struct Record {
         let projection: StripProjection
@@ -7,24 +8,17 @@ final class StripProjectionRegistry {
     }
 
     static let shared = StripProjectionRegistry()
-    private let lock = NSLock()
     private var records: [String: Record] = [:]
 
     func store(_ projection: StripProjection, surface: String, displayUUID: String?) {
-        lock.lock()
         records[surface] = Record(projection: projection, displayUUID: displayUUID)
-        lock.unlock()
     }
 
     func remove(surface: String) {
-        lock.lock()
         records.removeValue(forKey: surface)
-        lock.unlock()
     }
 
     func snapshot() -> [String: Record] {
-        lock.lock()
-        defer { lock.unlock() }
         return records
     }
 

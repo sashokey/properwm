@@ -141,17 +141,15 @@ final class PanelCoordinator: NSObject {
         setupFullscreenMonitor()
     }
 
-    deinit {
+    isolated deinit {
         fullscreenReconcileTimer?.invalidate()
         fullscreenIntentTimeoutTimer?.invalidate()
         fullscreenSpaceHoldTimer?.invalidate()
         overlayWindowWatchTimer?.invalidate()
         fullscreenSpaceIntentTimer?.invalidate()
         fullscreenSpaceIntentVerdictTimer?.invalidate()
-        MainActor.assumeIsolated {
-            dismissWindowTitleTooltip()
-            tearDownTaskbarGlassBackground()
-        }
+        dismissWindowTitleTooltip()
+        tearDownTaskbarGlassBackground()
         workspaceObserverTokens.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)

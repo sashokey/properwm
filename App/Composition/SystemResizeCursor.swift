@@ -30,6 +30,7 @@ final class SystemResizeCursor {
     /// False once the native path has been ruled out; true before the first attempt.
     var isAvailable: Bool { !disabled }
 
+    @MainActor
     private struct Native {
         typealias ConnectionFn = @convention(c) () -> Int32
         typealias SetPropertyFn = @convention(c) (Int32, Int32, CFString, CFTypeRef) -> Int32

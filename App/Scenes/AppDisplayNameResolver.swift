@@ -1,6 +1,7 @@
 import AppKit
 import CoreServices
 
+@MainActor
 enum AppDisplayNameResolver {
     private static let displayNameCache = AppDisplayNameCache()
     private static let nameRegistry = AppNameRegistry(
@@ -18,13 +19,15 @@ enum AppDisplayNameResolver {
         ]
         return names.map { name in
             center.addObserver(forName: name, object: nil, queue: .main) { notification in
-                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
-                    as? NSRunningApplication,
-                      let bundleID = app.bundleIdentifier else { return }
-                invalidateDisplayName(for: bundleID)
-                if name == NSWorkspace.didLaunchApplicationNotification,
-                   let localized = app.localizedName {
-                    nameRegistry.observe(name: localized, for: bundleID)
+                MainActor.assumeIsolated {
+                    guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                        as? NSRunningApplication,
+                          let bundleID = app.bundleIdentifier else { return }
+                    invalidateDisplayName(for: bundleID)
+                    if name == NSWorkspace.didLaunchApplicationNotification,
+                       let localized = app.localizedName {
+                        nameRegistry.observe(name: localized, for: bundleID)
+                    }
                 }
             }
         }

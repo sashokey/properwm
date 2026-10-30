@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct LabelBoxWidthDriver<Content: View>: View, Animatable {
+private struct LabelBoxWidthDriver<Content: View>: View, @MainActor Animatable {
     var width: CGFloat
     let chipID: String
     @ViewBuilder let content: (CGFloat) -> Content
@@ -20,11 +20,11 @@ private struct LabelBoxWidthDriver<Content: View>: View, Animatable {
 }
 
 struct LabelBoxWidthTickKey: EnvironmentKey {
-    static let defaultValue: (String, CGFloat) -> Void = { _, _ in }
+    static let defaultValue: @MainActor @Sendable (String, CGFloat) -> Void = { _, _ in }
 }
 
 extension EnvironmentValues {
-    var labelBoxWidthTick: (String, CGFloat) -> Void {
+    var labelBoxWidthTick: @MainActor @Sendable (String, CGFloat) -> Void {
         get { self[LabelBoxWidthTickKey.self] }
         set { self[LabelBoxWidthTickKey.self] = newValue }
     }

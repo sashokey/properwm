@@ -58,10 +58,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         wireDragController()
     }
 
-    deinit {
-        MainActor.assumeIsolated {
-            topologyRefreshController?.cancel()
-        }
+    isolated deinit {
+        topologyRefreshController?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 

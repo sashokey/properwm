@@ -37,8 +37,8 @@ final class FrontmostWindowGeometryObserver {
         label: "io.github.sashokey.properwm.frontmost-ax-registration"
     )
 
-    deinit {
-        MainActor.assumeIsolated { stop() }
+    isolated deinit {
+        stop()
     }
 
     func start(pid: pid_t?) {

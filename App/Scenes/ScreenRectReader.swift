@@ -5,6 +5,7 @@ protocol ScreenRectDeliveryTask: AnyObject {
     func cancel()
 }
 
+@MainActor
 protocol ScreenRectDeliveryScheduling: AnyObject {
     @discardableResult
     func schedule(after delay: TimeInterval, _ action: @escaping () -> Void) -> ScreenRectDeliveryTask
@@ -73,7 +74,7 @@ struct ScreenRectReader: NSViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError() }
 
-        deinit {
+        isolated deinit {
             pendingTasks.values.forEach { $0.cancel() }
             windowObservers.forEach(NotificationCenter.default.removeObserver)
         }
@@ -108,7 +109,7 @@ struct ScreenRectReader: NSViewRepresentable {
             for name in [NSWindow.didMoveNotification, NSWindow.didChangeScreenNotification] {
                 windowObservers.append(
                     center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                        self?.report()
+                        MainActor.assumeIsolated { self?.report() }
                     }
                 )
             }

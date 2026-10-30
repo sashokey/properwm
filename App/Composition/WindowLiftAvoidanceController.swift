@@ -476,8 +476,8 @@ final class WindowLiftAvoidanceController {
         return true
     }
 
-    deinit {
-        MainActor.assumeIsolated { stop() }
+    isolated deinit {
+        stop()
     }
 
     /// 用户设置的开关。关 → `stop()`（顺带把已抬起的窗口还原回原生尺寸）；

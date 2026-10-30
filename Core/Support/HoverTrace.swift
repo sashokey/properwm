@@ -363,7 +363,7 @@ enum HoverTrace {
         "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
     }
 
-    private final class Writer {
+    private final class Writer: @unchecked Sendable {
         static let shared = Writer()
         private let queue = DispatchQueue(label: "io.github.sashokey.properwm.hovertrace")
 

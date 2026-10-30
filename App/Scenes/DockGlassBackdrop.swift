@@ -267,14 +267,14 @@ private final class DockSystemGlassEffectView: NSGlassEffectView {
         DispatchQueue.main.async { [weak self] in self?.refreshWindowState() }
         occlusionObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
-        ) { [weak self] _ in self?.refreshWindowState() }
+        ) { [weak self] _ in MainActor.assumeIsolated { self?.refreshWindowState() } }
     }
 
     private func refreshWindowState() {
         _ = TEDockGlassRefreshWindowState(self)
     }
 
-    deinit {
+    isolated deinit {
         if let observer = occlusionObserver { NotificationCenter.default.removeObserver(observer) }
     }
 }

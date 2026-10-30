@@ -134,7 +134,7 @@ struct ChipHoverVisual: Equatable {
     }
 }
 
-struct ChipHoverProgress<Content: View>: View, Animatable {
+struct ChipHoverProgress<Content: View>: View, @MainActor Animatable {
     var progress: CGFloat
     let content: (CGFloat) -> Content
 

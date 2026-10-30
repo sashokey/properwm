@@ -91,7 +91,7 @@ final class AppRuntime: ObservableObject {
         recentMinimizeDispatchAtByWindowID.removeAll()
     }
 
-    deinit {
+    isolated deinit {
         feedbackTimer?.invalidate()
         titleSettleTimer?.invalidate()
         snapshotSubscription?.cancel()

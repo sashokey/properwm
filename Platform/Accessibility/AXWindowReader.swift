@@ -291,7 +291,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             for attribute in AXWindowIDBridge.fallbackAttributeNames {
                 guard let timeout = remainingTimeout() else { return false }
                 applyMessagingTimeout(timeout, to: element)
-                if numericWindowIDAttribute(attribute, from: element, maxAttempts: 1) == cgWindowID {
+                if numericWindowIDAttribute(attribute as CFString, from: element, maxAttempts: 1) == cgWindowID {
                     return true
                 }
             }
@@ -377,7 +377,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         for attribute in AXWindowIDBridge.fallbackAttributeNames {
-            if let id = numericWindowIDAttribute(attribute, from: element, maxAttempts: maxAttempts) {
+            if let id = numericWindowIDAttribute(attribute as CFString, from: element, maxAttempts: maxAttempts) {
                 return id
             }
         }
@@ -832,10 +832,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 private enum AXWindowIDBridge {
     typealias GetWindowFunction = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 
-    static let fallbackAttributeNames: [CFString] = [
-        "AXWindowID" as CFString,
-        "AXWindowNumber" as CFString
-    ]
+    static let fallbackAttributeNames = ["AXWindowID", "AXWindowNumber"]
 
     private static let getWindowFunction: GetWindowFunction? = {
         let frameworkPaths = [
