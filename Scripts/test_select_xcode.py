@@ -9,7 +9,7 @@ class SelectXcodeTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.apps = pathlib.Path(self.directory.name)
+        self.apps = pathlib.Path(self.directory.name).resolve()
 
     def app(self, name):
         path = self.apps / name
