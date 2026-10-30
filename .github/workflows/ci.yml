@@ -37,6 +37,7 @@ jobs:
         run: python3 Scripts/check_debug_switches.py
 
       - name: Build and run unit tests
+        id: tests
         shell: bash
         run: |
           set -euo pipefail
@@ -53,7 +54,7 @@ jobs:
             2>&1 | tee build/xcodebuild-test.log
 
       - name: Check deployment compatibility
-        if: success() || failure()
+        if: (success() || failure()) && steps.tests.outcome != 'skipped'
         run: python3 Scripts/check_availability_warnings.py build/xcodebuild-test.log
 
       - name: Export coverage
