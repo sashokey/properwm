@@ -326,6 +326,7 @@ private struct DockSystemGlassVariantPlate: NSViewRepresentable {
 
 /// AppKit replaces the glass filter when its material or geometry changes. Follow those changes
 /// without polling, and never retain or mutate a filter owned by the system.
+@MainActor
 private final class DockGlassRefractionObserver {
     private weak var view: NSView?
     private var viewObservation: NSKeyValueObservation?
@@ -356,7 +357,15 @@ private final class DockGlassRefractionObserver {
         effectObservations.removeAll()
     }
 
-    private func scheduleRefresh() {
+    nonisolated private func scheduleRefresh() {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { enqueueRefresh() }
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.enqueueRefresh() }
+        }
+    }
+
+    private func enqueueRefresh() {
         guard !refreshScheduled else { return }
         refreshScheduled = true
         DispatchQueue.main.async { [weak self] in
