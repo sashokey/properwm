@@ -275,8 +275,6 @@
 		D40000000000000000000003 /* NonRegularEvictionDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000103 /* NonRegularEvictionDecision.swift */; };
 		B10000000000000000000011 /* CGSnapshotReuseDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000010B /* CGSnapshotReuseDecision.swift */; };
 		B10000000000000000000005 /* ScanProbeGateDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000104 /* ScanProbeGateDecision.swift */; };
-		A00000000000000000009E21 /* LegacyLoginItemBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E20 /* LegacyLoginItemBackend.swift */; };
-		A00000000000000000009E22 /* LegacyLoginItemBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E20 /* LegacyLoginItemBackend.swift */; };
 		A00000000000000000009E24 /* LaunchAtLoginServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */; };
 		A00000000000000000009E1A /* ScanAdmissionDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E05 /* ScanAdmissionDecision.swift */; };
 		B10000000000000000000004 /* PeriodicReconcileSkipDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000103 /* PeriodicReconcileSkipDecision.swift */; };
@@ -398,7 +396,6 @@
 		B1000000000000000000010B /* CGSnapshotReuseDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGSnapshotReuseDecision.swift; sourceTree = "<group>"; };
 		B10000000000000000000104 /* ScanProbeGateDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProbeGateDecision.swift; sourceTree = "<group>"; };
 		A00000000000000000009E06 /* ScanAdmissionDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAdmissionDecisionTests.swift; sourceTree = "<group>"; };
-		A00000000000000000009E20 /* LegacyLoginItemBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyLoginItemBackend.swift; sourceTree = "<group>"; };
 		A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginServiceTests.swift; sourceTree = "<group>"; };
 		F3A0000000000000000000A0 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
 		F3A0000000000000000000B0 /* DiagnosticReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReportTests.swift; sourceTree = "<group>"; };
@@ -622,7 +619,6 @@
 				D10000000000000000000003 /* SettingsCoordinator.swift */,
 				F3A0000000000000000000A0 /* DiagnosticReport.swift */,
 				A00000000000000000009010 /* LaunchAtLoginService.swift */,
-				A00000000000000000009E20 /* LegacyLoginItemBackend.swift */,
 				A00000000000000000009030 /* PanelVisibilityState.swift */,
 				A00000000000000000009080 /* PanelGeometry.swift */,
 				A00000000000000000009A10 /* WindowLiftAvoidanceController.swift */,
@@ -1214,7 +1210,6 @@
 					A00000000000000000008011 /* AppSettingsStore.swift in Sources */,
 					F1B0000000000000000000C3 /* DisplayIdentity.swift in Sources */,
 					A00000000000000000009011 /* LaunchAtLoginService.swift in Sources */,
-					A00000000000000000009E21 /* LegacyLoginItemBackend.swift in Sources */,
 					A00000000000000000009031 /* PanelVisibilityState.swift in Sources */,
 					A00000000000000000009081 /* PanelGeometry.swift in Sources */,
 					A00000000000000000009A11 /* WindowLiftAvoidanceController.swift in Sources */,
@@ -1367,7 +1362,6 @@
 				F3A0000000000000000000A2 /* DiagnosticReport.swift in Sources */,
 				A00000000000000000009071 /* StatusMenuController.swift in Sources */,
 				A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */,
-				A00000000000000000009E22 /* LegacyLoginItemBackend.swift in Sources */,
 				A00000000000000000009051 /* PanelVisibilityState.swift in Sources */,
 				A00000000000000000009091 /* PanelGeometry.swift in Sources */,
 				A000000000000000000090A1 /* PanelGeometryTests.swift in Sources */,
@@ -1516,7 +1510,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -1548,7 +1542,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -1641,7 +1635,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -1659,7 +1653,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.sashokey.properwm.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;

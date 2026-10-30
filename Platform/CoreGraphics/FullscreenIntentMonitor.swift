@@ -547,8 +547,6 @@ final class FullscreenIntentMonitor {
     private var focusedElement: AXUIElement?
     private var focusedWindowID: CGWindowID?
     private var activePID: pid_t?
-    /// 有任务条的屏的 CG frame（③④ 下多块）。**不能用 `Set<CGRect>`**：`CGRect` 的 `Hashable`
-    /// 是 macOS 15+ 的一致性，老系统上运行时会段错误（`AGENTS.md` 铁律）。
     private var panelScreenCGFrames: [CGRect] = []
     private var observationGeneration: UInt64 = 0
     private var cacheGeneration: UInt64 = 0

@@ -92,9 +92,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             settingsCoordinator.openLoginItemsSettings()
             return
         }
-        guard let enabled = LaunchAtLoginMenuModel.requestedEnabledValue(
+        let enabled = LaunchAtLoginMenuModel.requestedEnabledValue(
             afterSelecting: settingsCoordinator.launchAtLoginState
-        ) else { return }
+        )
         if case let .failure(error) = settingsCoordinator.setLaunchAtLogin(enabled) {
             let alert = NSAlert()
             alert.messageText = String(localized: "Couldn’t Change Open at Login")

@@ -121,10 +121,9 @@ struct DockLiquidGlassConfiguration: Equatable {
     }
 
     func renderPath(
-        isGlassAPIAvailable: Bool,
         isCompositeAvailable: Bool
     ) -> DockLiquidGlassRenderPath {
-        guard isEnabled, isGlassAPIAvailable, isCompositeAvailable else {
+        guard isEnabled, isCompositeAvailable else {
             return .visualEffectFallback
         }
         return .layeredTaskbar
@@ -135,7 +134,6 @@ struct DockLiquidGlassConfiguration: Equatable {
             // **默认开**（owner 2026-08-17 转正）。此前是「默认关 + `DOCK_LIQUID_GLASS=1` 才开」，
             // 那是探路期该有的样子；观感验收通过之后再留着默认关，只会造成"跑错实例"——
             // 系统重启后自动拉起的进程不带环境变量，看到的就是没有玻璃的旧观感（真发生过）。
-            // `=0` 仍是关掉它的开关，macOS 12–25 走 `renderPath` 里的毛玻璃回退，与此无关。
             isEnabled: trimmed(DebugSwitch.liquidGlass.value(in: environment)) != "0",
             clearTintOpacity: boundedDouble(
                 DebugSwitch.liquidGlassClearTint.value(in: environment),

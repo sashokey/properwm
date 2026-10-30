@@ -45,6 +45,7 @@ with (app / "Contents/Info.plist").open("rb") as source:
 assert info["CFBundleIdentifier"] == "io.github.sashokey.properwm"
 assert info["CFBundleName"] == "ProperWM"
 assert info["CFBundleExecutable"] == "ProperWM"
+assert info["LSMinimumSystemVersion"] == "26.0"
 assert info["CFBundleShortVersionString"] == sys.argv[2]
 assert "NSAppleEventsUsageDescription" not in info
 assert not any(key.startswith("SU") for key in info)

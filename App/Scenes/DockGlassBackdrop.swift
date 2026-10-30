@@ -1,8 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// 悬浮面板底板：`macOS 26 + 开关打开 + 背景窗口建好` 时走原生 Liquid Glass，否则走
-/// 既有的毛玻璃材质。
 ///
 /// **`usesLiquidGlass` 是显式传进来的，没有默认值** —— 同 `scale` / `hoverStyle` 的既有规矩
 /// （`AGENTS.md`《Taskbar Size Tiers》）：漏传是编译错误，而不是静默按某一条路径渲染。
@@ -18,7 +16,7 @@ struct DockGlassBackdrop: View {
 
     var body: some View {
         Group {
-            if #available(macOS 26.0, *), usesLiquidGlass, let variant = DockGlassPresentation.activeSystemVariant {
+            if usesLiquidGlass, let variant = DockGlassPresentation.activeSystemVariant {
                 DockSystemGlassVariantPlate(
                     cornerRadius: cornerRadius,
                     variant: variant,
@@ -28,7 +26,7 @@ struct DockGlassBackdrop: View {
                         && variant == DockLiquidGlassConfiguration.dockSystemVariant
                 )
                     .allowsHitTesting(false)
-            } else if #available(macOS 26.0, *), usesLiquidGlass {
+            } else if usesLiquidGlass {
                 DockLiquidGlassPlate(
                     cornerRadius: cornerRadius,
                     configuration: DockGlassPresentation.configuration
@@ -136,8 +134,6 @@ extension View {
 /// 渐变方向对了一半但形状是反的（它让 ↘ 变暗），而且对 800pt 宽的条来说渐变走到水平中段
 /// 就衰减完了：实测把参数拉满时左边缘 254 已经爆掉、中段却只有 158。**别再退回那条路。**
 ///
-/// 用到的全是 macOS 12 就有的 SwiftUI（`RadialGradient` / `mask` / `blendMode`），
-/// 所以不加可用性标注 —— 它只是**事实上**只在玻璃路径下被挂上去。
 private struct DockGlassRim: View {
     let cornerRadius: CGFloat
     let configuration: DockLiquidGlassConfiguration
@@ -216,7 +212,7 @@ enum DockGlassPresentation {
     /// The system-variant plates hosted in `window`, for diagnostics: their material is the one a
     /// same-size reference can be built for. Empty on the SwiftUI-clear and frosted paths.
     static func systemVariantGlassViews(in window: NSWindow) -> [NSView] {
-        guard #available(macOS 26.0, *), let root = window.contentView else { return [] }
+        guard let root = window.contentView else { return [] }
         var found: [NSView] = []
         var pending: [NSView] = [root]
         while let view = pending.popLast() {
@@ -226,15 +222,9 @@ enum DockGlassPresentation {
         return found
     }
 
-    /// 能不能给任务条建玻璃合成。三道门：系统 ≥ 26、开关打开、SkyLight 的两个符号都取到。
     static var shouldAttemptTaskbarComposite: Bool {
-        let glassAvailable: Bool
-        if #available(macOS 26.0, *) { glassAvailable = true } else { glassAvailable = false }
-        // 短路：低版本不去 dlopen SkyLight。
-        let compositeAvailable = glassAvailable && TEDockGlassCanSetWindowBackgroundBlur()
-        return configuration.renderPath(
-            isGlassAPIAvailable: glassAvailable,
-            isCompositeAvailable: compositeAvailable
+        configuration.renderPath(
+            isCompositeAvailable: TEDockGlassCanSetWindowBackgroundBlur()
         ) == .layeredTaskbar
     }
 
@@ -251,10 +241,8 @@ enum DockGlassPresentation {
                 + "systemVariant=\(activeSystemVariant.map(String.init) ?? "off"), "
                 + "dockRefraction=\(dockRefractionEnabled), diagonalHighlight=\(diagonalHighlightEnabled), "
                 + "highlightBoost=\(highlightBoostEnabled)")
-        } else if #available(macOS 26.0, *) {
-            print("[glass] composite unavailable; using NSVisualEffectView")
         } else {
-            print("[glass] enabled but macOS < 26; using NSVisualEffectView")
+            print("[glass] composite unavailable; using NSVisualEffectView")
         }
     }
 }
@@ -265,7 +253,6 @@ enum DockGlassPresentation {
 /// bar's whole life; the inactive material is the uniform milky plate (+89 over black against the
 /// active +50). Re-sample once attached and on every occlusion change (the first order-in included),
 /// when `DockLiquidGlassPanel`'s predicates answer.
-@available(macOS 26.0, *)
 private final class DockSystemGlassEffectView: NSGlassEffectView {
     private var occlusionObserver: NSObjectProtocol?
 
@@ -293,7 +280,6 @@ private final class DockSystemGlassEffectView: NSGlassEffectView {
 }
 
 /// The plate rendered by AppKit's `NSGlassEffectView` with a private system variant (the Dock's).
-@available(macOS 26.0, *)
 private struct DockSystemGlassVariantPlate: NSViewRepresentable {
     let cornerRadius: CGFloat
     let variant: Int
@@ -421,7 +407,6 @@ private final class DockGlassRefractionObserver {
 }
 
 /// SwiftUI 玻璃底板（系统变体不可用或被关掉时的回退）。五个悬浮面板共用（探路期只有任务条接了）。
-@available(macOS 26.0, *)
 private struct DockLiquidGlassPlate: View {
     let cornerRadius: CGFloat
     let configuration: DockLiquidGlassConfiguration

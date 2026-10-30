@@ -84,7 +84,7 @@ struct DockStripView: View {
                 .environment(\.chipPillUsesGlass, usesLiquidGlass)
             }
             .clipShape(RoundedRectangle(cornerRadius: taskbarCornerRadius, style: .continuous))
-            .compatLeadingScrollAnchor()
+            .defaultScrollAnchor(.leading)
             .mask(alignment: .center) {
                 HStack(spacing: 0) {
                     LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)

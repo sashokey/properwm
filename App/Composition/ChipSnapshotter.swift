@@ -18,8 +18,6 @@ import SwiftUI
 ///    占位黄 `(255, 204, 0)`。而 `ChipView` 自带 `.nativeContextMenu`（= `overlay(NativeMenuHost)`），
 ///    所以整张卡会变成一块黄砖。四种组合里带 representable 的两种平均 alpha 都是 255。
 /// 2. `cacheDisplay` 对 representable 完全免疫（带不带它，非透明像素占比一模一样），
-///    透明度保留，而且**在 macOS 12 上就有**——一条路覆盖全部部署目标，不需要版本分支，
-///    也不需要给 12 做降级画法。
 /// 3. 耗时：中位 0.59ms、P95 0.87ms（预算 8ms）。首次 0.74ms，没有冷启动惩罚。
 enum ChipSnapshotter {
     /// 快照四周多留的那一圈。

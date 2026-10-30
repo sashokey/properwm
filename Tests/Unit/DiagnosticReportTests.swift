@@ -106,7 +106,6 @@ final class DiagnosticReportTests: XCTestCase {
             "glass panels: 754x98=L? N? R-29.88 B2.14 K55 [unmatched; inactive=L? N? R-17.64 B8.47 K55 active=unreadable]\n"))
     }
 
-    /// A frosted (macOS 12–25) or unreadable system must still produce a complete report.
     func testMissingValuesAreSpelledOut() {
         var empty = report()
         empty.appVersion = nil

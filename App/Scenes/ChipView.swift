@@ -149,7 +149,7 @@ struct ChipView: View {
                 isTapPressed: isTapPressed,
                 showsHover: showsHover
             )
-            if #available(macOS 26.0, *), pillUsesGlass, let glass = theme.chipPillGlass {
+            if pillUsesGlass, let glass = theme.chipPillGlass {
                 shape
                     .fill(Color.clear)
                     .glassEffect(.regular.tint(glass.tint.color).interactive(false), in: shape)

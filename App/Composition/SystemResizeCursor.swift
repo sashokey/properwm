@@ -42,11 +42,11 @@ final class SystemResizeCursor {
         let resizeCursor: NSCursor
 
         static let shared: Native? = {
+            let cursor = NSCursor.frameResize(position: .top, directions: .all)
             guard let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY),
                   let connectionSymbol = dlsym(skyLight, "SLSMainConnectionID"),
                   let propertySymbol = dlsym(skyLight, "SLSSetConnectionProperty"),
                   let setSymbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CoreCursorSet"),   // RTLD_DEFAULT
-                  let cursor = frameResizeCursor(),
                   let resizeType = coreCursorType(of: cursor) else { return nil }
             let connection = unsafeBitCast(connectionSymbol, to: ConnectionFn.self)()
             let setProperty = unsafeBitCast(propertySymbol, to: SetPropertyFn.self)
@@ -59,15 +59,6 @@ final class SystemResizeCursor {
                           arrowType: coreCursorType(of: .arrow) ?? 0,
                           resizeCursor: cursor)
         }()
-
-        /// The ▲▼ without the horizontal bar `resizeUpDown` carries. Public on macOS 15+; the
-        /// same system cursor has long existed privately as the window-edge resize cursor.
-        private static func frameResizeCursor() -> NSCursor? {
-            if #available(macOS 15.0, *) { return .frameResize(position: .top, directions: .all) }
-            let selector = NSSelectorFromString("_windowResizeNorthSouthCursor")
-            guard NSCursor.responds(to: selector) else { return nil }
-            return NSCursor.perform(selector)?.takeUnretainedValue() as? NSCursor
-        }
 
         private static func coreCursorType(of cursor: NSCursor) -> Int32? {
             let selector = NSSelectorFromString("_coreCursorType")

@@ -15,7 +15,6 @@ struct FullscreenIntentSnapshot: Equatable {
     let windowFrame: CGRect
     let screenCGFrame: CGRect
     /// 有任务条的屏（③④ 下是多块）。焦点窗口所在屏不在其中 → 没有条要藏，不发请求。
-    /// **不能用 `Set<CGRect>`**：`CGRect` 的 `Hashable` 是 macOS 15+ 的一致性（`AGENTS.md` 铁律）。
     let panelScreenCGFrames: [CGRect]
     let isFullscreen: Bool
     let buttonEnabled: Bool

@@ -8,7 +8,7 @@ Every CI run must pass before its app artifact is uploaded:
 - Localization completeness and format placeholders.
 - Debug-switch registration and absence of unused switches.
 - Debug build and XCTest execution with code coverage.
-- Deployment-availability checks for macOS 12.
+- Deployment-availability checks for the macOS 26 minimum.
 - Universal Release build for arm64 and x86_64.
 - Release binary checks for both architectures, stripped symbols, and absence of coverage instrumentation.
 - Bundle identity, version, legal notices, absent updater and Automation declarations, ad-hoc signature, and ZIP checksums.
@@ -45,4 +45,4 @@ Use the app ZIP from the exact successful CI commit. Do not compile locally.
 
 File-drag hover activation is outside this cleanup. It has not been added.
 
-Automated results apply to the runner OS and hardware. Older macOS versions, Intel runtime behavior, real multi-display geometry, and visual smoothness require checks on corresponding Macs. Record OS, app version, source commit, steps, and observed behavior for failures.
+Automated results apply to the runner OS and hardware. The deployment minimum is macOS 26; compatibility is retained without a separate macOS 26 test matrix or dedicated workarounds. Automated and manual acceptance testing targets the newest macOS available in GitHub Actions and on the test Mac. Intel runtime behavior, real multi-display geometry, and visual smoothness are not established by a successful cross-compilation. Record OS, app version, source commit, steps, and observed behavior for failures.

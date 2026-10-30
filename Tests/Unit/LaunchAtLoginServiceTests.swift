@@ -1,154 +1,119 @@
+import Foundation
+import ServiceManagement
+import Synchronization
 import XCTest
 @testable import ProperWM
 
-/// macOS 12 的老登录项路径。真正碰 CoreServices 的 `SharedFileListLoginItems` 在这里用内存列表替掉，
-/// 测的是后端的判断：什么时候算开、重复勾选不重复插、取消要清干净、列表打不开时怎么表现。
 final class LaunchAtLoginServiceTests: XCTestCase {
-    private let app = URL(fileURLWithPath: "/Applications/ProperWM.app")
-    private let otherApp = URL(fileURLWithPath: "/Applications/Safari.app")
-
-    // MARK: 读状态
-
-    func testUnavailableListReadsUnsupportedAndRefusesToWrite() {
-        let list = LoginItemListStub(urls: nil)
-        let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
-
-        XCTAssertEqual(backend.readState(), .unsupported)
-        XCTAssertThrowsError(try backend.setEnabled(true))
-        XCTAssertTrue(list.inserted.isEmpty)
+    func testModernStatusMappingPreservesApprovalRequirement() {
+        XCTAssertEqual(ModernLoginItemBackend.mapStatus(.enabled), .on)
+        XCTAssertEqual(ModernLoginItemBackend.mapStatus(.requiresApproval), .requiresApproval)
+        XCTAssertEqual(ModernLoginItemBackend.mapStatus(.notRegistered), .off)
+        XCTAssertEqual(ModernLoginItemBackend.mapStatus(.notFound), .off)
     }
 
-    func testReadsOnOnlyWhenThisBundleIsListed() {
-        XCTAssertEqual(
-            LegacyLoginItemBackend(list: LoginItemListStub(urls: []), bundleURL: app).readState(),
-            .off
-        )
-        XCTAssertEqual(
-            LegacyLoginItemBackend(list: LoginItemListStub(urls: [otherApp]), bundleURL: app).readState(),
-            .off
-        )
-        XCTAssertEqual(
-            LegacyLoginItemBackend(list: LoginItemListStub(urls: [otherApp, app]), bundleURL: app).readState(),
-            .on
-        )
+    func testMenuReflectsEnabledAndPendingRegistration() {
+        let off = LaunchAtLoginMenuPresentation(state: .off)
+        XCTAssertTrue(off.isEnabled)
+        XCTAssertFalse(off.isChecked)
+        XCTAssertFalse(off.showsSettingsItem)
+        XCTAssertTrue(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .off))
+
+        let on = LaunchAtLoginMenuPresentation(state: .on)
+        XCTAssertTrue(on.isEnabled)
+        XCTAssertTrue(on.isChecked)
+        XCTAssertFalse(on.showsSettingsItem)
+        XCTAssertFalse(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .on))
+
+        let pending = LaunchAtLoginMenuPresentation(state: .requiresApproval)
+        XCTAssertTrue(pending.isEnabled)
+        XCTAssertFalse(pending.isChecked)
+        XCTAssertTrue(pending.showsSettingsItem)
+        XCTAssertTrue(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .requiresApproval))
     }
-
-    func testReadTreatsTrailingSlashVariantAsTheSameBundle() {
-        // 列表里存的 URL 带不带结尾斜杠不稳定，不能因此把「已勾选」读成「未勾选」。
-        let listed = URL(fileURLWithPath: "/Applications/ProperWM.app/")
-        XCTAssertEqual(
-            LegacyLoginItemBackend(list: LoginItemListStub(urls: [listed]), bundleURL: app).readState(),
-            .on
-        )
-    }
-
-    // MARK: 写开关
-
-    func testEnableInsertsOnceAndIsIdempotent() throws {
-        let list = LoginItemListStub(urls: [otherApp])
-        let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
-
-        try backend.setEnabled(true)
-        try backend.setEnabled(true)
-
-        XCTAssertEqual(list.inserted, [app])
-        XCTAssertEqual(backend.readState(), .on)
-    }
-
-    func testDisableRemovesEveryMatchingEntryAndLeavesOthersAlone() throws {
-        let duplicate = URL(fileURLWithPath: "/Applications/ProperWM.app/")
-        let list = LoginItemListStub(urls: [app, otherApp, duplicate])
-        let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
-
-        try backend.setEnabled(false)
-
-        XCTAssertEqual(list.removed, [app, duplicate])
-        XCTAssertEqual(list.urls, [otherApp])
-        XCTAssertEqual(backend.readState(), .off)
-    }
-
-    func testDisableWhenNotListedIsANoOp() throws {
-        let list = LoginItemListStub(urls: [otherApp])
-        let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
-
-        try backend.setEnabled(false)
-
-        XCTAssertTrue(list.removed.isEmpty)
-        XCTAssertTrue(list.inserted.isEmpty)
-    }
-
-    func testListErrorsPropagateUnchanged() {
-        let list = LoginItemListStub(urls: [])
-        list.error = LaunchAtLoginError.writeFailed
-        let backend = LegacyLoginItemBackend(list: list, bundleURL: app)
-
-        XCTAssertThrowsError(try backend.setEnabled(true)) { error in
-            guard case LaunchAtLoginError.writeFailed = error else {
-                return XCTFail("unexpected error \(error)")
-            }
-        }
-    }
-
-    // MARK: URL 匹配
-
-    func testMatcherIgnoresTrailingSlashAndNormalizesPath() {
-        XCTAssertTrue(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/ProperWM.app/"),
-            URL(fileURLWithPath: "/Applications/ProperWM.app")
-        ))
-        XCTAssertTrue(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/Utilities/../ProperWM.app"),
-            URL(fileURLWithPath: "/Applications/ProperWM.app")
-        ))
-    }
-
-    func testMatcherRejectsOtherBundlesAndLookalikePrefixes() {
-        XCTAssertFalse(LoginItemURLMatcher.matches(app, otherApp))
-        // 前缀相同不算同一个包。
-        XCTAssertFalse(LoginItemURLMatcher.matches(
-            URL(fileURLWithPath: "/Applications/ProperWM.app"),
-            URL(fileURLWithPath: "/Applications/ProperWM.app.bak")
-        ))
-    }
-
-    // MARK: 服务层只是个后台队列包装
 
     @MainActor
-    func testServiceReadsAndWritesThroughTheInjectedBackend() async throws {
-        let list = LoginItemListStub(urls: [app])
-        let service = LaunchAtLoginService(backend: LegacyLoginItemBackend(list: list, bundleURL: app))
+    func testServiceReadsOffTheMainThreadAndForwardsRegistrationChanges() async throws {
+        let backend = LoginBackendStub(state: .on)
+        let service = LaunchAtLoginService(backend: backend)
 
-        let state = await service.currentState()
-        XCTAssertEqual(state, .on)
+        let before = await service.currentState()
+        XCTAssertEqual(before, .on)
+        XCTAssertEqual(backend.snapshot.lastReadWasMainThread, false)
 
         try service.setEnabled(false)
-        XCTAssertEqual(list.removed, [app])
-        let after = await service.currentState()
-        XCTAssertEqual(after, .off)
+        let disabled = await service.currentState()
+        XCTAssertEqual(disabled, .off)
+
+        try service.setEnabled(true)
+        let enabled = await service.currentState()
+        XCTAssertEqual(enabled, .on)
+        XCTAssertEqual(backend.snapshot.requests, [false, true])
+    }
+
+    @MainActor
+    func testServiceReturnsPendingApprovalWithoutTreatingItAsEnabled() async {
+        let service = LaunchAtLoginService(backend: LoginBackendStub(state: .requiresApproval))
+        let state = await service.currentState()
+        XCTAssertEqual(state, .requiresApproval)
+    }
+
+    @MainActor
+    func testRegistrationErrorsPropagateWithoutChangingState() async {
+        let backend = LoginBackendStub(state: .off, failsWrites: true)
+        let service = LaunchAtLoginService(backend: backend)
+
+        XCTAssertThrowsError(try service.setEnabled(true)) { error in
+            XCTAssertEqual(error as? LoginBackendStub.Failure, .registration)
+        }
+        let state = await service.currentState()
+        XCTAssertEqual(state, .off)
+    }
+
+    @MainActor
+    func testOpeningSystemSettingsIsForwardedToTheBackend() {
+        let backend = LoginBackendStub(state: .requiresApproval)
+        LaunchAtLoginService(backend: backend).openSystemSettings()
+        XCTAssertEqual(backend.snapshot.settingsOpenCount, 1)
     }
 }
 
-private final class LoginItemListStub: LoginItemListing, @unchecked Sendable {
-    var urls: [URL]?
-    var inserted: [URL] = []
-    var removed: [URL] = []
-    var error: Error?
+private final class LoginBackendStub: LaunchAtLoginBackend {
+    enum Failure: Error { case registration }
 
-    init(urls: [URL]?) {
-        self.urls = urls
+    struct State: Sendable {
+        var registration: LaunchAtLoginState
+        var requests: [Bool] = []
+        var settingsOpenCount = 0
+        var lastReadWasMainThread: Bool?
     }
 
-    func itemURLs() -> [URL]? { urls }
+    private let storage: Mutex<State>
+    private let failsWrites: Bool
 
-    func insert(_ url: URL) throws {
-        if let error { throw error }
-        inserted.append(url)
-        urls?.append(url)
+    init(state: LaunchAtLoginState, failsWrites: Bool = false) {
+        storage = Mutex(State(registration: state))
+        self.failsWrites = failsWrites
     }
 
-    func remove(_ url: URL) throws {
-        if let error { throw error }
-        removed.append(url)
-        urls?.removeAll { $0 == url }
+    var snapshot: State { storage.withLock { $0 } }
+
+    func readState() -> LaunchAtLoginState {
+        storage.withLock {
+            $0.lastReadWasMainThread = Thread.isMainThread
+            return $0.registration
+        }
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        try storage.withLock {
+            if failsWrites { throw Failure.registration }
+            $0.requests.append(enabled)
+            $0.registration = enabled ? .on : .off
+        }
+    }
+
+    func openSettings() {
+        storage.withLock { $0.settingsOpenCount += 1 }
     }
 }

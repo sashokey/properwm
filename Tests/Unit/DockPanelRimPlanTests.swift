@@ -26,7 +26,6 @@ final class DockPanelRimPlanTests: XCTestCase {
         )
     }
 
-    /// 毛玻璃路径（macOS 12–25）：主题描边**就是**那圈边，平时和高亮都得画。
     func testFrostedPathAlwaysDrawsTheThemeStroke() {
         XCTAssertEqual(
             DockPanelRimPlan.themeStrokeWidth(usesLiquidGlass: false, highlighted: false, lineWidth: 0.5),

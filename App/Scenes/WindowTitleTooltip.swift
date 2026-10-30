@@ -516,20 +516,20 @@ struct WindowTitleTooltipView: View {
     }
 
     private var drawsOwnChrome: Bool {
-        guard #available(macOS 26.0, *), usesLiquidGlass else { return true }
+        guard usesLiquidGlass else { return true }
         return theme.tooltipGlassSurface == .plateOverClearGlass
     }
 
     @ViewBuilder
     private func plate(shape: WindowTitleTooltipShape) -> some View {
         let plate = shape.fill(theme.tooltipPlate.color.opacity(theme.tooltipPlateOpacity))
-        if #available(macOS 26.0, *), usesLiquidGlass, theme.tooltipGlassSurface == .regularGlassAlone {
+        if usesLiquidGlass, theme.tooltipGlassSurface == .regularGlassAlone {
             shape
                 .fill(Color.clear)
                 .glassEffect(.regular.interactive(false), in: shape)
                 .materialActiveAppearance(.active)
                 .environment(\.appearsActive, true)
-        } else if #available(macOS 26.0, *), usesLiquidGlass {
+        } else if usesLiquidGlass {
             plate.background {
                 shape
                     .fill(Color.clear)

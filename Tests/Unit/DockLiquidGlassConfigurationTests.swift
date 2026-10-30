@@ -26,19 +26,18 @@ final class DockLiquidGlassConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.backgroundPlateOpacity, 0.001)
         XCTAssertEqual(configuration.systemVariant, 3, "the accepted plate is the Dock's own glass material")
         XCTAssertEqual(
-            configuration.renderPath(isGlassAPIAvailable: true, isCompositeAvailable: true),
+            configuration.renderPath(isCompositeAvailable: true),
             .layeredTaskbar
-        )
-        // 12–25 上没有玻璃 API，仍然回退到毛玻璃——默认翻面不影响老系统。
-        XCTAssertEqual(
-            configuration.renderPath(isGlassAPIAvailable: false, isCompositeAvailable: true),
-            .visualEffectFallback
         )
     }
 
     /// 关掉玻璃的开关**只认 `0`**。其余一切（含未设、乱填）都是开。
     func testOnlyZeroTurnsGlassOff() {
         XCTAssertFalse(resolve(["DOCK_LIQUID_GLASS": "0"]).isEnabled)
+        XCTAssertEqual(
+            resolve(["DOCK_LIQUID_GLASS": "0"]).renderPath(isCompositeAvailable: true),
+            .visualEffectFallback
+        )
         XCTAssertFalse(resolve(["DOCK_LIQUID_GLASS": " 0 \n"]).isEnabled)
 
         for value in ["", "1", "true", "yes", "2"] {
@@ -67,19 +66,15 @@ final class DockLiquidGlassConfigurationTests: XCTestCase {
         XCTAssertFalse(control.isEnabled(in: [control.rawValue: "0"]))
     }
 
-    func testCompositeRequiresSystemAPIAndBackgroundPanel() {
+    func testCompositeRequiresBackgroundPanel() {
         let configuration = resolve(["DOCK_LIQUID_GLASS": "1"])
 
         XCTAssertEqual(
-            configuration.renderPath(isGlassAPIAvailable: true, isCompositeAvailable: true),
+            configuration.renderPath(isCompositeAvailable: true),
             .layeredTaskbar
         )
         XCTAssertEqual(
-            configuration.renderPath(isGlassAPIAvailable: false, isCompositeAvailable: true),
-            .visualEffectFallback
-        )
-        XCTAssertEqual(
-            configuration.renderPath(isGlassAPIAvailable: true, isCompositeAvailable: false),
+            configuration.renderPath(isCompositeAvailable: false),
             .visualEffectFallback
         )
     }

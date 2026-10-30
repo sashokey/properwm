@@ -193,7 +193,6 @@ final class ResizeCursorTests: XCTestCase {
     }
 
     func testGlyphUsesUnscaledSystemFrameResizeArtworkAndHotspot() throws {
-        guard #available(macOS 15.0, *) else { throw XCTSkip("System frame cursor requires macOS 15") }
         _ = NSApplication.shared
         let native = NSCursor.frameResize(position: .top, directions: .all)
         XCTAssertEqual(ResizeCursorGlyph.size, native.image.size)
