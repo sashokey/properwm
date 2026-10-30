@@ -897,8 +897,7 @@ final class FullscreenIntentMonitor {
         focusedWindowID = nil
     }
 
-    private func handleAXNotification(_ notification: CFString) {
-        let name = notification as String
+    private func handleAXNotification(_ name: String) {
         if name == (kAXFocusedWindowChangedNotification as String) {
             invalidateCache()
             onContextChange(.focusedWindow)
@@ -925,8 +924,9 @@ final class FullscreenIntentMonitor {
         let monitor = Unmanaged<FullscreenIntentMonitor>.fromOpaque(refcon).takeUnretainedValue()
         // The observer source is installed on CFRunLoopGetMain(), so invalidate during the
         // notification turn instead of adding a second main-queue hop.
+        let name = notification as String
         MainActor.assumeIsolated {
-            monitor.handleAXNotification(notification)
+            monitor.handleAXNotification(name)
         }
     }
 

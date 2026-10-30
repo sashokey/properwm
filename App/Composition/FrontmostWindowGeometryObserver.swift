@@ -234,8 +234,7 @@ final class FrontmostWindowGeometryObserver {
         self.focusedElement = nil
     }
 
-    private func handleNotification(_ notification: CFString) {
-        let name = notification as String
+    private func handleNotification(_ name: String) {
         if name == (kAXFocusedWindowChangedNotification as String) {
             onEvent?(.focusedWindowChanged)
             requestFocusedRefresh()
@@ -273,8 +272,9 @@ final class FrontmostWindowGeometryObserver {
         let monitor = Unmanaged<FrontmostWindowGeometryObserver>
             .fromOpaque(refcon)
             .takeUnretainedValue()
+        let name = notification as String
         MainActor.assumeIsolated {
-            monitor.handleNotification(notification)
+            monitor.handleNotification(name)
         }
     }
 }

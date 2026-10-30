@@ -1,7 +1,7 @@
 import ApplicationServices
 import Foundation
 
-struct AXElementKey: Hashable {
+struct AXElementKey: Hashable, @unchecked Sendable {
     let e: AXUIElement
     static func == (l: AXElementKey, r: AXElementKey) -> Bool { CFEqual(l.e, r.e) }
     func hash(into h: inout Hasher) { h.combine(CFHash(e)) }
@@ -179,8 +179,7 @@ final class AppWindowObserver {
         )
     }
 
-    fileprivate func handleNotification(element: AXUIElement, notification: CFString) {
-        let notifStr = notification as String
+    fileprivate func handleNotification(element: AXUIElement, notification notifStr: String) {
         if notifStr == (kAXWindowCreatedNotification as String) {
             onWindowCreated?(pid)
         } else if notifStr == (kAXFocusedWindowChangedNotification as String) {
@@ -241,11 +240,9 @@ private extension WindowSubscriptionItem {
 private let appWindowObserverCallback: AXObserverCallback = { _, element, notification, refcon in
     guard let refcon else { return }
     let obs = Unmanaged<AppWindowObserver>.fromOpaque(refcon).takeUnretainedValue()
-    let notif = notification
-    let el = element
+    let name = notification as String
+    let key = AXElementKey(e: element)
     DispatchQueue.main.async { [weak obs] in
-        MainActor.assumeIsolated {
-            obs?.handleNotification(element: el, notification: notif)
-        }
+        obs?.handleNotification(element: key.e, notification: name)
     }
 }

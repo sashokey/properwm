@@ -8,6 +8,16 @@ import XCTest
 /// - 留下指向已销毁窗口的陈旧元素 → cgWindowID 复用后可能操作到**别的窗口**；
 /// - 把最小化后离开 `AXWindows` 的窗口误删 → 缓存在最该发挥作用的时刻恰好是空的，白建。
 final class AXElementCacheTests: XCTestCase {
+    func testElementIdentitySurvivesTransferFromABackgroundTask() async {
+        let key = await Task.detached {
+            AXElementKey(e: AXUIElementCreateApplication(getpid()))
+        }.value
+        let returned = await Task.detached { key }.value
+
+        XCTAssertEqual(key, returned)
+        XCTAssertEqual(key.hashValue, returned.hashValue)
+        XCTAssertEqual(CFGetTypeID(returned.e), AXUIElementGetTypeID())
+    }
 
     // MARK: - 保留判定
 

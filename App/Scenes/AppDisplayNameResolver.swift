@@ -19,13 +19,13 @@ enum AppDisplayNameResolver {
         ]
         return names.map { name in
             center.addObserver(forName: name, object: nil, queue: .main) { notification in
+                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication,
+                      let bundleID = app.bundleIdentifier else { return }
+                let localized = app.localizedName
                 MainActor.assumeIsolated {
-                    guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
-                        as? NSRunningApplication,
-                          let bundleID = app.bundleIdentifier else { return }
                     invalidateDisplayName(for: bundleID)
-                    if name == NSWorkspace.didLaunchApplicationNotification,
-                       let localized = app.localizedName {
+                    if name == NSWorkspace.didLaunchApplicationNotification, let localized {
                         nameRegistry.observe(name: localized, for: bundleID)
                     }
                 }
