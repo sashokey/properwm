@@ -229,12 +229,15 @@ extension PanelCoordinator {
         guard labelFollowTimer == nil else { return }
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] t in
             guard let self else { t.invalidate(); return }
-            guard CACurrentMediaTime() >= self.labelFollowDeadline else { return }
+            let expired = MainActor.assumeIsolated { CACurrentMediaTime() >= self.labelFollowDeadline }
+            guard expired else { return }
             t.invalidate()
-            self.labelFollowTimer = nil
-            self.labelBoxStart = [:]
-            self.labelBoxLive = [:]
-            self.relayout(animated: false)   // 收尾量一次终值，吃掉起始宽估算的零点几 pt
+            MainActor.assumeIsolated {
+                self.labelFollowTimer = nil
+                self.labelBoxStart = [:]
+                self.labelBoxLive = [:]
+                self.relayout(animated: false)
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         labelFollowTimer = timer

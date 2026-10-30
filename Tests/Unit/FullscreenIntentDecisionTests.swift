@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import XCTest
 import Synchronization
@@ -221,6 +222,21 @@ final class FullscreenIntentDecisionTests: XCTestCase {
         XCTAssertTrue(policy.recordDisable(at: 61))
         XCTAssertTrue(policy.recordDisable(at: 62))
         XCTAssertFalse(policy.isFused)
+    }
+
+    @MainActor
+    func testGestureSnapshotRetainsAnIndependentCopyAcrossTasks() async throws {
+        let source = try XCTUnwrap(CGEvent(
+            mouseEventSource: nil, mouseType: .mouseMoved,
+            mouseCursorPosition: CGPoint(x: 10, y: 20), mouseButton: .left
+        ))
+        source.flags = .maskCommand
+        let snapshot = try XCTUnwrap(CopiedGestureEvent(copying: source))
+        source.flags = []
+
+        let transferred = await Task.detached { snapshot }.value
+        let event = try XCTUnwrap(transferred.makeAppKitEvent())
+        XCTAssertTrue(event.modifierFlags.contains(.command))
     }
 
     func testCancellationAndExecutionRaceHasExactlyOneWinner() {

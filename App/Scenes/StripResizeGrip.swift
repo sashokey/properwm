@@ -19,6 +19,7 @@ enum StripResizeGripEvent {
 /// outside the view tree (screen topology change, unit rebuild, permission suspension).
 /// Relying on `dismantleNSView` alone leaves a pushed cursor and a live session behind when
 /// the drag is interrupted while the view stays mounted.
+@MainActor
 final class StripResizeGripController {
     weak var view: StripResizeGripView?
 

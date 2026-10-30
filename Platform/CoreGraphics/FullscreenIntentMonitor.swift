@@ -173,7 +173,7 @@ private final class FullscreenIntentEventBridge {
     private let logger: Logger
     private let onIntent: @MainActor @Sendable (FullscreenIntentRequest) -> Void
     private let onSpaceSwitchIntent: @MainActor @Sendable (SpaceSwitchDirection, _ displayUUID: String) -> Void
-    private let onGestureSample: @Sendable (sending CGEvent) -> Void
+    private let onGestureSample: @Sendable (CopiedGestureEvent) -> Void
     private let spaceSwitchEnabled: Bool
     private var gestureHopLock = os_unfair_lock_s()
     private var gestureHopInFlight = false
@@ -200,7 +200,7 @@ private final class FullscreenIntentEventBridge {
         spaceSwitchEnabled: Bool,
         onIntent: @escaping @MainActor @Sendable (FullscreenIntentRequest) -> Void,
         onSpaceSwitchIntent: @escaping @MainActor @Sendable (SpaceSwitchDirection, _ displayUUID: String) -> Void,
-        onGestureSample: @escaping @Sendable (sending CGEvent) -> Void
+        onGestureSample: @escaping @Sendable (CopiedGestureEvent) -> Void
     ) {
         self.state = state
         self.logger = logger
@@ -278,7 +278,7 @@ private final class FullscreenIntentEventBridge {
             trace("coalesced")
             return
         }
-        guard let copy = event.copy() else {
+        guard let copy = CopiedGestureEvent(copying: event) else {
             finishGestureHop()
             return
         }
@@ -334,7 +334,7 @@ private final class FullscreenIntentEventBridge {
     }
 }
 
-private final class FullscreenIntentEventTapThread {
+private final class FullscreenIntentEventTapThread: @unchecked Sendable {
     private let logger: Logger
     private let bridge: FullscreenIntentEventBridge
     private let atomicState: FullscreenIntentAtomicState
@@ -474,6 +474,11 @@ private final class FullscreenIntentEventTapThread {
         defer { os_unfair_lock_unlock(&recoveryLock) }
         return body()
     }
+}
+
+private struct AXObserverRegistration: @unchecked Sendable {
+    let observer: AXObserver
+    let element: AXUIElement
 }
 
 @MainActor
@@ -681,13 +686,13 @@ final class FullscreenIntentMonitor {
 
     /// 主线程侧的三指判定：现造 NSEvent → 读触控点 → 喂纯状态机 → 过相邻空间闸。
     /// 必须在主线程；事件线程造出来的 NSEvent 读不到触控点（受控实测）。
-    private func processGestureSample(_ event: CGEvent) {
+    private func processGestureSample(_ event: CopiedGestureEvent) {
         defer { bridge.finishGestureHop() }
         guard started, spaceSwitchEnabled else { return mainTrace("not-started") }
         guard let context = atomicState.currentSpaceContext() else {
             return mainTrace("no-context")
         }
-        guard let ns = NSEvent(cgEvent: event) else { return mainTrace("nsevent-nil") }
+        guard let ns = event.makeAppKitEvent() else { return mainTrace("nsevent-nil") }
         // **`NSTouch.Phase.touching` 是组合值（began|moved|stationary），必须用交集判断。**
         // 写成 `phase.contains(.touching)` 要求单个触点同时具备三种状态，永远不成立——
         // 2026-08-09 实测：`allTouches()` 明明给出 3 个触点，过滤后恒为 0，功能完全不触发。
@@ -763,12 +768,12 @@ final class FullscreenIntentMonitor {
         }
         let app = AXUIElementCreateApplication(pid)
         _ = AXUIElementSetMessagingTimeout(app, 0.1)
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-        // Run-loop source on main first (wires callbacks); registration IPC off main (see axRegistrationQueue).
+        let registration = AXObserverRegistration(observer: observer, element: app)
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
-        Self.axRegistrationQueue.async {
-            AXObserverAddNotification(observer, app, kAXFocusedWindowChangedNotification as CFString, refcon)
-            AXObserverAddNotification(observer, app, kAXWindowCreatedNotification as CFString, refcon)
+        Self.axRegistrationQueue.async { [self] in
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
+            AXObserverAddNotification(registration.observer, registration.element, kAXFocusedWindowChangedNotification as CFString, refcon)
+            AXObserverAddNotification(registration.observer, registration.element, kAXWindowCreatedNotification as CFString, refcon)
         }
         axObserver = observer
         appElement = app
@@ -869,11 +874,12 @@ final class FullscreenIntentMonitor {
         guard let observer = axObserver else { return }
         if focusedWindowID == windowID { return }
         unregisterFocusedElement(observer: observer)
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-        Self.axRegistrationQueue.async {
-            AXObserverAddNotification(observer, element, kAXWindowMovedNotification as CFString, refcon)
-            AXObserverAddNotification(observer, element, kAXWindowResizedNotification as CFString, refcon)
-            AXObserverAddNotification(observer, element, kAXUIElementDestroyedNotification as CFString, refcon)
+        let registration = AXObserverRegistration(observer: observer, element: element)
+        Self.axRegistrationQueue.async { [self] in
+            let refcon = Unmanaged.passUnretained(self).toOpaque()
+            AXObserverAddNotification(registration.observer, registration.element, kAXWindowMovedNotification as CFString, refcon)
+            AXObserverAddNotification(registration.observer, registration.element, kAXWindowResizedNotification as CFString, refcon)
+            AXObserverAddNotification(registration.observer, registration.element, kAXUIElementDestroyedNotification as CFString, refcon)
         }
         focusedElement = element
         focusedWindowID = windowID
@@ -885,10 +891,11 @@ final class FullscreenIntentMonitor {
             focusedWindowID = nil
             return
         }
+        let registration = AXObserverRegistration(observer: observer, element: element)
         Self.axRegistrationQueue.async {
-            AXObserverRemoveNotification(observer, element, kAXWindowMovedNotification as CFString)
-            AXObserverRemoveNotification(observer, element, kAXWindowResizedNotification as CFString)
-            AXObserverRemoveNotification(observer, element, kAXUIElementDestroyedNotification as CFString)
+            AXObserverRemoveNotification(registration.observer, registration.element, kAXWindowMovedNotification as CFString)
+            AXObserverRemoveNotification(registration.observer, registration.element, kAXWindowResizedNotification as CFString)
+            AXObserverRemoveNotification(registration.observer, registration.element, kAXUIElementDestroyedNotification as CFString)
         }
         focusedElement = nil
         focusedWindowID = nil

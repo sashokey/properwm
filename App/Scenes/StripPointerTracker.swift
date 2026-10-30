@@ -103,7 +103,7 @@ struct StripPointerTracker: NSViewRepresentable {
             // 60Hz：屏幕就这个刷新率，再密也看不出来。2400pt/s 横扫时每 42pt 一格
             // 约 17.5ms，这个节奏刚好一格不漏。
             let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-                self?.tick()
+                MainActor.assumeIsolated { self?.tick() }
             }
             poll = timer
             RunLoop.main.add(timer, forMode: .common)

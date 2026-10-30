@@ -300,9 +300,8 @@ extension AppDelegate: PermissionEffectHandler {
 
     private func schedulePermissionProbe() {
         guard let generation = permissionWatchdogGate.beginProbe() else { return }
-        let permissionService = permissionService
         permissionProbeQueue.async { [weak self] in
-            let trusted = permissionService.hasRequiredPermissions()
+            let trusted = PermissionService().hasRequiredPermissions()
             DispatchQueue.main.async { [weak self] in
                 guard let self,
                       self.permissionWatchdogGate.completeProbe(generation: generation) else { return }
