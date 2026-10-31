@@ -66,17 +66,25 @@ final class AppRuntimeTests: XCTestCase {
         return (runtime, inventory)
     }
 
-    func testFailedActionClearsItsOptimisticStateImmediately() async {
+    func testFailedActionPublishesFailureAfterClearingItsOptimisticState() async {
         let executor = RuntimeExecutor(results: [false])
         let (runtime, _) = await start(executor)
         defer { runtime.stop() }
+        var publishedFailure = false
+        let subscription = runtime.debugState.$feedbackEntriesByWindowID.sink { entries in
+            guard entries["window-1"]?.phase == .failure else { return }
+            publishedFailure = true
+            XCTAssertNil(runtime.optimisticStatesByWindowID["window-1"])
+        }
+        defer { subscription.cancel() }
         runtime.activate(windowID: "window-1")
         XCTAssertEqual(runtime.optimisticStatesByWindowID["window-1"]?.status, .active)
         let pending = runtime.pendingActionsForTesting
+        XCTAssertFalse(pending.isEmpty)
         executor.gates[0].signal()
         for task in pending { await task.value }
         XCTAssertNil(runtime.optimisticStatesByWindowID["window-1"])
-        XCTAssertEqual(runtime.debugState.feedbackEntriesByWindowID["window-1"]?.phase, .failure)
+        XCTAssertTrue(publishedFailure)
     }
 
     func testOlderFailureCannotClearNewerSuccessfulIntent() async {

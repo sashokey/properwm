@@ -96,7 +96,7 @@ jobs:
         if: (success() || failure()) && steps.tests.outcome != 'skipped'
         run: python3 Scripts/check_availability_warnings.py build/xcodebuild-test.log
 
-      - name: Verify inventory with a constrained Swift executor
+      - name: Verify window runtime with a constrained Swift executor
         if: success()
         env:
           TEST_RUNNER_LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
@@ -111,6 +111,7 @@ jobs:
             -resultBundlePath build/ConstrainedInventory.xcresult \
             -destination 'platform=macOS' \
             -only-testing:ProperWMTests/InventoryLifecycleTests \
+            -only-testing:ProperWMTests/AppRuntimeTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/xcodebuild-inventory.log
 
