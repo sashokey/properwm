@@ -12,7 +12,6 @@
 		E9000000000000000000102D /* PanelCoordinator+PanelSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */; };
 		E90000000000000000001028 /* PanelCoordinator+Fullscreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000028 /* PanelCoordinator+Fullscreen.swift */; };
 		E90000000000000000001021 /* PanelCoordinator+Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000021 /* PanelCoordinator+Spaces.swift */; };
-		E90000000000000000001010 /* StripProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000010 /* StripProjection.swift */; };
 		E90000000000000000001007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
 		E90000000000000000002007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
 		E90000000000000000003007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
@@ -23,7 +22,6 @@
 		E90000000000000000001006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
 		E90000000000000000002006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
 		E90000000000000000003006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
-		E90000000000000000001002 /* TaskbarDebugSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000002 /* TaskbarDebugSnapshot.swift */; };
 		E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000004 /* DefaultsValueParsing.swift */; };
@@ -56,8 +54,6 @@
 		A00000000000000000009011 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009010 /* LaunchAtLoginService.swift */; };
 		A00000000000000000009031 /* PanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009030 /* PanelVisibilityState.swift */; };
 		A000000000000000000090B1 /* FullscreenClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000090B0 /* FullscreenClassificationTests.swift */; };
-		A00000000000000000001C01 /* IconRenditionChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C00 /* IconRenditionChoice.swift */; };
-		A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C20 /* IconBitmapRenderer.swift */; };
 		A10CF0000000000000000001 /* AppIconFreshness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10CF0000000000000000000 /* AppIconFreshness.swift */; };
 		A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10CF0000000000000000000 /* AppIconFreshness.swift */; };
 		A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10CF0000000000000000010 /* AppIconStampTests.swift */; };
@@ -74,7 +70,6 @@
 		D90000000000000000000104 /* DisplayTopologyRefreshController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* DisplayTopologyRefreshController.swift */; };
 		D90000000000000000000204 /* DisplayTopologyRefreshController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000004 /* DisplayTopologyRefreshController.swift */; };
 		D90000000000000000000209 /* DisplayTopologyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000136 /* DisplayTopologyStore.swift */; };
-		A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C00 /* IconRenditionChoice.swift */; };
 		B1000000000000000000010F /* MinimizeHandoffTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000010D /* MinimizeHandoffTarget.swift */; };
 		B10000000000000000000114 /* MinimizeSettleGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000112 /* MinimizeSettleGate.swift */; };
 		B10000000000000000000119 /* TaskbarScreenPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000117 /* TaskbarScreenPlacement.swift */; };
@@ -82,7 +77,6 @@
 		B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000130 /* WindowDisplayAttribution.swift */; };
 		B10000000000000000000140 /* WindowDisplayMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013E /* WindowDisplayMove.swift */; };
 		B10000000000000000000135 /* StripDisplayFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000133 /* StripDisplayFilter.swift */; };
-		A00000000000000000001C11 /* IconRenditionChoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C10 /* IconRenditionChoiceTests.swift */; };
 		A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */; };
 		A00000000000000000009051 /* PanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009030 /* PanelVisibilityState.swift */; };
 		A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009010 /* LaunchAtLoginService.swift */; };
@@ -95,7 +89,6 @@
 		B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72000000000000000000003 /* AppDisplayNameCache.swift */; };
 		B73000000000000000000001 /* AppTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000069 /* AppTracker.swift */; };
 		B73000000000000000000002 /* AppWindowObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000068 /* AppWindowObserver.swift */; };
-		B73000000000000000000003 /* AccessibilitySource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000F /* AccessibilitySource.swift */; };
 		A000000000000000000019A1 /* AppDisplayNameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019B1 /* AppDisplayNameResolver.swift */; };
 		A000000000000000000019D1 /* AppMenuFragments.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019C1 /* AppMenuFragments.swift */; };
 		A00000000000000000009771 /* WindowOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009770 /* WindowOrderingTests.swift */; };
@@ -110,17 +103,10 @@
 		A00000000000000000001008 /* SystemBoundaryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* SystemBoundaryModels.swift */; };
 		A00000000000000000001009 /* Decisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* Decisions.swift */; };
 		A0000000000000000000100A /* DockState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* DockState.swift */; };
-		A0000000000000000000100B /* WindowIdentityEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000B /* WindowIdentityEngine.swift */; };
-		A00000000000000000001017 /* IdentityRuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000050 /* IdentityRuleEngine.swift */; };
-		A00000000000000000001019 /* ObservationKindMergeRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000053 /* ObservationKindMergeRule.swift */; };
-		A0000000000000000000100C /* PlacementEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000C /* PlacementEngine.swift */; };
-		A0000000000000000000100D /* LifecycleTransitionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000D /* LifecycleTransitionEngine.swift */; };
 		A0000000000000000000100E /* LifecycleActionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000E /* LifecycleActionPlanner.swift */; };
 		A0000000000000000000101A /* AXWindowReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* AXWindowReader.swift */; };
 		C90000000000000000000004 /* AXElementCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000003 /* AXElementCache.swift */; };
 		C9000000000000000000000B /* AXElementCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000003 /* AXElementCache.swift */; };
-		A0000000000000000000100F /* AccessibilitySource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000F /* AccessibilitySource.swift */; };
-		A00000000000000000001010 /* CoreGraphicsSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* CoreGraphicsSource.swift */; };
 		A00000000000000000001030 /* DockWindowEligibilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000061 /* DockWindowEligibilityPolicy.swift */; };
 		A00000000000000000001032 /* ObservationAdmissionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000062 /* ObservationAdmissionGate.swift */; };
 		A00000000000000000001033 /* ObservationAdmissionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000062 /* ObservationAdmissionGate.swift */; };
@@ -129,12 +115,10 @@
 		A00000000000000000001036 /* WindowFrameMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* WindowFrameMatchPolicy.swift */; };
 		A00000000000000000001037 /* AXWindowMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000064 /* AXWindowMatchPolicy.swift */; };
 		A00000000000000000001038 /* AXWindowMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000064 /* AXWindowMatchPolicy.swift */; };
-		A00000000000000000001039 /* AppFallbackRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */; };
 		A0000000000000000000103A /* AppFallbackRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */; };
 		A0000000000000000000103B /* AppFallbackRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */; };
 		A0000000000000000000103C /* IdentityRuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000050 /* IdentityRuleEngine.swift */; };
 		A0000000000000000000101B /* FinderWindowRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000055 /* FinderWindowRules.swift */; };
-		A00000000000000000001012 /* FinderSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* FinderSource.swift */; };
 		A00000000000000000001013 /* PermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PermissionService.swift */; };
 		A0000000000000000000B011 /* AccessibilityPermissionDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000B010 /* AccessibilityPermissionDecision.swift */; };
 		A0000000000000000000B012 /* AccessibilityPermissionDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000B010 /* AccessibilityPermissionDecision.swift */; };
@@ -184,10 +168,6 @@
 		A00000000000000000009E11 /* WindowInventoryAnomalyLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E00 /* WindowInventoryAnomalyLog.swift */; };
 		A00000000000000000009E12 /* WindowInventoryAnomalyLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E01 /* WindowInventoryAnomalyLogTests.swift */; };
 		A00000000000000000009E13 /* AXWindowReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000054 /* AXWindowReader.swift */; };
-		F3A0000000000000000000A1 /* DiagnosticReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A0000000000000000000A0 /* DiagnosticReport.swift */; };
-		F3A0000000000000000000A2 /* DiagnosticReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A0000000000000000000A0 /* DiagnosticReport.swift */; };
-		F3A0000000000000000000B1 /* DiagnosticReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A0000000000000000000B0 /* DiagnosticReportTests.swift */; };
-		D1A000000000000000000002 /* StripProjectionRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000012 /* StripProjectionRegistry.swift */; };
 		D1A000000000000000000003 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000013 /* DiagnosticsTests.swift */; };
 		F1B0000000000000000000C3 /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B0000000000000000000C2 /* DisplayIdentity.swift */; };
 		A00000000000000000009E14 /* AXWindowReaderResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E02 /* AXWindowReaderResultTests.swift */; };
@@ -258,24 +238,34 @@
 		CE4B249A2C3346E2AEB41DA2 = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
 		198D8C3204574A9286CFDDCC = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
 		902B466BD03649EAB3253707 = {isa = PBXBuildFile; fileRef = 9C33F094644B4978BAE7E77F; };
-		191673982C40DC4426AB092C = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
-		7B47D5BAC3BC8BF89A9D71C2 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
-		6EBF8AD5F79BCD4E6C3B6503 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		132A413EF5B9FD9566329B23 = {isa = PBXBuildFile; fileRef = 0A95269DF31CDA0184AA1F40; };
 		A415A5AFF953A43C81C0A8A0 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
 		0210673001E443780FF004F6 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
 		DA484AF47498D843DD545682 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
+		96D026158DE9A044040EFEA4 = {isa = PBXBuildFile; fileRef = 35F0B6CC05AE5ECDAE656A24; };
 		8B44AE2EBD3F2D407DE55F2C = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
 		F87D51234347E29DADF419A1 = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
 		542E559B05F00B87A3254C1C = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
-		96D026158DE9A044040EFEA4 = {isa = PBXBuildFile; fileRef = 35F0B6CC05AE5ECDAE656A24; };
-		14C901A396C207524EDF6C6E = {isa = PBXBuildFile; fileRef = A00000000000000000009E03; };
-		CFF17899E7CD6F3FF3ECC379 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
-		A6D5BCC93E5F624BF6E1640B = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
 		452E9C541EDC0055C577545D = {isa = PBXBuildFile; fileRef = A00000000000000000000003; };
-		132A413EF5B9FD9566329B23 = {isa = PBXBuildFile; fileRef = 0A95269DF31CDA0184AA1F40; };
 		36FA945289DCB7E45C8EDCAD = {isa = PBXBuildFile; fileRef = CAC68C8C9934A6358A28C8B7; };
 		A5CD963E34F2C13932637822 = {isa = PBXBuildFile; fileRef = F1B0000000000000000000C2; };
+		CFF17899E7CD6F3FF3ECC379 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
+		A6D5BCC93E5F624BF6E1640B = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
+		191673982C40DC4426AB092C = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		7B47D5BAC3BC8BF89A9D71C2 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		6EBF8AD5F79BCD4E6C3B6503 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		E8CA0D3439098BDE5BB84189 = {isa = PBXBuildFile; fileRef = F1D0000000000000000000E0; };
+		CF3CE6A0B56FD449D386D9CD = {isa = PBXBuildFile; fileRef = 0447A468CF6A959D5E60683B; };
 		B8DB1A1303F488BF81C82186 = {isa = PBXBuildFile; fileRef = A21A879D58AA513652B6EAAB; };
+		F42245FEA95BAE0ADE9ED824 = {isa = PBXBuildFile; fileRef = A0000000000000000000000B; };
+		8044A55A37E71F599B0D5D30 = {isa = PBXBuildFile; fileRef = A0000000000000000000000B; };
+		6DBBF22DAFC7C8E06F491F76 = {isa = PBXBuildFile; fileRef = A00000000000000000000050; };
+		2126FC4148832581F58866E4 = {isa = PBXBuildFile; fileRef = A0000000000000000000000C; };
+		8DDDDE62944FCD5C78A120C1 = {isa = PBXBuildFile; fileRef = A0000000000000000000000D; };
+		0C6D78B63484DDFD194A1866 = {isa = PBXBuildFile; fileRef = A0000000000000000000000F; };
+		9FA394B44335E2ACB6F6213D = {isa = PBXBuildFile; fileRef = A00000000000000000000010; };
+		AFF1D586985CCB9CB3C032C5 = {isa = PBXBuildFile; fileRef = A00000000000000000000012; };
+		14C901A396C207524EDF6C6E = {isa = PBXBuildFile; fileRef = A00000000000000000009E03; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -294,11 +284,9 @@
 		E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+PanelSetup.swift"; sourceTree = "<group>"; };
 		E90000000000000000000028 /* PanelCoordinator+Fullscreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Fullscreen.swift"; sourceTree = "<group>"; };
 		E90000000000000000000021 /* PanelCoordinator+Spaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Spaces.swift"; sourceTree = "<group>"; };
-		E90000000000000000000010 /* StripProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripProjection.swift; sourceTree = "<group>"; };
 		E90000000000000000000007 /* DebugSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSwitch.swift; sourceTree = "<group>"; };
 		E90000000000000000000008 /* DebugSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSwitchTests.swift; sourceTree = "<group>"; };
 		E90000000000000000000006 /* DockSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSnapshot.swift; sourceTree = "<group>"; };
-		E90000000000000000000002 /* TaskbarDebugSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarDebugSnapshot.swift; sourceTree = "<group>"; };
 		E90000000000000000000003 /* FullscreenWindowClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenWindowClassifier.swift; sourceTree = "<group>"; };
 		E90000000000000000000004 /* DefaultsValueParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsValueParsing.swift; sourceTree = "<group>"; };
 		F10000000000000000000010 /* FullscreenIntentDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentDecision.swift; sourceTree = "<group>"; };
@@ -333,9 +321,6 @@
 		B10000000000000000000104 /* ScanProbeGateDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanProbeGateDecision.swift; sourceTree = "<group>"; };
 		A00000000000000000009E06 /* ScanAdmissionDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAdmissionDecisionTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009E23 /* LaunchAtLoginServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginServiceTests.swift; sourceTree = "<group>"; };
-		F3A0000000000000000000A0 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
-		F3A0000000000000000000B0 /* DiagnosticReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReportTests.swift; sourceTree = "<group>"; };
-		D1A000000000000000000012 /* StripProjectionRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripProjectionRegistry.swift; sourceTree = "<group>"; };
 		D1A000000000000000000013 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		F1B0000000000000000000C2 /* DisplayIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayIdentity.swift; sourceTree = "<group>"; };
 		A00000000000000000009A00 /* WindowLiftAvoidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLiftAvoidance.swift; sourceTree = "<group>"; };
@@ -424,8 +409,6 @@
 		B72000000000000000000003 /* AppDisplayNameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameCache.swift; sourceTree = "<group>"; };
 		C90000000000000000000005 /* ClickLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickLatencyTrace.swift; sourceTree = "<group>"; };
 		A00000000000000000009AB0 /* HoverTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTrace.swift; sourceTree = "<group>"; };
-		A00000000000000000001C00 /* IconRenditionChoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconRenditionChoice.swift; sourceTree = "<group>"; };
-		A00000000000000000001C20 /* IconBitmapRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconBitmapRenderer.swift; sourceTree = "<group>"; };
 		A10CF0000000000000000000 /* AppIconFreshness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconFreshness.swift; sourceTree = "<group>"; };
 		A10CF0000000000000000010 /* AppIconStampTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconStampTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000010D /* MinimizeHandoffTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinimizeHandoffTarget.swift; sourceTree = "<group>"; };
@@ -440,7 +423,6 @@
 		D90000000000000000000004 /* DisplayTopologyRefreshController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshController.swift; sourceTree = "<group>"; };
 		D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshControllerTests.swift; sourceTree = "<group>"; };
 		D90000000000000000000008 /* DisplayTopologyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStoreTests.swift; sourceTree = "<group>"; };
-		A00000000000000000001C10 /* IconRenditionChoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconRenditionChoiceTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayTitleTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009770 /* WindowOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrderingTests.swift; sourceTree = "<group>"; };
 		A000000000000000000090B0 /* FullscreenClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenClassificationTests.swift; sourceTree = "<group>"; };
@@ -457,13 +439,14 @@
 		6BFD0EE8181542B9A95A2529 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarRendererTests.swift"; sourceTree = SOURCE_ROOT; };
 		83751ED96AC24DA6AAC7A17A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/TaskbarInteraction.swift"; sourceTree = SOURCE_ROOT; };
 		9C33F094644B4978BAE7E77F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarInteractionTests.swift"; sourceTree = SOURCE_ROOT; };
-		645980E95E1032661911676D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowActionExecutor.swift"; sourceTree = SOURCE_ROOT; };
-		38EDF81CAE222EB752141E25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowFocusBackend.swift"; sourceTree = SOURCE_ROOT; };
-		C757E51A34A4D4F65CA8C48C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/WindowRuntimeInterfaces.swift"; sourceTree = SOURCE_ROOT; };
-		35F0B6CC05AE5ECDAE656A24 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/WindowFocusTests.swift"; sourceTree = SOURCE_ROOT; };
-		9DA777C38F1AC5C766FA2467 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/AsyncWorkScope.swift"; sourceTree = SOURCE_ROOT; };
 		0A95269DF31CDA0184AA1F40 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/InventoryLifecycleTests.swift"; sourceTree = SOURCE_ROOT; };
+		38EDF81CAE222EB752141E25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowFocusBackend.swift"; sourceTree = SOURCE_ROOT; };
+		35F0B6CC05AE5ECDAE656A24 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/WindowFocusTests.swift"; sourceTree = SOURCE_ROOT; };
+		C757E51A34A4D4F65CA8C48C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/WindowRuntimeInterfaces.swift"; sourceTree = SOURCE_ROOT; };
 		CAC68C8C9934A6358A28C8B7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/AppRuntimeTests.swift"; sourceTree = SOURCE_ROOT; };
+		9DA777C38F1AC5C766FA2467 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/AsyncWorkScope.swift"; sourceTree = SOURCE_ROOT; };
+		645980E95E1032661911676D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowActionExecutor.swift"; sourceTree = SOURCE_ROOT; };
+		0447A468CF6A959D5E60683B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/OverlaySpaceHostTests.swift"; sourceTree = SOURCE_ROOT; };
 		A21A879D58AA513652B6EAAB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarDrawingTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -496,13 +479,14 @@
 			isa = PBXGroup;
 			children = (
 				A21A879D58AA513652B6EAAB,
-				CAC68C8C9934A6358A28C8B7,
-				0A95269DF31CDA0184AA1F40,
-				9DA777C38F1AC5C766FA2467,
-				35F0B6CC05AE5ECDAE656A24,
-				C757E51A34A4D4F65CA8C48C,
-				38EDF81CAE222EB752141E25,
+				0447A468CF6A959D5E60683B,
 				645980E95E1032661911676D,
+				9DA777C38F1AC5C766FA2467,
+				CAC68C8C9934A6358A28C8B7,
+				C757E51A34A4D4F65CA8C48C,
+				35F0B6CC05AE5ECDAE656A24,
+				38EDF81CAE222EB752141E25,
+				0A95269DF31CDA0184AA1F40,
 				9C33F094644B4978BAE7E77F,
 				83751ED96AC24DA6AAC7A17A,
 				6BFD0EE8181542B9A95A2529,
@@ -556,13 +540,11 @@
 		A00000000000000000000025 /* Composition */ = {
 			isa = PBXGroup;
 			children = (
-				E90000000000000000000002 /* TaskbarDebugSnapshot.swift */,
 				A00000000000000000000003 /* AppComposition.swift */,
 				B10000000000000000000136 /* DisplayTopologyStore.swift */,
 				A00000000000000000005010 /* StripOrderStore.swift */,
 				A00000000000000000008010 /* AppSettingsStore.swift */,
 				D10000000000000000000003 /* SettingsCoordinator.swift */,
-				F3A0000000000000000000A0 /* DiagnosticReport.swift */,
 				A00000000000000000009010 /* LaunchAtLoginService.swift */,
 				A00000000000000000009030 /* PanelVisibilityState.swift */,
 				A00000000000000000009A10 /* WindowLiftAvoidanceController.swift */,
@@ -583,12 +565,9 @@
 		A00000000000000000000026 /* Scenes */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000001C20 /* IconBitmapRenderer.swift */,
 				A10CF0000000000000000000 /* AppIconFreshness.swift */,
 				EAA000000000000000000001 /* AppIconResolver.swift */,
-				E90000000000000000000010 /* StripProjection.swift */,
 				A000000000000000000000F1 /* PermissionOnboardingView.swift */,
-				D1A000000000000000000012 /* StripProjectionRegistry.swift */,
 				A000000000000000000019B1 /* AppDisplayNameResolver.swift */,
 				A000000000000000000019C1 /* AppMenuFragments.swift */,
 			);
@@ -613,7 +592,6 @@
 				E90000000000000000000007 /* DebugSwitch.swift */,
 				E90000000000000000000004 /* DefaultsValueParsing.swift */,
 				C30000000000000000000010 /* AppFallbackChipDecision.swift */,
-				A00000000000000000001C00 /* IconRenditionChoice.swift */,
 				B1000000000000000000010D /* MinimizeHandoffTarget.swift */,
 				B10000000000000000000112 /* MinimizeSettleGate.swift */,
 				B10000000000000000000117 /* TaskbarScreenPlacement.swift */,
@@ -861,7 +839,6 @@
 				D10000000000000000000007 /* SettingsCoordinatorTests.swift */,
 				D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */,
 				A000000000000000000090B0 /* FullscreenClassificationTests.swift */,
-				A00000000000000000001C10 /* IconRenditionChoiceTests.swift */,
 				A10CF0000000000000000010 /* AppIconStampTests.swift */,
 				A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */,
 				A00000000000000000009770 /* WindowOrderingTests.swift */,
@@ -896,7 +873,6 @@
 				B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */,
 				A00000000000000000000E210 /* WindowTitleSettleTests.swift */,
 				A00000000000000000000B200 /* AppNameRegistryTests.swift */,
-				F3A0000000000000000000B0 /* DiagnosticReportTests.swift */,
 				D1A000000000000000000013 /* DiagnosticsTests.swift */,
 				A00000000000000000000C00 /* ManualPanelHostTests.swift */,
 				A0000000000000000000ACC0 /* NonConstrainingPanelTests.swift */,
@@ -1046,10 +1022,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				191673982C40DC4426AB092C,
 				CFF17899E7CD6F3FF3ECC379,
 				8B44AE2EBD3F2D407DE55F2C,
 				A415A5AFF953A43C81C0A8A0,
-				191673982C40DC4426AB092C,
 				CE4B249A2C3346E2AEB41DA2,
 				990C73B8755645A6A2C7C8FA,
 				42DF1BB75786469A97FBDE8D,
@@ -1057,7 +1033,6 @@
 				B9E65B806A194CAB9BF05DBA,
 				F8A4F179D2C24B2EA5ED5181,
 				097517D586044EF5AB85B1E6,
-				A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */,
 				A10CF0000000000000000001 /* AppIconFreshness.swift in Sources */,
 				EAA000000000000000000002 /* AppIconResolver.swift in Sources */,
 				E9000000000000000000102B /* PanelCoordinator+Visibility.swift in Sources */,
@@ -1065,10 +1040,8 @@
 				E9000000000000000000102D /* PanelCoordinator+PanelSetup.swift in Sources */,
 				E90000000000000000001028 /* PanelCoordinator+Fullscreen.swift in Sources */,
 				E90000000000000000001021 /* PanelCoordinator+Spaces.swift in Sources */,
-				E90000000000000000001010 /* StripProjection.swift in Sources */,
 				E90000000000000000001007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000001006 /* DockSnapshot.swift in Sources */,
-				E90000000000000000001002 /* TaskbarDebugSnapshot.swift in Sources */,
 				E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */,
 				E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */,
 					F20000000000000000000001 /* FullscreenIntentDecision.swift in Sources */,
@@ -1103,9 +1076,6 @@
 					A00000000000000000008021 /* StatusMenuController.swift in Sources */,
 					A000000000000000000019A1 /* AppDisplayNameResolver.swift in Sources */,
 					A000000000000000000019D1 /* AppMenuFragments.swift in Sources */,
-					F3A0000000000000000000A1 /* DiagnosticReport.swift in Sources */,
-					D1A000000000000000000002 /* StripProjectionRegistry.swift in Sources */,
-					A00000000000000000001C01 /* IconRenditionChoice.swift in Sources */,
 					B1000000000000000000010E /* MinimizeHandoffTarget.swift in Sources */,
 					B10000000000000000000113 /* MinimizeSettleGate.swift in Sources */,
 					B10000000000000000000118 /* TaskbarScreenPlacement.swift in Sources */,
@@ -1123,21 +1093,12 @@
 					A00000000000000000001008 /* SystemBoundaryModels.swift in Sources */,
 					A00000000000000000001009 /* Decisions.swift in Sources */,
 					A00000000000000000001034 /* WindowFrameMatchPolicy.swift in Sources */,
-					A0000000000000000000100B /* WindowIdentityEngine.swift in Sources */,
-					A00000000000000000001017 /* IdentityRuleEngine.swift in Sources */,
-					A00000000000000000001019 /* ObservationKindMergeRule.swift in Sources */,
-					A0000000000000000000100C /* PlacementEngine.swift in Sources */,
-					A0000000000000000000100D /* LifecycleTransitionEngine.swift in Sources */,
-					A00000000000000000001039 /* AppFallbackRetentionPolicy.swift in Sources */,
 					A0000000000000000000100E /* LifecycleActionPlanner.swift in Sources */,
 					A0000000000000000000101A /* AXWindowReader.swift in Sources */,
 					C90000000000000000000004 /* AXElementCache.swift in Sources */,
 					A00000000000000000001037 /* AXWindowMatchPolicy.swift in Sources */,
-					A0000000000000000000100F /* AccessibilitySource.swift in Sources */,
-				A00000000000000000001010 /* CoreGraphicsSource.swift in Sources */,
 				A00000000000000000001030 /* DockWindowEligibilityPolicy.swift in Sources */,
 				A0000000000000000000101B /* FinderWindowRules.swift in Sources */,
-				A00000000000000000001012 /* FinderSource.swift in Sources */,
 				A00000000000000000001013 /* PermissionService.swift in Sources */,
 				A00000000000000000001014 /* StripItem.swift in Sources */,
 				A00000000000000000001042 /* AppWindowObserver.swift in Sources */,
@@ -1161,9 +1122,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				14C901A396C207524EDF6C6E,
+				AFF1D586985CCB9CB3C032C5,
+				9FA394B44335E2ACB6F6213D,
+				0C6D78B63484DDFD194A1866,
+				8DDDDE62944FCD5C78A120C1,
+				2126FC4148832581F58866E4,
+				6DBBF22DAFC7C8E06F491F76,
+				8044A55A37E71F599B0D5D30,
+				6EBF8AD5F79BCD4E6C3B6503,
 				542E559B05F00B87A3254C1C,
 				DA484AF47498D843DD545682,
-				6EBF8AD5F79BCD4E6C3B6503,
 				E90000000000000000003007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000004003 /* AXElementCache.swift in Sources */,
 				E90000000000000000004002 /* ClickLatencyTrace.swift in Sources */,
@@ -1175,21 +1143,14 @@
 					A00000000000000000001009 /* Decisions.swift in Sources */,
 					A00000000000000000001035 /* WindowFrameMatchPolicy.swift in Sources */,
 					A0000000000000000000100A /* DockState.swift in Sources */,
-					A0000000000000000000100B /* WindowIdentityEngine.swift in Sources */,
-					A00000000000000000001017 /* IdentityRuleEngine.swift in Sources */,
 					A0000000000000000000101C /* ObservationKindMergeRule.swift in Sources */,
-					A0000000000000000000100C /* PlacementEngine.swift in Sources */,
 					A00000000000000000001004 /* ObservationPipeline.swift in Sources */,
-					A0000000000000000000100D /* LifecycleTransitionEngine.swift in Sources */,
 					A0000000000000000000103A /* AppFallbackRetentionPolicy.swift in Sources */,
 					A00000000000000000001018 /* PendingCloseTracker.swift in Sources */,
 					A0000000000000000000101D /* AXWindowReader.swift in Sources */,
 					A00000000000000000001038 /* AXWindowMatchPolicy.swift in Sources */,
-					A0000000000000000000100F /* AccessibilitySource.swift in Sources */,
-				A00000000000000000001010 /* CoreGraphicsSource.swift in Sources */,
 				A00000000000000000001030 /* DockWindowEligibilityPolicy.swift in Sources */,
 				A0000000000000000000101E /* FinderWindowRules.swift in Sources */,
-				A00000000000000000001012 /* FinderSource.swift in Sources */,
 				A00000000000000000001013 /* PermissionService.swift in Sources */,
 				A00000000000000000001016 /* main.swift in Sources */,
 			);
@@ -1199,16 +1160,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F42245FEA95BAE0ADE9ED824,
 				B8DB1A1303F488BF81C82186,
+				CF3CE6A0B56FD449D386D9CD,
+				E8CA0D3439098BDE5BB84189,
+				7B47D5BAC3BC8BF89A9D71C2,
+				A6D5BCC93E5F624BF6E1640B,
 				A5CD963E34F2C13932637822,
 				36FA945289DCB7E45C8EDCAD,
-				132A413EF5B9FD9566329B23,
 				452E9C541EDC0055C577545D,
-				A6D5BCC93E5F624BF6E1640B,
-				96D026158DE9A044040EFEA4,
 				F87D51234347E29DADF419A1,
+				96D026158DE9A044040EFEA4,
 				0210673001E443780FF004F6,
-				7B47D5BAC3BC8BF89A9D71C2,
+				132A413EF5B9FD9566329B23,
 				902B466BD03649EAB3253707,
 				198D8C3204574A9286CFDDCC,
 				0F5CC1EB825B4A55BC3CCE65,
@@ -1243,11 +1207,9 @@
 				D20000000000000000000017 /* SettingsCoordinatorTests.swift in Sources */,
 				D20000000000000000000019 /* AccessoryWindowPresentationTests.swift in Sources */,
 				A00000000000000000008041 /* AppSettingsStoreTests.swift in Sources */,
-				F3A0000000000000000000A2 /* DiagnosticReport.swift in Sources */,
 				A00000000000000000009071 /* StatusMenuController.swift in Sources */,
 				A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */,
 				A00000000000000000009051 /* PanelVisibilityState.swift in Sources */,
-				A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */,
 				A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */,
 				A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */,
 				B1000000000000000000010F /* MinimizeHandoffTarget.swift in Sources */,
@@ -1263,7 +1225,6 @@
 				B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */,
 				C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */,
 				C9000000000000000000000B /* AXElementCache.swift in Sources */,
-				A00000000000000000001C11 /* IconRenditionChoiceTests.swift in Sources */,
 				A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */,
 				A00000000000000000009771 /* WindowOrderingTests.swift in Sources */,
 				A00000000000000000005012 /* StripOrderStore.swift in Sources */,
@@ -1273,7 +1234,6 @@
 					A00000000000000000001022 /* SystemBoundaryModels.swift in Sources */,
 					A00000000000000000001023 /* Decisions.swift in Sources */,
 					A00000000000000000001027 /* DockState.swift in Sources */,
-					A0000000000000000000100B /* WindowIdentityEngine.swift in Sources */,
 					A00000000000000000001036 /* WindowFrameMatchPolicy.swift in Sources */,
 					A0000000000000000000103C /* IdentityRuleEngine.swift in Sources */,
 					A00000000000000000001024 /* LifecycleActionPlanner.swift in Sources */,
@@ -1285,7 +1245,6 @@
 					A00000000000000000009E11 /* WindowInventoryAnomalyLog.swift in Sources */,
 					A00000000000000000009E12 /* WindowInventoryAnomalyLogTests.swift in Sources */,
 					A00000000000000000009E13 /* AXWindowReader.swift in Sources */,
-					B73000000000000000000003 /* AccessibilitySource.swift in Sources */,
 					B73000000000000000000002 /* AppWindowObserver.swift in Sources */,
 					B73000000000000000000001 /* AppTracker.swift in Sources */,
 					A00000000000000000009E14 /* AXWindowReaderResultTests.swift in Sources */,
@@ -1330,7 +1289,6 @@
 					A00000000000000000009752 /* NonConstrainingPanel.swift in Sources */,
 					A00000000000000000000E211 /* WindowTitleSettleTests.swift in Sources */,
 					A00000000000000000000B201 /* AppNameRegistryTests.swift in Sources */,
-					F3A0000000000000000000B1 /* DiagnosticReportTests.swift in Sources */,
 					D1A000000000000000000003 /* DiagnosticsTests.swift in Sources */,
 					A00000000000000000000C01 /* ManualPanelHostTests.swift in Sources */,
 					A0000000000000000000ACC1 /* NonConstrainingPanelTests.swift in Sources */,

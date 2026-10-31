@@ -119,6 +119,22 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         XCTAssertEqual(try jsonRecords(at: boundary.currentFileURL).count, 1)
     }
 
+    func testRepairKeepsCompleteRecordsAcrossMultipleTailBlocks() throws {
+        for tailSize in [1, 4095, 4096, 4097, 9000] {
+            let directory = makeRoot().appendingPathComponent("logs")
+            let log = makeLogger(directory: directory, maxFileSize: 1_000_000)
+            log.record(.sessionStart(sessionPayload()))
+            log.flush()
+            let prefix = try Data(contentsOf: log.currentFileURL)
+            try (prefix + Data(repeating: 0x61, count: tailSize)).write(to: log.currentFileURL)
+            log.record(.sessionStart(sessionPayload()))
+            log.flush()
+            let result = try Data(contentsOf: log.currentFileURL)
+            XCTAssertTrue(result.starts(with: prefix))
+            XCTAssertEqual(try jsonRecords(at: log.currentFileURL).count, 2)
+        }
+    }
+
     func testRotationKeepsCurrentAndFourArchives() {
         let directory = makeRoot().appendingPathComponent("logs")
         let log = makeLogger(directory: directory, maxFileSize: 1)

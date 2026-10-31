@@ -101,7 +101,6 @@ final class PanelCoordinator: NSObject {
 
     func tearDown() {
         DiagnosticVisibilityRecorder.shared.history.remove(unit: stripSurfaceID)
-        StripProjectionRegistry.shared.remove(surface: stripSurfaceID)
         guard !isSuspendedForPermissionLoss else { return }
         isSuspendedForPermissionLoss = true
         fullscreenIntentRoutingEnabled = false

@@ -784,12 +784,34 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
         guard end >= 0 else { throw posixError("seek log") }
         guard end > 0 else { return 0 }
 
-        let data = try Data(contentsOf: currentFileURL)
-        guard data.last != 0x0A else { return end }
-        let length = data.lastIndex(of: 0x0A).map { data.distance(from: data.startIndex, to: $0) + 1 } ?? 0
-        guard Darwin.ftruncate(fileFD, off_t(length)) == 0 else { throw posixError("truncate log") }
-        guard Darwin.lseek(fileFD, 0, SEEK_END) >= 0 else { throw posixError("seek repaired log") }
-        return off_t(length)
+        if try readLogBytes(fileFD: fileFD, offset: end - 1, count: 1).first == 0x0A { return end }
+        var cursor = end
+        var length: off_t = 0
+        while cursor > 0 {
+            let size = Int(min(cursor, 4096))
+            cursor -= off_t(size)
+            let bytes = try readLogBytes(fileFD: fileFD, offset: cursor, count: size)
+            if let newline = bytes.lastIndex(of: 0x0A) {
+                length = cursor + off_t(newline + 1)
+                break
+            }
+        }
+        guard Darwin.ftruncate(fileFD, length) == 0 else { throw posixError("truncate log") }
+        return length
+    }
+
+    private func readLogBytes(fileFD: Int32, offset: off_t, count: Int) throws -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: count)
+        try bytes.withUnsafeMutableBytes { buffer in
+            var read = 0
+            while read < count {
+                let result = Darwin.pread(fileFD, buffer.baseAddress!.advanced(by: read), count - read, offset + off_t(read))
+                if result < 0, errno == EINTR { continue }
+                guard result > 0 else { throw posixError("read log tail") }
+                read += result
+            }
+        }
+        return bytes
     }
 
     private func rotateFiles() throws {

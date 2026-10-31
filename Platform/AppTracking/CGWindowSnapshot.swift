@@ -19,8 +19,6 @@ struct AppTrackerCGWindowSnapshot: Equatable {
     /// 「没变化」判据的门控（周期跳读、补扫门控）见此标志必须放弃跳过、走全量路径。
     /// 既有消费方不读它，失败时的下游行为与从前逐位一致。
     let captureFailed: Bool
-    let layerByWindowID: [CGWindowID: Int]
-    let diagnosticOnScreenWindowIDs: Set<CGWindowID>
 
     init(
         allWindowIDs: Set<CGWindowID>,
@@ -29,9 +27,7 @@ struct AppTrackerCGWindowSnapshot: Equatable {
         alphaByWindowID: [CGWindowID: Double],
         boundsByWindowID: [CGWindowID: CGRect] = [:],
         belowNormalLayerWindowIDs: Set<CGWindowID> = [],
-        captureFailed: Bool = false,
-        layerByWindowID: [CGWindowID: Int] = [:],
-        diagnosticOnScreenWindowIDs: Set<CGWindowID> = []
+        captureFailed: Bool = false
     ) {
         self.allWindowIDs = allWindowIDs
         self.onScreenWindowIDs = onScreenWindowIDs
@@ -40,8 +36,6 @@ struct AppTrackerCGWindowSnapshot: Equatable {
         self.boundsByWindowID = boundsByWindowID
         self.belowNormalLayerWindowIDs = belowNormalLayerWindowIDs
         self.captureFailed = captureFailed
-        self.layerByWindowID = layerByWindowID
-        self.diagnosticOnScreenWindowIDs = diagnosticOnScreenWindowIDs
     }
 
     static var failed: AppTrackerCGWindowSnapshot {
@@ -55,11 +49,11 @@ struct AppTrackerCGWindowSnapshot: Equatable {
         )
     }
 
-    static func capture(includeDiagnosticDetails: Bool = false) -> AppTrackerCGWindowSnapshot {
+    static func capture() -> AppTrackerCGWindowSnapshot {
         guard let windowInfo = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else {
             return .failed
         }
-        return parse(windowInfo, includeDiagnosticDetails: includeDiagnosticDetails)
+        return parse(windowInfo)
     }
 
     static func captureOnScreenWindowIDs() -> Set<CGWindowID> {
@@ -72,24 +66,15 @@ struct AppTrackerCGWindowSnapshot: Equatable {
         return layerZeroWindowIDs(in: windowInfo)
     }
 
-    static func parse(_ windowInfo: [[String: Any]], includeDiagnosticDetails: Bool = false) -> AppTrackerCGWindowSnapshot {
+    static func parse(_ windowInfo: [[String: Any]]) -> AppTrackerCGWindowSnapshot {
         var allWindowIDs: Set<CGWindowID> = []
         var onScreenWindowIDs: Set<CGWindowID> = []
         var windowIDsByPID: [pid_t: Set<CGWindowID>] = [:]
         var alphaByWindowID: [CGWindowID: Double] = [:]
         var boundsByWindowID: [CGWindowID: CGRect] = [:]
         var belowNormalLayerWindowIDs: Set<CGWindowID> = []
-        var layerByWindowID: [CGWindowID: Int] = [:]
-        var diagnosticOnScreenWindowIDs: Set<CGWindowID> = []
 
         for info in windowInfo {
-            if includeDiagnosticDetails, let number = info[kCGWindowNumber as String] as? Int {
-                let windowID = CGWindowID(number)
-                layerByWindowID[windowID] = info[kCGWindowLayer as String] as? Int
-                if info[kCGWindowIsOnscreen as String] as? Bool == true {
-                    diagnosticOnScreenWindowIDs.insert(windowID)
-                }
-            }
             if let layer = info[kCGWindowLayer as String] as? Int, layer < 0 {
                 if let number = info[kCGWindowNumber as String] as? Int {
                     belowNormalLayerWindowIDs.insert(CGWindowID(number))
@@ -119,9 +104,7 @@ struct AppTrackerCGWindowSnapshot: Equatable {
             windowIDsByPID: windowIDsByPID,
             alphaByWindowID: alphaByWindowID,
             boundsByWindowID: boundsByWindowID,
-            belowNormalLayerWindowIDs: belowNormalLayerWindowIDs,
-            layerByWindowID: layerByWindowID,
-            diagnosticOnScreenWindowIDs: diagnosticOnScreenWindowIDs
+            belowNormalLayerWindowIDs: belowNormalLayerWindowIDs
         )
     }
 

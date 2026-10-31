@@ -87,6 +87,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             unit.coordinator.tearDown()
         }
         units = []
+        overlaySpaceHost?.tearDown()
         topologyRefreshController?.cancel()
         topologyRefreshController = nil
         NotificationCenter.default.removeObserver(self)

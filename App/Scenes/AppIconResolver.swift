@@ -1,6 +1,5 @@
 import AppKit
 import OSLog
-import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
@@ -13,7 +12,6 @@ enum AppIconResolver {
 
     private static var cache: [String: CachedIcon] = [:]
     private static var lastKnownPaths: [String: String] = [:]
-    @MainActor private static let bitmaps = IconBitmapCache()
     private static let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "AppIconResolver")
     private static var activationObserver: NSObjectProtocol?
     private static let freshnessChecker = AppIconFreshnessChecker(
@@ -29,7 +27,6 @@ enum AppIconResolver {
                 guard let current = cache[entry.key], current.path == entry.path,
                       current.stamp != entry.stamp else { continue }
                 cache.removeValue(forKey: entry.key)
-                bitmaps.removeAll(name: entry.key)
                 logger.debug("图标变了：\(entry.key, privacy: .public)")
                 invalidated = true
             }
@@ -46,14 +43,6 @@ enum AppIconResolver {
         ) { _ in
             MainActor.assumeIsolated { freshnessChecker.requestCheck() }
         }
-    }
-
-    @MainActor
-    static func icon(for bundleIdentifier: String, points: CGFloat, displayScale: CGFloat,
-                     colorScheme: ColorScheme, allowsRendering: Bool) -> NSImage {
-        bitmaps.image(name: bundleIdentifier, points: points, displayScale: displayScale,
-                      appearance: NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua),
-                      allowsRendering: allowsRendering) { icon(for: bundleIdentifier) }
     }
 
     static func icon(for bundleIdentifier: String) -> NSImage {
