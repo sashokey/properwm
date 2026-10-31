@@ -9,14 +9,14 @@ final class TaskbarLayoutTests: XCTestCase {
     func testWindowsRemainSeparateAndLabeledWhileTheirMinimumWidthsFit() {
         let result = TaskbarLayout.resolve(groups: [group("editor", count: 3), group("browser", count: 1)], width: 380)
         XCTAssertEqual(result.buttons.map(\.windowIDs), [["editor-0"], ["editor-1"], ["editor-2"], ["browser-0"]])
-        XCTAssertTrue(result.buttons.allSatisfy { !$0.isCombined && $0.frame.width >= 80 })
+        XCTAssertTrue(result.buttons.allSatisfy { !$0.isCombined && $0.frame.width >= 74 })
         XCTAssertTrue(result.combinedGroups.isEmpty)
         XCTAssertTrue(result.overflowGroups.isEmpty)
         XCTAssertLessThan(result.buttons[0].frame.width, 140)
     }
 
     func testCrowdingCombinesOnlyTheNecessaryApplicationGroup() {
-        let result = TaskbarLayout.resolve(groups: [group("editor", count: 3), group("browser", count: 1)], width: 340)
+        let result = TaskbarLayout.resolve(groups: [group("editor", count: 3), group("browser", count: 1)], width: 320)
         XCTAssertEqual(result.buttons.count, 2)
         XCTAssertEqual(result.buttons[0].windowIDs, ["editor-0", "editor-1", "editor-2"])
         XCTAssertTrue(result.buttons[0].isCombined)
@@ -26,7 +26,7 @@ final class TaskbarLayoutTests: XCTestCase {
 
     func testFreedSpaceRestoresIndividualButtonsAndTheirOrder() {
         let groups = [group("editor", count: 3), group("browser", count: 1)]
-        let compact = TaskbarLayout.resolve(groups: groups, width: 340)
+        let compact = TaskbarLayout.resolve(groups: groups, width: 320)
         let expanded = TaskbarLayout.resolve(groups: groups, width: 600)
         XCTAssertTrue(compact.buttons[0].isCombined)
         XCTAssertEqual(expanded.buttons.flatMap(\.windowIDs), ["editor-0", "editor-1", "editor-2", "browser-0"])
@@ -35,8 +35,8 @@ final class TaskbarLayoutTests: XCTestCase {
 
     func testExactMinimumFitDoesNotCombinePrematurely() {
         let groups = [group("editor", count: 2)]
-        XCTAssertEqual(TaskbarLayout.resolve(groups: groups, width: 182).buttons.count, 2)
-        XCTAssertEqual(TaskbarLayout.resolve(groups: groups, width: 181).buttons.count, 1)
+        XCTAssertEqual(TaskbarLayout.resolve(groups: groups, width: 170).buttons.count, 2)
+        XCTAssertEqual(TaskbarLayout.resolve(groups: groups, width: 169).buttons.count, 1)
     }
 
     func testWindowsReferenceCanCombineTheEarlierSmallerGroupWhileTheLargerGroupRemainsSeparate() {
@@ -95,6 +95,49 @@ final class TaskbarLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(result.buttons.last!.frame.maxX, 340)
     }
 
+    func testShortWindowCaptionsAreNotForcedToTheLongButtonCompressionLimit() {
+        let short = group("clock", count: 1, width: 66)
+        for width in [CGFloat(1000), 340] {
+            let result = TaskbarLayout.resolve(groups: [short, group("long", count: 2, width: 164)], width: width)
+            XCTAssertEqual(result.buttons.first?.frame.width, 66)
+            XCTAssertEqual(result.buttons.count, 3)
+        }
+        XCTAssertEqual(TaskbarMetrics.buttonWidth(textWidth: 30), 66)
+        XCTAssertEqual(TaskbarMetrics.buttonWidth(textWidth: 20), 56)
+    }
+
+    func testDotCaptionUsesTheMeasuredCompactButtonInsteadOfALongCaptionMinimum() {
+        let width = TaskbarMetrics.buttonWidth(textWidth: 3)
+        XCTAssertEqual(width, 39)
+        let result = TaskbarLayout.resolve(groups: [group("dot", count: 1, width: width),
+                                                   group("next", count: 1, width: 140)], width: 800)
+        XCTAssertEqual(result.buttons[0].frame.width, 39)
+        XCTAssertEqual(result.buttons[1].frame.minX - result.buttons[0].frame.minX, 41)
+        XCTAssertEqual(TaskbarMetrics.labelInset, 28)
+        XCTAssertEqual(TaskbarMetrics.labelTrailingInset, 8)
+    }
+
+    func testACompactShortCaptionDoesNotCausePrematureCombining() {
+        let result = TaskbarLayout.resolve(groups: [group("clock", count: 1, width: 66), group("editor", count: 2, width: 164)], width: 238)
+        XCTAssertTrue(result.combinedGroups.isEmpty)
+        XCTAssertEqual(result.buttons.map(\.frame.width), [66, 74, 74])
+        XCTAssertEqual(result.buttons.last?.frame.maxX, 228)
+    }
+
+    func testMeasuredWindowsCompressionThresholdKeepsTwentyTwoLongButtonsSeparate() {
+        let separate = TaskbarLayout.resolve(groups: [group("terminal", count: 5, width: 164),
+                                                       group("explorer", count: 2, width: 164),
+                                                       group("notepad", count: 15, width: 139)], width: 1696)
+        XCTAssertTrue(separate.combinedGroups.isEmpty)
+        XCTAssertEqual(separate.buttons.count, 22)
+        XCTAssertTrue(separate.buttons.allSatisfy { (74...75).contains($0.frame.width) })
+        XCTAssertEqual(separate.buttons.last?.frame.maxX, 1686)
+        let crowded = TaskbarLayout.resolve(groups: [group("terminal", count: 5, width: 164),
+                                                      group("explorer", count: 2, width: 164),
+                                                      group("notepad", count: 16, width: 139)], width: 1696)
+        XCTAssertEqual(crowded.combinedGroups, ["terminal"])
+    }
+
     func testEmptyAndInvalidGeometryRemainFinite() {
         XCTAssertTrue(TaskbarLayout.resolve(groups: [], width: 1920).buttons.isEmpty)
         for width in [CGFloat.zero, -100, .nan, .infinity] {
@@ -102,7 +145,7 @@ final class TaskbarLayoutTests: XCTestCase {
             XCTAssertTrue(result.buttons.allSatisfy { $0.frame.width.isFinite })
             XCTAssertEqual(result.overflowGroups, ["a"])
         }
-        XCTAssertEqual(TaskbarMetrics.buttonWidth(textWidth: .nan), 80)
+        XCTAssertEqual(TaskbarMetrics.buttonWidth(textWidth: .nan), 74)
         XCTAssertEqual(TaskbarMetrics.buttonWidth(textWidth: 1000), 164)
     }
 

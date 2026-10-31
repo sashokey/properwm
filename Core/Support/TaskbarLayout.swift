@@ -9,12 +9,12 @@ enum TaskbarMetrics {
     static let buttonHeight: CGFloat = 28
     static let buttonSpacing: CGFloat = 2
     static let buttonCornerRadius: CGFloat = 4
-    static let minimumButtonWidth: CGFloat = 80
+    static let minimumCompressedButtonWidth: CGFloat = 74
     static let maximumButtonWidth: CGFloat = 164
     static let iconSize: CGFloat = 16
     static let iconInset: CGFloat = 6
     static let labelInset: CGFloat = 28
-    static let labelTrailingInset: CGFloat = 10
+    static let labelTrailingInset: CGFloat = 8
     static let fontSize: CGFloat = 12
     static let overflowWidth: CGFloat = 32
     static let windowListWidth: CGFloat = 216
@@ -26,8 +26,8 @@ enum TaskbarMetrics {
     }
 
     static func buttonWidth(textWidth: CGFloat) -> CGFloat {
-        let width = textWidth.isFinite ? max(0, textWidth) : 0
-        return min(maximumButtonWidth, max(minimumButtonWidth, ceil(width) + labelInset + labelTrailingInset))
+        guard textWidth.isFinite else { return minimumCompressedButtonWidth }
+        return min(maximumButtonWidth, ceil(max(0, textWidth)) + labelInset + labelTrailingInset)
     }
 }
 
@@ -72,14 +72,14 @@ enum TaskbarLayout {
         var combined = Set<String>()
         let priorities = groups.filter { $0.windows.count > 1 }
         var candidates = candidates(for: groups, combined: combined)
-        for candidate in priorities where minimumWidth(count: candidates.count) > available {
+        for candidate in priorities where minimumWidth(candidates) > available {
             combined.insert(candidate.id)
             candidates = self.candidates(for: groups, combined: combined)
         }
         for group in priorities where combined.contains(group.id) {
             let expanded = combined.subtracting([group.id])
             let proposal = self.candidates(for: groups, combined: expanded)
-            if minimumWidth(count: proposal.count) <= available {
+            if minimumWidth(proposal) <= available {
                 combined = expanded
                 candidates = proposal
             }
@@ -87,9 +87,9 @@ enum TaskbarLayout {
 
         var overflow: [String] = []
         var contentWidth = available
-        if minimumWidth(count: candidates.count) > available {
+        if minimumWidth(candidates) > available {
             contentWidth = max(0, available - TaskbarMetrics.overflowWidth - TaskbarMetrics.buttonSpacing)
-            while minimumWidth(count: candidates.count) > contentWidth, let last = candidates.last {
+            while minimumWidth(candidates) > contentWidth, let last = candidates.last {
                 overflow.insert(last.groupID, at: 0)
                 candidates.removeAll { $0.groupID == last.groupID }
             }
@@ -132,27 +132,34 @@ enum TaskbarLayout {
     }
 
     private static func bounded(_ width: CGFloat) -> CGFloat {
-        guard width.isFinite else { return TaskbarMetrics.minimumButtonWidth }
-        return min(TaskbarMetrics.maximumButtonWidth, max(TaskbarMetrics.minimumButtonWidth, width))
+        guard width.isFinite else { return TaskbarMetrics.minimumCompressedButtonWidth }
+        return min(TaskbarMetrics.maximumButtonWidth, max(TaskbarMetrics.labelInset + TaskbarMetrics.labelTrailingInset, width))
     }
 
-    private static func minimumWidth(count: Int) -> CGFloat {
-        CGFloat(count) * TaskbarMetrics.minimumButtonWidth
-            + CGFloat(max(0, count - 1)) * TaskbarMetrics.buttonSpacing
+    private static func minimumWidth(_ candidates: [Candidate]) -> CGFloat {
+        candidates.reduce(0) { $0 + min($1.desiredWidth, TaskbarMetrics.minimumCompressedButtonWidth) }
+            + CGFloat(max(0, candidates.count - 1)) * TaskbarMetrics.buttonSpacing
     }
 
     private static func fittedWidths(_ desired: [CGFloat], available: CGFloat) -> [CGFloat] {
         guard !desired.isEmpty else { return [] }
         let budget = max(0, available - CGFloat(desired.count - 1) * TaskbarMetrics.buttonSpacing)
         if desired.reduce(0, +) <= budget { return desired }
-        var low: CGFloat = TaskbarMetrics.minimumButtonWidth
+        var low: CGFloat = TaskbarMetrics.minimumCompressedButtonWidth
         var high: CGFloat = TaskbarMetrics.maximumButtonWidth
         for _ in 0..<32 {
             let middle = (low + high) / 2
             if desired.reduce(0, { $0 + min($1, middle) }) > budget { high = middle }
             else { low = middle }
         }
-        return desired.map { floor(min($0, low)) }
+        var exactEdge: CGFloat = 0
+        var roundedEdge: CGFloat = 0
+        return desired.map {
+            exactEdge += min($0, low)
+            let nextEdge = floor(exactEdge + 0.000001)
+            defer { roundedEdge = nextEdge }
+            return nextEdge - roundedEdge
+        }
     }
 }
 
