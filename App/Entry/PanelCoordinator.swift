@@ -1,74 +1,21 @@
 import AppKit
-import ApplicationServices
 import Combine
-import QuartzCore
-import SwiftUI
 import os
-
-enum PanelAnimation {
-    static let duration: TimeInterval = 0.22
-}
 
 @MainActor
 final class PanelCoordinator: NSObject {
-    var layoutMetrics: PanelLayoutMetrics { settingsStore.dockPanelHeight.metrics }
-    var panelHeight: CGFloat { layoutMetrics.panelHeight }
-    var windowHeight: CGFloat { layoutMetrics.windowHeight }
-    var usesLiquidGlass: Bool { dockGlassBackgroundPanel != nil }
-
+    var panelHeight: CGFloat { TaskbarMetrics.height }
     static let panelLevelOverride: NSWindow.Level? = DebugSwitch.panelLevel.value().flatMap(Int.init).map { NSWindow.Level(rawValue: $0) }
-
-    var taskbarPlateCornerRadius: CGFloat {
-        DockShape.panelCornerRadius * settingsStore.dockPanelHeight.scale
-    }
-    static let shadowPadding: CGFloat = PanelLayoutMetrics.shadowPadding
-
     let runtime: AppRuntime
     let stripOrderStore: StripOrderStore
     let settingsStore: AppSettingsStore
     var onRequestTaskbarMenu: ((NSEvent, NSView) -> Void)?
     var dockPanel: NSPanel?
-    var dockGlassBackgroundPanel: NonConstrainingPanel?
-    var dockGlassBackgroundView: DockTaskbarLiquidGlassBackgroundView?
     var dockContentHost: ManualPanelHost?
-    let dragController: DragController
+    var taskbarView: TaskbarView?
+    var taskbarPresenter: TaskbarPresenter?
     var isSuspendedForPermissionLoss = false
-    var windowTitleTooltipPanel: NSPanel?
-    var windowTitleTooltipRequest: WindowTitleTooltipRequest?
-    var windowTitleTooltipSuppressedChipID: String?
-    var windowTitleTooltipSuppressedRequest: WindowTitleTooltipRequest?
-    var windowTitleTooltipLingerTimer: Timer?
-    var windowTitleTooltipWatchdog: Timer?
-    var windowTitleTooltipLocalMonitor: Any?
-    var windowTitleTooltipGlobalMonitor: Any?
-    var windowTitleTooltipHosting: NSHostingView<WindowTitleTooltipView>?
-    var windowTitleTooltipHost: ManualPanelHost?
-    var snapshotWidthSubscription: AnyCancellable?
     var displayTopologySubscription: AnyCancellable?
-    var dockPanelHeightSubscription: AnyCancellable?
-    var panelHeightChangeGeneration: UInt64 = 0
-    var interactiveResize: DockHeightDragSession?
-    var interactiveHeightResizeActive = false
-    let heightResizePresentation = PanelHeightResizePresentation()
-    var liftContextPanelHeightOverride: CGFloat?
-    var onInteractiveHeightResizeSession: ((Bool) -> Void)?
-    var onInteractiveHeightResizeUpdate: (() -> Void)?
-    let resizeGripController = StripResizeGripController()
-    var resizeCursorPanel: NSPanel?
-    var resizeCursorHost: ManualPanelHost?
-    var gripHoverPointer: CGPoint?
-    var resizeCursorReassertTimer: Timer?
-    var lastDesiredWidth: CGFloat = 0
-    var labelFollowTimer: Timer?
-    var labelFollowRestWidth: CGFloat = 0
-    var labelBoxStart: [String: CGFloat] = [:]
-    var labelBoxLive: [String: CGFloat] = [:]
-    var labelFollowDeadline: CFTimeInterval = 0
-    var lastSnapshotWindowIDs: Set<WindowID>?
-    var animatedFramesUntil: CFTimeInterval = 0
-    var lastCommittedFrames: [NSRect] = []
-    var lastDockTargetFrame: NSRect = .zero
-    var didInitialLayout = false
     let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "dock-panel")
     let fullscreenIntentLogger = Logger(
         subsystem: "io.github.sashokey.properwm",
@@ -104,7 +51,8 @@ final class PanelCoordinator: NSObject {
     var onPanelScreenChanged: (() -> Void)?
     var onAccessoryWillOpen: ((PanelCoordinator, AccessoryKind) -> Void)?
 
-    enum AccessoryKind { case tooltip }
+    enum AccessoryKind { case popup }
+
 
     let unitPlacement: TaskbarUnitPlacement
     let overlaySpaceHost: OverlaySpaceHost?
@@ -116,14 +64,12 @@ final class PanelCoordinator: NSObject {
     }
 
     init(placement: TaskbarUnitPlacement,
-         dragController: DragController,
          overlaySpaceHost: OverlaySpaceHost?,
          runtime: AppRuntime,
          stripOrderStore: StripOrderStore,
          settingsStore: AppSettingsStore,
          displayTopologyStore: DisplayTopologyStore) {
         self.unitPlacement = placement
-        self.dragController = dragController
         self.overlaySpaceHost = overlaySpaceHost
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
@@ -136,7 +82,6 @@ final class PanelCoordinator: NSObject {
         setupDockPanel()
         presentInitialPanels()
         pinResidentPanelsIfNeeded()
-        subscribeSnapshotWidth()
         subscribeSettings()
         setupFullscreenMonitor()
     }
@@ -148,8 +93,7 @@ final class PanelCoordinator: NSObject {
         overlayWindowWatchTimer?.invalidate()
         fullscreenSpaceIntentTimer?.invalidate()
         fullscreenSpaceIntentVerdictTimer?.invalidate()
-        dismissWindowTitleTooltip()
-        tearDownTaskbarGlassBackground()
+        taskbarView?.taskbarContent.prepareForHiding()
         workspaceObserverTokens.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
@@ -160,8 +104,6 @@ final class PanelCoordinator: NSObject {
         StripProjectionRegistry.shared.remove(surface: stripSurfaceID)
         guard !isSuspendedForPermissionLoss else { return }
         isSuspendedForPermissionLoss = true
-        cancelInteractiveResize()
-        tearDownResizeCursor()
         fullscreenIntentRoutingEnabled = false
         if let transaction = fullscreenIntentTransaction {
             cancelFullscreenIntent(generation: transaction.generation, reason: "teardown")
@@ -173,30 +115,22 @@ final class PanelCoordinator: NSObject {
         fullscreenSpaceHold = nil
         endOverlayWindowWatch()
         clearFullscreenSpaceArrowIntent()
-
-        dismissWindowTitleTooltip()
-
+        taskbarView?.taskbarContent.prepareForHiding()
+        taskbarPresenter = nil
         dockContentHost = nil
-        windowTitleTooltipHosting = nil
-        windowTitleTooltipHost = nil
-        tearDownTaskbarGlassBackground()
-        for panel in [dockPanel, windowTitleTooltipPanel] {
-            guard let panel else { continue }
-            panel.contentView = NSView()
-            panel.orderOut(nil)
-            panel.close()
-        }
+        taskbarView = nil
+        dockPanel?.contentView = NSView()
+        dockPanel?.orderOut(nil)
+        dockPanel?.close()
         dockPanel = nil
-        windowTitleTooltipPanel = nil
-        lastCommittedFrames = []
     }
 
-    var currentScreen: NSScreen? {
-        dockPanel.map { panelCurrentScreen(panel: $0) }
+    func dismissTaskbarPopups() {
+        taskbarView?.taskbarContent.dismissPopups()
     }
 
+    var currentScreen: NSScreen? { dockPanel.map { panelCurrentScreen(panel: $0) } }
     var isLogicallyVisible: Bool { panelsAreVisible }
-
     func windowLiftAvoidanceContext() -> WindowLiftAvoidanceContext? {
         guard visibilityState.isVisible,
               panelsAreVisible,
@@ -209,9 +143,7 @@ final class PanelCoordinator: NSObject {
         let geometry = WindowLiftAvoidance.Geometry(
             screenFrame: screen.frame,
             visibleFrame: screen.visibleFrame,
-            taskbarTop: screen.frame.minY
-                + layoutMetrics.bottomGap
-                + (liftContextPanelHeightOverride ?? layoutMetrics.panelHeight)
+            taskbarTop: screen.frame.minY + TaskbarMetrics.height
         )
         return WindowLiftAvoidanceContext(
             geometry: geometry,
@@ -224,32 +156,19 @@ final class PanelCoordinator: NSObject {
         )
     }
 
-    static let windowTitleTooltipLingerDelay: TimeInterval = 0.09
 
-    static let layoutAnimationDuration: TimeInterval = PanelAnimation.duration
-
-    var allSpacesPanels: [NSPanel] {
-        [dockGlassBackgroundPanel, dockPanel].compactMap { $0 }
-    }
+    var allSpacesPanels: [NSPanel] { [dockPanel].compactMap { $0 } }
 
     func panelCurrentScreen(panel: NSPanel) -> NSScreen {
-        let visualCenter = CGPoint(
-            x: panel.frame.midX,
-            y: panel.frame.minY + Self.shadowPadding + panelHeight / 2
-        )
+        let visualCenter = CGPoint(x: panel.frame.midX, y: panel.frame.minY + panelHeight / 2)
         return NSScreen.screens.first(where: { $0.frame.contains(visualCenter) })
             ?? NSScreen.screens.first(where: { $0.frame.intersects(panel.frame) })
             ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
     static func toCGRect(_ screen: NSScreen) -> CGRect {
-        let f = screen.frame
-        return CGRect(
-            x: f.minX,
-            y: quartzPrimaryScreenHeight - f.maxY,
-            width: f.width,
-            height: f.height
-        )
+        let frame = screen.frame
+        return CGRect(x: frame.minX, y: quartzPrimaryScreenHeight - frame.maxY, width: frame.width, height: frame.height)
     }
 
     private static var quartzPrimaryScreenHeight: CGFloat {
@@ -264,5 +183,4 @@ final class PanelCoordinator: NSObject {
         case .primary: return nil
         }
     }
-
 }

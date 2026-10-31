@@ -11,7 +11,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     private(set) var units: [Unit] = []
-    let dragController: DragController
     let overlaySpaceHost = OverlaySpaceHost.make()
 
     private let runtime: AppRuntime
@@ -53,9 +52,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         self.displayTopologyStore = displayTopologyStore
         self.topologySnapshotProvider = topologySnapshotProvider
         self.topologyRetryScheduler = topologyRetryScheduler
-        self.dragController = DragController(screensProvider: { NSScreen.screens })
         super.init()
-        wireDragController()
     }
 
     isolated deinit {
@@ -70,9 +67,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         topologyRefreshController = seedController
         let snapshot = seedController.prepareForTopologyChange()
         rebuildUnits(reason: "start", connectedKeys: snapshot.identifiedDisplayUUIDs)
-        DispatchQueue.main.async { [weak dragController] in
-            dragController?.prewarmCarrier()
-        }
         observeMenuTracking()
         reconcileFullscreenIntentMonitor()
         NotificationCenter.default.addObserver(
@@ -86,10 +80,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     func suspendAndRelease() {
         guard !isSuspended else { return }
         isSuspended = true
-        cancelInteractiveHeightResize()
-        setSettingsHeightSessionActive(false)
-        dragController.cancelDrag()
-        dragController.closeCarrierSurfaces()
         fullscreenIntentMonitor?.stop()
         fullscreenIntentMonitor = nil
         for unit in units {
@@ -108,7 +98,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     private func rebuildUnits(reason: String, connectedKeys: [String]) {
         guard started, !isSuspended else { return }
-        cancelInteractiveHeightResize()
         let desired = TaskbarDisplaySet.desiredUnitKeys(
             connectedKeys: connectedKeys
         )
@@ -133,7 +122,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         let placement: TaskbarUnitPlacement = key.map { .fixed(displayUUID: $0) } ?? .primary
         let coordinator = PanelCoordinator(
             placement: placement,
-            dragController: dragController,
             overlaySpaceHost: overlaySpaceHost,
             runtime: runtime,
             stripOrderStore: stripOrderStore,
@@ -145,47 +133,12 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
             self?.closeAccessories(exceptFor: unit, opening: kind)
         }
-        coordinator.onInteractiveHeightResizeSession = { [weak self, weak coordinator] active in
-            guard let self else { return }
-            self.heightResizeOrigin = active ? coordinator : nil
-            self.units.forEach { $0.coordinator.setInteractiveHeightResizeActive(active) }
-        }
         coordinator.start()
         coordinator.setFullscreenIntentRouting(enabled: fullscreenIntentMonitor != nil)
-        if heightResizeOrigin != nil || settingsHeightSessionActive {
-            coordinator.setInteractiveHeightResizeActive(true)
-        }
-        coordinator.onInteractiveHeightResizeUpdate = { [weak self] in
-            self?.units.forEach { $0.coordinator.commitInteractivePanelHeight() }
-        }
         return Unit(key: key, coordinator: coordinator)
     }
 
-    private weak var heightResizeOrigin: PanelCoordinator?
 
-    private func cancelInteractiveHeightResize() {
-        heightResizeOrigin?.cancelInteractiveResize()
-        heightResizeOrigin = nil
-    }
-
-    private var settingsHeightSessionActive = false
-
-    func setSettingsHeightSessionActive(_ active: Bool) {
-        guard settingsHeightSessionActive != active else { return }
-        if !active { commitSettingsPanelHeight() }
-        settingsHeightSessionActive = active
-        if active {
-            cancelInteractiveHeightResize()
-            units.forEach { $0.coordinator.setInteractiveHeightResizeActive(true) }
-        } else {
-            units.forEach { $0.coordinator.setInteractiveHeightResizeActive(false) }
-        }
-    }
-
-    func commitSettingsPanelHeight() {
-        guard settingsHeightSessionActive, heightResizeOrigin == nil else { return }
-        units.forEach { $0.coordinator.commitInteractivePanelHeight() }
-    }
 
     private func unitContainingMouse() -> Unit? {
         let mouse = NSEvent.mouseLocation
@@ -200,8 +153,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     @objc private func screenParametersChanged() {
-        dragController.cancelDrag()   // 切屏/分辨率变 → 取消进行中的跨面板拖动，免得载体留在旧屏坐标
-        cancelInteractiveHeightResize()   // same for a height drag: its start point is in old screen coordinates
         let snapshot: ScreenTopologySnapshot
         if let seedController = topologyRefreshController {
             snapshot = seedController.prepareForTopologyChange()
@@ -234,19 +185,12 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     private func closeAccessories(exceptFor unit: PanelCoordinator, opening kind: PanelCoordinator.AccessoryKind) {
         for other in units where other.coordinator !== unit {
-            other.coordinator.dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
+            other.coordinator.dismissTaskbarPopups()
         }
     }
 
     func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] {
         units.compactMap { $0.coordinator.windowLiftAvoidanceContext() }
-    }
-
-    private func wireDragController() {
-        dragController.pinCarrierWindows = { [weak self] numbers in
-            guard let host = self?.overlaySpaceHost else { return }
-            _ = host.pin(windowNumbers: numbers)
-        }
     }
 
     private func reconcileFullscreenIntentMonitor() {

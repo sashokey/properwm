@@ -14,46 +14,13 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertFalse(AppSettingsStore(defaults: defaults).launchAtLogin)
     }
 
-    func testHeightDefaultsAndPersistsAcrossStoreInstances() {
-        let defaults = makeDefaults()
-        let store = AppSettingsStore(defaults: defaults)
-        XCTAssertEqual(store.dockPanelHeight, .default)
-        let height = DockPanelHeight(clamping: 73)
-        store.setDockPanelHeight(height)
-        XCTAssertEqual(AppSettingsStore(defaults: defaults).dockPanelHeight, height)
-    }
-
-    func testStoredHeightClampsToSupportedRange() {
-        let defaults = makeDefaults()
-        for raw in [-1000.0, 1000.0] {
-            defaults.set(raw, forKey: "properwm.taskbarHeight")
-            let store = AppSettingsStore(defaults: defaults)
-            XCTAssertEqual(store.dockPanelHeight, DockPanelHeight(clamping: CGFloat(raw)))
-            XCTAssertEqual(defaults.double(forKey: "properwm.taskbarHeight"),
-                           Double(store.dockPanelHeight.points))
-        }
-    }
-
-    func testMalformedHeightFallsBackToDefault() {
-        let values: [Any] = ["invalid", true, ["height": 73]]
-        for value in values {
-            let defaults = makeDefaults()
-            defaults.set(value, forKey: "properwm.taskbarHeight")
-            XCTAssertEqual(AppSettingsStore(defaults: defaults).dockPanelHeight, .default)
-        }
-    }
-
     func testUnchangedValuesDoNotPublishAnotherUpdate() {
         let store = AppSettingsStore(defaults: makeDefaults())
-        var heights: [DockPanelHeight] = []
         var loginChoices: [Bool] = []
-        let heightSubscription = store.$dockPanelHeight.dropFirst().sink { heights.append($0) }
         let loginSubscription = store.$launchAtLogin.dropFirst().sink { loginChoices.append($0) }
-        store.setDockPanelHeight(store.dockPanelHeight)
         store.setLaunchAtLogin(store.launchAtLogin)
-        XCTAssertTrue(heights.isEmpty)
         XCTAssertTrue(loginChoices.isEmpty)
-        withExtendedLifetime((heightSubscription, loginSubscription)) {}
+        withExtendedLifetime(loginSubscription) {}
     }
 
     func testRemovedPreferencesCannotOverrideFixedBehavior() {

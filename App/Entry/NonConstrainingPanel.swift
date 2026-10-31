@@ -1,55 +1,5 @@
 import AppKit
-import Combine
-import SwiftUI
 
-/// Shared by the two hosting roots of one taskbar; a resize must not inherit chip animations.
-@MainActor
-final class PanelHeightResizePresentation: ObservableObject {
-    @Published var isActive = false
-
-    func nonInteractiveHeightChanges(
-        from heights: Published<DockPanelHeight>.Publisher
-    ) -> AnyPublisher<DockPanelHeight, Never> {
-        heights
-            .removeDuplicates()
-            .dropFirst()
-            // Reject at publication, before a queued delivery can outlive the drag.
-            .filter { [weak self] _ in self?.isActive == false }
-            .receive(on: DispatchQueue.main)
-            // A new drag may have started while an ordinary change was queued.
-            .filter { [weak self] _ in self?.isActive == false }
-            .eraseToAnyPublisher()
-    }
-}
-
-private struct PanelHeightResizingKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var isPanelHeightResizing: Bool {
-        get { self[PanelHeightResizingKey.self] }
-        set { self[PanelHeightResizingKey.self] = newValue }
-    }
-}
-
-struct PanelHeightResizeModifier: ViewModifier {
-    @ObservedObject var presentation: PanelHeightResizePresentation
-
-    func body(content: Content) -> some View {
-        content
-            .environment(\.isPanelHeightResizing, presentation.isActive)
-            .transaction { transaction in
-                if presentation.isActive {
-                    transaction.animation = nil
-                    transaction.disablesAnimations = true
-                }
-            }
-    }
-}
-
-/// Hosts manually sized panel content without letting the hosted view become the
-/// window's content view and participate in automatic window sizing.
 @MainActor
 final class ManualPanelHost {
     let contentView: NSView
@@ -77,19 +27,6 @@ final class ManualPanelHost {
     }
 }
 
-/// Window levels above `.floating`, the level every panel is created at.
-enum PanelLevel {
-    /// The drawer while a drag from outside has it open. The system Apps panel (Spotlight's app
-    /// list, a window of `Siri`) sits at 23 on macOS 27; at `.floating` the drawer opened under it.
-    static let raisedDrawer = NSWindow.Level.statusBar
-    /// The drag carrier: above every panel of ours, the raised drawer included — an app dropped
-    /// from outside lands on the carrier, into that drawer.
-    static let carrier = NSWindow.Level(rawValue: raisedDrawer.rawValue + 1)
-}
-
-/// 七扇悬浮面板共用的窗口行为集合。**必须只有这一处字面量**：
-/// issue #19 的修复要把这套值原样重新赋一遍来补回「常驻所有桌面」的成员资格，
-/// 复原的值和创建时的值一旦分叉，修复就会静默地把面板改成另一种行为。
 enum PanelCollectionBehavior {
     static let standard: NSWindow.CollectionBehavior =
         [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
@@ -122,21 +59,3 @@ class NonConstrainingPanel: NSPanel {
     }
 }
 
-/// Liquid Glass is hosted in a non-key floating panel. These private AppKit appearance hooks are
-/// the same narrow override used by native-looking third-party docks to keep the material active.
-final class DockLiquidGlassPanel: NonConstrainingPanel {
-    @objc(_hasActiveAppearance)
-    func bestDockHasActiveAppearance() -> Bool { true }
-
-    @objc(_hasActiveAppearanceIgnoringKeyFocus)
-    func bestDockHasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
-
-    @objc(_hasKeyAppearance)
-    func bestDockHasKeyAppearance() -> Bool { true }
-
-    @objc(_hasMainAppearance)
-    func bestDockHasMainAppearance() -> Bool { true }
-
-    @objc(_hasActiveControls)
-    func bestDockHasActiveControls() -> Bool { true }
-}

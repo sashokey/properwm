@@ -19,13 +19,6 @@ final class DebugSwitchTests: XCTestCase {
         XCTAssertTrue(s.isEnabled(in: [s.rawValue: "1"]))
     }
 
-    func testAcceptedBalancedInsetsAreEnabledWithoutLaunchOverrides() {
-        let control = DebugSwitch.stripBalancedInsets
-        XCTAssertTrue(control.isEnabled(in: [:]))
-        XCTAssertTrue(control.isEnabled(in: [control.rawValue: "1"]))
-        XCTAssertFalse(control.isEnabled(in: [control.rawValue: "0"]))
-    }
-
     func testValueReturnsRawStringOrNil() {
         let s = DebugSwitch.reconcileAxTimeoutMs
         XCTAssertEqual(s.kind, .value)

@@ -7,28 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E90000000000000000001031 /* DockStripView+Projection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000031 /* DockStripView+Projection.swift */; };
-		E90000000000000000001032 /* DockStripView+Hover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000032 /* DockStripView+Hover.swift */; };
 		E9000000000000000000102B /* PanelCoordinator+Visibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002B /* PanelCoordinator+Visibility.swift */; };
 		E9000000000000000000102C /* PanelCoordinator+Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002C /* PanelCoordinator+Layout.swift */; };
 		E9000000000000000000102D /* PanelCoordinator+PanelSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */; };
 		E90000000000000000001028 /* PanelCoordinator+Fullscreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000028 /* PanelCoordinator+Fullscreen.swift */; };
-		E90000000000000000001020 /* PanelCoordinator+Tooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000020 /* PanelCoordinator+Tooltip.swift */; };
 		E90000000000000000001021 /* PanelCoordinator+Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000021 /* PanelCoordinator+Spaces.swift */; };
 		E90000000000000000001010 /* StripProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000010 /* StripProjection.swift */; };
-		E90000000000000000001011 /* ChipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000011 /* ChipView.swift */; };
-		E90000000000000000001014 /* StripFramePreferenceKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000014 /* StripFramePreferenceKeys.swift */; };
-		E90000000000000000001016 /* DockVisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000016 /* DockVisualEffectView.swift */; };
-		E90000000000000000001017 /* StripWheelScrollInterceptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000017 /* StripWheelScrollInterceptor.swift */; };
-		E90000000000000000001019 /* StripPointerTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000019 /* StripPointerTracker.swift */; };
-		E9D000000000000000001031 /* StripResizeGrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000031 /* StripResizeGrip.swift */; };
-		E9D000000000000000001034 /* ResizeCursorGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000034 /* ResizeCursorGlyph.swift */; };
-		E9D000000000000000002034 /* ResizeCursorGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000034 /* ResizeCursorGlyph.swift */; };
-		E9D000000000000000001036 /* SystemCursorHider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000036 /* SystemCursorHider.swift */; };
-		E9D000000000000000001037 /* SystemResizeCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000037 /* SystemResizeCursor.swift */; };
-		E9D000000000000000002036 /* SystemCursorHider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000036 /* SystemCursorHider.swift */; };
-		E9D000000000000000002037 /* SystemResizeCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000037 /* SystemResizeCursor.swift */; };
-		E9D000000000000000001035 /* PanelCoordinator+ResizeCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000035 /* PanelCoordinator+ResizeCursor.swift */; };
 		E90000000000000000001007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
 		E90000000000000000002007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
 		E90000000000000000003007 /* DebugSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000007 /* DebugSwitch.swift */; };
@@ -39,24 +23,11 @@
 		E90000000000000000001006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
 		E90000000000000000002006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
 		E90000000000000000003006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
-		E90000000000000000001001 /* StatusMenuWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000001 /* StatusMenuWidgets.swift */; };
-		E90000000000000000002001 /* StatusMenuWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000001 /* StatusMenuWidgets.swift */; };
 		E90000000000000000001002 /* TaskbarDebugSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000002 /* TaskbarDebugSnapshot.swift */; };
 		E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000004 /* DefaultsValueParsing.swift */; };
 		E90000000000000000002004 /* DefaultsValueParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000004 /* DefaultsValueParsing.swift */; };
-		E9D000000000000000001032 /* DockHeightDragSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000032 /* DockHeightDragSession.swift */; };
-		BAA000000000000000001001 /* BarArrowCursorDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA000000000000000000001 /* BarArrowCursorDecision.swift */; };
-		BAA000000000000000002001 /* BarArrowCursorDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA000000000000000000001 /* BarArrowCursorDecision.swift */; };
-		E9D000000000000000002032 /* DockHeightDragSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000032 /* DockHeightDragSession.swift */; };
-		E9D000000000000000002033 /* DockHeightDragSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D000000000000000000033 /* DockHeightDragSessionTests.swift */; };
-		D20000000000000000000000 /* CarrierSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000000 /* CarrierSnapshot.swift */; };
-		D20000000000000000000005 /* CarrierSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000000 /* CarrierSnapshot.swift */; };
-		D20000000000000000000007 /* DragCarrierGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000005 /* DragCarrierGeometry.swift */; };
-		D20000000000000000000008 /* DragCarrierGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000005 /* DragCarrierGeometry.swift */; };
-		D20000000000000000000009 /* ChipSnapshotter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000008 /* ChipSnapshotter.swift */; };
-		D2000000000000000000000A /* DragCarrierGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000000000000000000A /* DragCarrierGeometryTests.swift */; };
 		F20000000000000000000001 /* FullscreenIntentDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* FullscreenIntentDecision.swift */; };
 		E26000000000000000000002 /* CopiedGestureEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26000000000000000000001 /* CopiedGestureEvent.swift */; };
 		F20000000000000000000002 /* FullscreenIntentMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* FullscreenIntentMonitor.swift */; };
@@ -69,38 +40,21 @@
 		C30000000000000000000003 /* AppFallbackChipDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */; };
 		D20000000000000000000003 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
 		D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000006 /* AccessoryWindowPresentation.swift */; };
-		D20000000000000000000041 /* StripContextMenuZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000041 /* StripContextMenuZone.swift */; };
-		D2000000000000000000006B /* StripWheelScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000067 /* StripWheelScroll.swift */; };
-		D20000000000000000000061 /* StripHoverResolution.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000061 /* StripHoverResolution.swift */; };
-		D20000000000000000000064 /* DragLandingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000063 /* DragLandingPlan.swift */; };
 		D20000000000000000000013 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
 		D20000000000000000000016 /* AccessoryWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000006 /* AccessoryWindowPresentation.swift */; };
-		D20000000000000000000042 /* StripContextMenuZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000041 /* StripContextMenuZone.swift */; };
-		D2000000000000000000006C /* StripWheelScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000067 /* StripWheelScroll.swift */; };
-		D20000000000000000000062 /* StripHoverResolution.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000061 /* StripHoverResolution.swift */; };
-		D20000000000000000000065 /* DragLandingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000063 /* DragLandingPlan.swift */; };
 		D20000000000000000000017 /* SettingsCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000007 /* SettingsCoordinatorTests.swift */; };
 		D20000000000000000000019 /* AccessoryWindowPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */; };
-		D20000000000000000000043 /* StripContextMenuZoneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000042 /* StripContextMenuZoneTests.swift */; };
-		D2000000000000000000006D /* StripWheelScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000068 /* StripWheelScrollTests.swift */; };
-		D20000000000000000000063 /* StripHoverResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000062 /* StripHoverResolutionTests.swift */; };
-		D20000000000000000000066 /* DragLandingPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000064 /* DragLandingPlanTests.swift */; };
 		A00000000000000000001040 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000066 /* AppDelegate.swift */; };
 		A00000000000000000001046 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000006C /* PanelCoordinator.swift */; };
 		B10000000000000000000122 /* TaskbarScreenOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000121 /* TaskbarScreenOrchestrator.swift */; };
-		A00000000000000000001041 /* DockStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000067 /* DockStripView.swift */; };
 		A00000000000000000005011 /* StripOrderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000005010 /* StripOrderStore.swift */; };
 		A00000000000000000005012 /* StripOrderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000005010 /* StripOrderStore.swift */; };
-		A00000000000000000006011 /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000006010 /* DragController.swift */; };
 		A00000000000000000008011 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008010 /* AppSettingsStore.swift */; };
 		A00000000000000000008021 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008020 /* StatusMenuController.swift */; };
 		A00000000000000000008031 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008010 /* AppSettingsStore.swift */; };
 		A00000000000000000008041 /* AppSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008040 /* AppSettingsStoreTests.swift */; };
 		A00000000000000000009011 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009010 /* LaunchAtLoginService.swift */; };
 		A00000000000000000009031 /* PanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009030 /* PanelVisibilityState.swift */; };
-		A00000000000000000009081 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009080 /* PanelGeometry.swift */; };
-		A00000000000000000009091 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009080 /* PanelGeometry.swift */; };
-		A000000000000000000090A1 /* PanelGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000090A0 /* PanelGeometryTests.swift */; };
 		A000000000000000000090B1 /* FullscreenClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000090B0 /* FullscreenClassificationTests.swift */; };
 		A00000000000000000001C01 /* IconRenditionChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C00 /* IconRenditionChoice.swift */; };
 		A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C20 /* IconBitmapRenderer.swift */; };
@@ -114,7 +68,6 @@
 		B10000000000000000000131 /* WindowDisplayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000130 /* WindowDisplayAttribution.swift */; };
 		B1000000000000000000013F /* WindowDisplayMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013E /* WindowDisplayMove.swift */; };
 		B10000000000000000000134 /* StripDisplayFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000133 /* StripDisplayFilter.swift */; };
-		B10000000000000000000202 /* StripSharedAffixTrim.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000201 /* StripSharedAffixTrim.swift */; };
 		B10000000000000000000137 /* DisplayTopologyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000136 /* DisplayTopologyStore.swift */; };
 		D90000000000000000000102 /* ScreenTopologySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000002 /* ScreenTopologySnapshot.swift */; };
 		D90000000000000000000202 /* ScreenTopologySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000002 /* ScreenTopologySnapshot.swift */; };
@@ -129,27 +82,11 @@
 		B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000130 /* WindowDisplayAttribution.swift */; };
 		B10000000000000000000140 /* WindowDisplayMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013E /* WindowDisplayMove.swift */; };
 		B10000000000000000000135 /* StripDisplayFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000133 /* StripDisplayFilter.swift */; };
-		B10000000000000000000203 /* StripSharedAffixTrim.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000201 /* StripSharedAffixTrim.swift */; };
 		A00000000000000000001C11 /* IconRenditionChoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000001C10 /* IconRenditionChoiceTests.swift */; };
 		A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */; };
-		A0000000000000000000FB01 /* DockThemeTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FB00 /* DockThemeTokens.swift */; };
-		A0000000000000000000FB02 /* DockThemeTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FB00 /* DockThemeTokens.swift */; };
-		A0000000000000000000FC01 /* DockTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FC00 /* DockTheme.swift */; };
-		A0000000000000000000FC02 /* DockTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FC00 /* DockTheme.swift */; };
-		A0000000000000000000FE01 /* DockGlassBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FE00 /* DockGlassBackdrop.swift */; };
-		E20000000000000000000001 /* DockLiquidGlassConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */; };
-		E20000000000000000000002 /* DockLiquidGlassConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */; };
-		E20000000000000000000003 /* DockGlassRuntimeBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000003 /* DockGlassRuntimeBridge.m */; };
-		E20000000000000000000004 /* DockLiquidGlassConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000005 /* DockLiquidGlassConfigurationTests.swift */; };
-		A0000000000000000000FD01 /* DockThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FD00 /* DockThemeTests.swift */; };
 		A00000000000000000009051 /* PanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009030 /* PanelVisibilityState.swift */; };
 		A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009010 /* LaunchAtLoginService.swift */; };
 		A00000000000000000009071 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008020 /* StatusMenuController.swift */; };
-		A00000000000000000009D01 /* WindowTitleTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009D00 /* WindowTitleTooltip.swift */; };
-		A00000000000000000009D02 /* WindowTitleTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009D00 /* WindowTitleTooltip.swift */; };
-		A00000000000000000009D03 /* WindowTitleTooltipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009D10 /* WindowTitleTooltipTests.swift */; };
-		B71000000000000000000001 /* ScreenRectReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71000000000000000000003 /* ScreenRectReader.swift */; };
-		B71000000000000000000002 /* ScreenRectReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71000000000000000000003 /* ScreenRectReader.swift */; };
 		B72000000000000000000001 /* AppDisplayNameCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72000000000000000000003 /* AppDisplayNameCache.swift */; };
 		C90000000000000000000006 /* ClickLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000005 /* ClickLatencyTrace.swift */; };
 		A00000000000000000009AB1 /* HoverTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009AB0 /* HoverTrace.swift */; };
@@ -160,8 +97,6 @@
 		B73000000000000000000002 /* AppWindowObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000068 /* AppWindowObserver.swift */; };
 		B73000000000000000000003 /* AccessibilitySource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000F /* AccessibilitySource.swift */; };
 		A000000000000000000019A1 /* AppDisplayNameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019B1 /* AppDisplayNameResolver.swift */; };
-		C90000000000000000000002 /* ChipPressFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000001 /* ChipPressFeedback.swift */; };
-		C9000000000000000000000D /* ChipPressFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000001 /* ChipPressFeedback.swift */; };
 		A000000000000000000019D1 /* AppMenuFragments.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019C1 /* AppMenuFragments.swift */; };
 		A00000000000000000009771 /* WindowOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009770 /* WindowOrderingTests.swift */; };
 		A00000000000000000001001 /* ProperWMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* ProperWMApp.swift */; };
@@ -237,18 +172,13 @@
 		A00000000000000000009610 /* TabFoldDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009600 /* TabFoldDecision.swift */; };
 		A00000000000000000009611 /* TabFoldDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009600 /* TabFoldDecision.swift */; };
 		A00000000000000000000E201 /* WindowTitleSettle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E200 /* WindowTitleSettle.swift */; };
-		A00000000000000000000B121 /* DockPanelRimPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B120 /* DockPanelRimPlan.swift */; };
 		A00000000000000000000E202 /* WindowTitleSettle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E200 /* WindowTitleSettle.swift */; };
-		A00000000000000000000B122 /* DockPanelRimPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B120 /* DockPanelRimPlan.swift */; };
 		A00000000000000000000E211 /* WindowTitleSettleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E210 /* WindowTitleSettleTests.swift */; };
-		A00000000000000000000B131 /* DockPanelRimPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B130 /* DockPanelRimPlanTests.swift */; };
 		A00000000000000000000B201 /* AppNameRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B200 /* AppNameRegistryTests.swift */; };
-		A00000000000000000006012 /* DragController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000006010 /* DragController.swift */; };
 		A00000000000000000009751 /* NonConstrainingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009750 /* NonConstrainingPanel.swift */; };
 		A00000000000000000009752 /* NonConstrainingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009750 /* NonConstrainingPanel.swift */; };
 		A00000000000000000000C01 /* ManualPanelHostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000C00 /* ManualPanelHostTests.swift */; };
 		A0000000000000000000ACC1 /* NonConstrainingPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000ACC0 /* NonConstrainingPanelTests.swift */; };
-		A00000000000000000009731 /* WindowReorderControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009730 /* WindowReorderControllerTests.swift */; };
 		A00000000000000000009612 /* TabFoldDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009601 /* TabFoldDecisionTests.swift */; };
 		A00000000000000000009E10 /* WindowInventoryAnomalyLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E00 /* WindowInventoryAnomalyLog.swift */; };
 		A00000000000000000009E11 /* WindowInventoryAnomalyLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E00 /* WindowInventoryAnomalyLog.swift */; };
@@ -262,7 +192,6 @@
 		F1B0000000000000000000C3 /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B0000000000000000000C2 /* DisplayIdentity.swift */; };
 		A00000000000000000009E14 /* AXWindowReaderResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E02 /* AXWindowReaderResultTests.swift */; };
 		C9000000000000000000000A /* AXElementCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000009 /* AXElementCacheTests.swift */; };
-		C90000000000000000000008 /* ChipPressFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000007 /* ChipPressFeedbackTests.swift */; };
 		A00000000000000000009E15 /* AXWindowMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000064 /* AXWindowMatchPolicy.swift */; };
 		A00000000000000000009E16 /* ProcessLiveness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E03 /* ProcessLiveness.swift */; };
 		A00000000000000000009E17 /* ProcessLiveness.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009E03 /* ProcessLiveness.swift */; };
@@ -308,11 +237,27 @@
 		B10000000000000000000139 /* WindowDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000138 /* WindowDisplayAttributionTests.swift */; };
 		B10000000000000000000142 /* WindowDisplayMoveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000141 /* WindowDisplayMoveTests.swift */; };
 		B1000000000000000000013B /* StripDisplayFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013A /* StripDisplayFilterTests.swift */; };
-		B10000000000000000000205 /* StripSharedAffixTrimTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000204 /* StripSharedAffixTrimTests.swift */; };
 		B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */; };
 		D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */; };
 		D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000008 /* DisplayTopologyStoreTests.swift */; };
 		EAA000000000000000000002 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
+		097517D586044EF5AB85B1E6 = {isa = PBXBuildFile; fileRef = 13A9CBA853BC4F7BB76E421E; };
+		E5082E5487F14C51ABD3CAC0 = {isa = PBXBuildFile; fileRef = 13A9CBA853BC4F7BB76E421E; };
+		F8A4F179D2C24B2EA5ED5181 = {isa = PBXBuildFile; fileRef = 3A9AD9233AAF4A50A4976BA4; };
+		85FF79B3D196457F900E2ACB = {isa = PBXBuildFile; fileRef = 3A9AD9233AAF4A50A4976BA4; };
+		B9E65B806A194CAB9BF05DBA = {isa = PBXBuildFile; fileRef = 24628E8457A743C195444566; };
+		F51C1B1E601A480CAA535288 = {isa = PBXBuildFile; fileRef = 24628E8457A743C195444566; };
+		2EC1DDE7C5CA431799EE1A93 = {isa = PBXBuildFile; fileRef = 5CB431CC28174E9C80A53086; };
+		CF33F5D1994448D5BCD5424F = {isa = PBXBuildFile; fileRef = 5CB431CC28174E9C80A53086; };
+		42DF1BB75786469A97FBDE8D = {isa = PBXBuildFile; fileRef = DB55DB751A744E458536784D; };
+		3E958158FEE645A791E6686D = {isa = PBXBuildFile; fileRef = DB55DB751A744E458536784D; };
+		990C73B8755645A6A2C7C8FA = {isa = PBXBuildFile; fileRef = 4F8E48E4B631405DB7B93363; };
+		845E3AC75B674A1DB2254E95 = {isa = PBXBuildFile; fileRef = 8A24DAFE66FE4DD58ED1F6DA; };
+		7E00449F40734FF98AF73E32 = {isa = PBXBuildFile; fileRef = A3CA53A11380411C94525C61; };
+		0F5CC1EB825B4A55BC3CCE65 = {isa = PBXBuildFile; fileRef = 6BFD0EE8181542B9A95A2529; };
+		CE4B249A2C3346E2AEB41DA2 = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
+		198D8C3204574A9286CFDDCC = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
+		902B466BD03649EAB3253707 = {isa = PBXBuildFile; fileRef = 9C33F094644B4978BAE7E77F; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -326,39 +271,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		E90000000000000000000031 /* DockStripView+Projection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockStripView+Projection.swift"; sourceTree = "<group>"; };
-		E90000000000000000000032 /* DockStripView+Hover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockStripView+Hover.swift"; sourceTree = "<group>"; };
 		E9000000000000000000002B /* PanelCoordinator+Visibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Visibility.swift"; sourceTree = "<group>"; };
 		E9000000000000000000002C /* PanelCoordinator+Layout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Layout.swift"; sourceTree = "<group>"; };
 		E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+PanelSetup.swift"; sourceTree = "<group>"; };
 		E90000000000000000000028 /* PanelCoordinator+Fullscreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Fullscreen.swift"; sourceTree = "<group>"; };
-		E90000000000000000000020 /* PanelCoordinator+Tooltip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Tooltip.swift"; sourceTree = "<group>"; };
 		E90000000000000000000021 /* PanelCoordinator+Spaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Spaces.swift"; sourceTree = "<group>"; };
 		E90000000000000000000010 /* StripProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripProjection.swift; sourceTree = "<group>"; };
-		E90000000000000000000011 /* ChipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipView.swift; sourceTree = "<group>"; };
-		E90000000000000000000014 /* StripFramePreferenceKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripFramePreferenceKeys.swift; sourceTree = "<group>"; };
-		E90000000000000000000016 /* DockVisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockVisualEffectView.swift; sourceTree = "<group>"; };
-		E90000000000000000000017 /* StripWheelScrollInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripWheelScrollInterceptor.swift; sourceTree = "<group>"; };
-		E90000000000000000000019 /* StripPointerTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripPointerTracker.swift; sourceTree = "<group>"; };
-		E9D000000000000000000031 /* StripResizeGrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripResizeGrip.swift; sourceTree = "<group>"; };
-		E9D000000000000000000034 /* ResizeCursorGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResizeCursorGlyph.swift; sourceTree = "<group>"; };
-		E9D000000000000000000036 /* SystemCursorHider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCursorHider.swift; sourceTree = "<group>"; };
-		E9D000000000000000000037 /* SystemResizeCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemResizeCursor.swift; sourceTree = "<group>"; };
-		E9D000000000000000000035 /* PanelCoordinator+ResizeCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+ResizeCursor.swift"; sourceTree = "<group>"; };
-		E9D000000000000000000032 /* DockHeightDragSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockHeightDragSession.swift; sourceTree = "<group>"; };
-		BAA000000000000000000001 /* BarArrowCursorDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarArrowCursorDecision.swift; sourceTree = "<group>"; };
-		E9D000000000000000000033 /* DockHeightDragSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockHeightDragSessionTests.swift; sourceTree = "<group>"; };
 		E90000000000000000000007 /* DebugSwitch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSwitch.swift; sourceTree = "<group>"; };
 		E90000000000000000000008 /* DebugSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSwitchTests.swift; sourceTree = "<group>"; };
 		E90000000000000000000006 /* DockSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSnapshot.swift; sourceTree = "<group>"; };
-		E90000000000000000000001 /* StatusMenuWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuWidgets.swift; sourceTree = "<group>"; };
 		E90000000000000000000002 /* TaskbarDebugSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarDebugSnapshot.swift; sourceTree = "<group>"; };
 		E90000000000000000000003 /* FullscreenWindowClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenWindowClassifier.swift; sourceTree = "<group>"; };
 		E90000000000000000000004 /* DefaultsValueParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsValueParsing.swift; sourceTree = "<group>"; };
-		D10000000000000000000000 /* CarrierSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarrierSnapshot.swift; sourceTree = "<group>"; };
-		D10000000000000000000005 /* DragCarrierGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragCarrierGeometry.swift; sourceTree = "<group>"; };
-		D10000000000000000000008 /* ChipSnapshotter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipSnapshotter.swift; sourceTree = "<group>"; };
-		D1000000000000000000000A /* DragCarrierGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragCarrierGeometryTests.swift; sourceTree = "<group>"; };
 		F10000000000000000000010 /* FullscreenIntentDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentDecision.swift; sourceTree = "<group>"; };
 		E26000000000000000000001 /* CopiedGestureEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopiedGestureEvent.swift; sourceTree = "<group>"; };
 		F10000000000000000000011 /* FullscreenIntentMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentMonitor.swift; sourceTree = "<group>"; };
@@ -368,16 +292,8 @@
 		C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackChipDecisionTests.swift; sourceTree = "<group>"; };
 		D10000000000000000000003 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
 		D10000000000000000000006 /* AccessoryWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessoryWindowPresentation.swift; sourceTree = "<group>"; };
-		D10000000000000000000041 /* StripContextMenuZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripContextMenuZone.swift; sourceTree = "<group>"; };
-		D10000000000000000000067 /* StripWheelScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripWheelScroll.swift; sourceTree = "<group>"; };
-		D10000000000000000000061 /* StripHoverResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripHoverResolution.swift; sourceTree = "<group>"; };
-		D10000000000000000000063 /* DragLandingPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragLandingPlan.swift; sourceTree = "<group>"; };
 		D10000000000000000000007 /* SettingsCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinatorTests.swift; sourceTree = "<group>"; };
 		D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessoryWindowPresentationTests.swift; sourceTree = "<group>"; };
-		D10000000000000000000042 /* StripContextMenuZoneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripContextMenuZoneTests.swift; sourceTree = "<group>"; };
-		D10000000000000000000068 /* StripWheelScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripWheelScrollTests.swift; sourceTree = "<group>"; };
-		D10000000000000000000062 /* StripHoverResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripHoverResolutionTests.swift; sourceTree = "<group>"; };
-		D10000000000000000000064 /* DragLandingPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragLandingPlanTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000068 /* AppWindowObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWindowObserver.swift; sourceTree = "<group>"; };
 		A00000000000000000000069 /* AppTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTracker.swift; sourceTree = "<group>"; };
 		A00000000000000000009600 /* TabFoldDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabFoldDecision.swift; sourceTree = "<group>"; };
@@ -386,7 +302,6 @@
 		A00000000000000000009E01 /* WindowInventoryAnomalyLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowInventoryAnomalyLogTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009E02 /* AXWindowReaderResultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowReaderResultTests.swift; sourceTree = "<group>"; };
 		C90000000000000000000009 /* AXElementCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXElementCacheTests.swift; sourceTree = "<group>"; };
-		C90000000000000000000007 /* ChipPressFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipPressFeedbackTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009E03 /* ProcessLiveness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessLiveness.swift; sourceTree = "<group>"; };
 		A00000000000000000009E04 /* ProcessLivenessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessLivenessTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000B90 /* FeedbackTickPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackTickPolicyTests.swift; sourceTree = "<group>"; };
@@ -426,30 +341,22 @@
 		B10000000000000000000138 /* WindowDisplayAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayAttributionTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000141 /* WindowDisplayMoveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayMoveTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000013A /* StripDisplayFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripDisplayFilterTests.swift; sourceTree = "<group>"; };
-		B10000000000000000000204 /* StripSharedAffixTrimTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripSharedAffixTrimTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTrackerDisplayAttributionTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009750 /* NonConstrainingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonConstrainingPanel.swift; sourceTree = "<group>"; };
 		A00000000000000000000C00 /* ManualPanelHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPanelHostTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000ACC0 /* NonConstrainingPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonConstrainingPanelTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000E200 /* WindowTitleSettle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleSettle.swift; sourceTree = "<group>"; };
-		A00000000000000000000B120 /* DockPanelRimPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockPanelRimPlan.swift; sourceTree = "<group>"; };
 		A00000000000000000000E210 /* WindowTitleSettleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleSettleTests.swift; sourceTree = "<group>"; };
-		A00000000000000000000B130 /* DockPanelRimPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockPanelRimPlanTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000B200 /* AppNameRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNameRegistryTests.swift; sourceTree = "<group>"; };
-		A00000000000000000009730 /* WindowReorderControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowReorderControllerTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000066 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A0000000000000000000006C /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		B10000000000000000000121 /* TaskbarScreenOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarScreenOrchestrator.swift; sourceTree = "<group>"; };
-		A00000000000000000000067 /* DockStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockStripView.swift; sourceTree = "<group>"; };
 		A00000000000000000005010 /* StripOrderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripOrderStore.swift; sourceTree = "<group>"; };
-		A00000000000000000006010 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		A00000000000000000008010 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
 		A00000000000000000008020 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
 		A00000000000000000009010 /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
 		A00000000000000000009030 /* PanelVisibilityState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelVisibilityState.swift; sourceTree = "<group>"; };
-		A00000000000000000009080 /* PanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometry.swift; sourceTree = "<group>"; };
 		A000000000000000000019B1 /* AppDisplayNameResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameResolver.swift; sourceTree = "<group>"; };
-		C90000000000000000000001 /* ChipPressFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipPressFeedback.swift; sourceTree = "<group>"; };
 		A000000000000000000019C1 /* AppMenuFragments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenuFragments.swift; sourceTree = "<group>"; };
 		A00000000000000000000001 /* ProperWMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProperWMApp.swift; sourceTree = "<group>"; };
 		A000000000000000000000F1 /* PermissionOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOnboardingView.swift; sourceTree = "<group>"; };
@@ -496,10 +403,6 @@
 		A00000000000000000000019 /* window-lab */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "window-lab"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000058 /* FinderP0Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderP0Tests.swift; sourceTree = "<group>"; };
 		A00000000000000000008040 /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
-		A000000000000000000090A0 /* PanelGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometryTests.swift; sourceTree = "<group>"; };
-		A00000000000000000009D00 /* WindowTitleTooltip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleTooltip.swift; sourceTree = "<group>"; };
-		A00000000000000000009D10 /* WindowTitleTooltipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowTitleTooltipTests.swift; sourceTree = "<group>"; };
-		B71000000000000000000003 /* ScreenRectReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRectReader.swift; sourceTree = "<group>"; };
 		B72000000000000000000003 /* AppDisplayNameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameCache.swift; sourceTree = "<group>"; };
 		C90000000000000000000005 /* ClickLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickLatencyTrace.swift; sourceTree = "<group>"; };
 		A00000000000000000009AB0 /* HoverTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTrace.swift; sourceTree = "<group>"; };
@@ -514,7 +417,6 @@
 		B10000000000000000000130 /* WindowDisplayAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayAttribution.swift; sourceTree = "<group>"; };
 		B1000000000000000000013E /* WindowDisplayMove.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayMove.swift; sourceTree = "<group>"; };
 		B10000000000000000000133 /* StripDisplayFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripDisplayFilter.swift; sourceTree = "<group>"; };
-		B10000000000000000000201 /* StripSharedAffixTrim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripSharedAffixTrim.swift; sourceTree = "<group>"; };
 		B10000000000000000000136 /* DisplayTopologyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStore.swift; sourceTree = "<group>"; };
 		D90000000000000000000002 /* ScreenTopologySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTopologySnapshot.swift; sourceTree = "<group>"; };
 		D90000000000000000000004 /* DisplayTopologyRefreshController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyRefreshController.swift; sourceTree = "<group>"; };
@@ -522,19 +424,21 @@
 		D90000000000000000000008 /* DisplayTopologyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStoreTests.swift; sourceTree = "<group>"; };
 		A00000000000000000001C10 /* IconRenditionChoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconRenditionChoiceTests.swift; sourceTree = "<group>"; };
 		A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayTitleTests.swift; sourceTree = "<group>"; };
-		A0000000000000000000FB00 /* DockThemeTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockThemeTokens.swift; sourceTree = "<group>"; };
-		A0000000000000000000FC00 /* DockTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockTheme.swift; sourceTree = "<group>"; };
-		A0000000000000000000FE00 /* DockGlassBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockGlassBackdrop.swift; sourceTree = "<group>"; };
-		E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockLiquidGlassConfiguration.swift; sourceTree = "<group>"; };
-		E10000000000000000000002 /* DockGlassRuntimeBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DockGlassRuntimeBridge.h; sourceTree = "<group>"; };
-		E10000000000000000000003 /* DockGlassRuntimeBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DockGlassRuntimeBridge.m; sourceTree = "<group>"; };
-		E10000000000000000000004 /* ProperWM-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "ProperWM-Bridging-Header.h"; sourceTree = "<group>"; };
-		E10000000000000000000005 /* DockLiquidGlassConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockLiquidGlassConfigurationTests.swift; sourceTree = "<group>"; };
-		A0000000000000000000FD00 /* DockThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockThemeTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009770 /* WindowOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrderingTests.swift; sourceTree = "<group>"; };
 		A000000000000000000090B0 /* FullscreenClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenClassificationTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000059 /* ProperWMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "ProperWMTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EAA000000000000000000001 /* AppIconResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconResolver.swift; sourceTree = "<group>"; };
+		13A9CBA853BC4F7BB76E421E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/TaskbarLayout.swift"; sourceTree = SOURCE_ROOT; };
+		3A9AD9233AAF4A50A4976BA4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UI/ReadModel/TaskbarPresentation.swift"; sourceTree = SOURCE_ROOT; };
+		24628E8457A743C195444566 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/Scenes/TaskbarButtonView.swift"; sourceTree = SOURCE_ROOT; };
+		5CB431CC28174E9C80A53086 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/Scenes/TaskbarPopups.swift"; sourceTree = SOURCE_ROOT; };
+		DB55DB751A744E458536784D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/Scenes/TaskbarView.swift"; sourceTree = SOURCE_ROOT; };
+		4F8E48E4B631405DB7B93363 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/Composition/TaskbarPresenter.swift"; sourceTree = SOURCE_ROOT; };
+		8A24DAFE66FE4DD58ED1F6DA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarLayoutTests.swift"; sourceTree = SOURCE_ROOT; };
+		A3CA53A11380411C94525C61 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarPresentationTests.swift"; sourceTree = SOURCE_ROOT; };
+		6BFD0EE8181542B9A95A2529 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarRendererTests.swift"; sourceTree = SOURCE_ROOT; };
+		83751ED96AC24DA6AAC7A17A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/TaskbarInteraction.swift"; sourceTree = SOURCE_ROOT; };
+		9C33F094644B4978BAE7E77F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarInteractionTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -565,6 +469,17 @@
 		A0000000000000000000001C = {
 			isa = PBXGroup;
 			children = (
+				9C33F094644B4978BAE7E77F,
+				83751ED96AC24DA6AAC7A17A,
+				6BFD0EE8181542B9A95A2529,
+				A3CA53A11380411C94525C61,
+				8A24DAFE66FE4DD58ED1F6DA,
+				4F8E48E4B631405DB7B93363,
+				DB55DB751A744E458536784D,
+				5CB431CC28174E9C80A53086,
+				24628E8457A743C195444566,
+				3A9AD9233AAF4A50A4976BA4,
+				13A9CBA853BC4F7BB76E421E,
 				A0000000000000000000001D /* App */,
 				A0000000000000000000001E /* Core */,
 				A0000000000000000000001F /* Platform */,
@@ -579,7 +494,6 @@
 		A0000000000000000000001D /* App */ = {
 			isa = PBXGroup;
 			children = (
-				E10000000000000000000004 /* ProperWM-Bridging-Header.h */,
 				A00000000000000000000024 /* Entry */,
 				A00000000000000000000025 /* Composition */,
 				A00000000000000000000026 /* Scenes */,
@@ -594,8 +508,6 @@
 				E9000000000000000000002C /* PanelCoordinator+Layout.swift */,
 				E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */,
 				E90000000000000000000028 /* PanelCoordinator+Fullscreen.swift */,
-				E90000000000000000000020 /* PanelCoordinator+Tooltip.swift */,
-				E9D000000000000000000035 /* PanelCoordinator+ResizeCursor.swift */,
 				E90000000000000000000021 /* PanelCoordinator+Spaces.swift */,
 				A00000000000000000000001 /* ProperWMApp.swift */,
 				A00000000000000000000066 /* AppDelegate.swift */,
@@ -614,16 +526,11 @@
 				A00000000000000000000003 /* AppComposition.swift */,
 				B10000000000000000000136 /* DisplayTopologyStore.swift */,
 				A00000000000000000005010 /* StripOrderStore.swift */,
-				A00000000000000000006010 /* DragController.swift */,
-				D10000000000000000000008 /* ChipSnapshotter.swift */,
 				A00000000000000000008010 /* AppSettingsStore.swift */,
-				E9D000000000000000000036 /* SystemCursorHider.swift */,
-				E9D000000000000000000037 /* SystemResizeCursor.swift */,
 				D10000000000000000000003 /* SettingsCoordinator.swift */,
 				F3A0000000000000000000A0 /* DiagnosticReport.swift */,
 				A00000000000000000009010 /* LaunchAtLoginService.swift */,
 				A00000000000000000009030 /* PanelVisibilityState.swift */,
-				A00000000000000000009080 /* PanelGeometry.swift */,
 				A00000000000000000009A10 /* WindowLiftAvoidanceController.swift */,
 				A00000000000000000009A30 /* FrontmostWindowGeometryObserver.swift */,
 				A00000000000000000000028 /* IntentPipeline */,
@@ -645,29 +552,11 @@
 				A00000000000000000001C20 /* IconBitmapRenderer.swift */,
 				A10CF0000000000000000000 /* AppIconFreshness.swift */,
 				EAA000000000000000000001 /* AppIconResolver.swift */,
-				E90000000000000000000031 /* DockStripView+Projection.swift */,
-				E90000000000000000000032 /* DockStripView+Hover.swift */,
 				E90000000000000000000010 /* StripProjection.swift */,
-				E90000000000000000000011 /* ChipView.swift */,
-				E90000000000000000000014 /* StripFramePreferenceKeys.swift */,
-				E90000000000000000000016 /* DockVisualEffectView.swift */,
-				E90000000000000000000017 /* StripWheelScrollInterceptor.swift */,
-				E90000000000000000000019 /* StripPointerTracker.swift */,
-				E9D000000000000000000031 /* StripResizeGrip.swift */,
-				E9D000000000000000000034 /* ResizeCursorGlyph.swift */,
-				E90000000000000000000001 /* StatusMenuWidgets.swift */,
 				A000000000000000000000F1 /* PermissionOnboardingView.swift */,
 				D1A000000000000000000012 /* StripProjectionRegistry.swift */,
-				A00000000000000000000067 /* DockStripView.swift */,
-				A00000000000000000009D00 /* WindowTitleTooltip.swift */,
-				B71000000000000000000003 /* ScreenRectReader.swift */,
 				A000000000000000000019B1 /* AppDisplayNameResolver.swift */,
-				C90000000000000000000001 /* ChipPressFeedback.swift */,
 				A000000000000000000019C1 /* AppMenuFragments.swift */,
-				A0000000000000000000FC00 /* DockTheme.swift */,
-				A0000000000000000000FE00 /* DockGlassBackdrop.swift */,
-				E10000000000000000000002 /* DockGlassRuntimeBridge.h */,
-				E10000000000000000000003 /* DockGlassRuntimeBridge.m */,
 			);
 			path = Scenes;
 			sourceTree = "<group>";
@@ -689,8 +578,6 @@
 			children = (
 				E90000000000000000000007 /* DebugSwitch.swift */,
 				E90000000000000000000004 /* DefaultsValueParsing.swift */,
-				E9D000000000000000000032 /* DockHeightDragSession.swift */,
-				BAA000000000000000000001 /* BarArrowCursorDecision.swift */,
 				C30000000000000000000010 /* AppFallbackChipDecision.swift */,
 				A00000000000000000001C00 /* IconRenditionChoice.swift */,
 				B1000000000000000000010D /* MinimizeHandoffTarget.swift */,
@@ -702,22 +589,12 @@
 				B10000000000000000000130 /* WindowDisplayAttribution.swift */,
 				B1000000000000000000013E /* WindowDisplayMove.swift */,
 				B10000000000000000000133 /* StripDisplayFilter.swift */,
-				B10000000000000000000201 /* StripSharedAffixTrim.swift */,
 				B72000000000000000000003 /* AppDisplayNameCache.swift */,
 				C90000000000000000000005 /* ClickLatencyTrace.swift */,
 				A00000000000000000009AB0 /* HoverTrace.swift */,
-				A0000000000000000000FB00 /* DockThemeTokens.swift */,
-				E10000000000000000000001 /* DockLiquidGlassConfiguration.swift */,
 				A00000000000000000000E200 /* WindowTitleSettle.swift */,
-				A00000000000000000000B120 /* DockPanelRimPlan.swift */,
 				A00000000000000000009A00 /* WindowLiftAvoidance.swift */,
 				D10000000000000000000006 /* AccessoryWindowPresentation.swift */,
-				D10000000000000000000041 /* StripContextMenuZone.swift */,
-				D10000000000000000000067 /* StripWheelScroll.swift */,
-				D10000000000000000000061 /* StripHoverResolution.swift */,
-				D10000000000000000000063 /* DragLandingPlan.swift */,
-				D10000000000000000000000 /* CarrierSnapshot.swift */,
-				D10000000000000000000005 /* DragCarrierGeometry.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -949,26 +826,15 @@
 				A00000000000000000008040 /* AppSettingsStoreTests.swift */,
 				D10000000000000000000007 /* SettingsCoordinatorTests.swift */,
 				D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */,
-				D10000000000000000000042 /* StripContextMenuZoneTests.swift */,
-				E9D000000000000000000033 /* DockHeightDragSessionTests.swift */,
-				D10000000000000000000068 /* StripWheelScrollTests.swift */,
-				D10000000000000000000062 /* StripHoverResolutionTests.swift */,
-				D10000000000000000000064 /* DragLandingPlanTests.swift */,
-				D1000000000000000000000A /* DragCarrierGeometryTests.swift */,
-				A000000000000000000090A0 /* PanelGeometryTests.swift */,
-				A00000000000000000009D10 /* WindowTitleTooltipTests.swift */,
 				A000000000000000000090B0 /* FullscreenClassificationTests.swift */,
 				A00000000000000000001C10 /* IconRenditionChoiceTests.swift */,
 				A10CF0000000000000000010 /* AppIconStampTests.swift */,
 				A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */,
-				A0000000000000000000FD00 /* DockThemeTests.swift */,
-				E10000000000000000000005 /* DockLiquidGlassConfigurationTests.swift */,
 				A00000000000000000009770 /* WindowOrderingTests.swift */,
 				A00000000000000000009601 /* TabFoldDecisionTests.swift */,
 				A00000000000000000009E01 /* WindowInventoryAnomalyLogTests.swift */,
 				A00000000000000000009E02 /* AXWindowReaderResultTests.swift */,
 				C90000000000000000000009 /* AXElementCacheTests.swift */,
-				C90000000000000000000007 /* ChipPressFeedbackTests.swift */,
 				A00000000000000000009E04 /* ProcessLivenessTests.swift */,
 				A00000000000000000000B90 /* FeedbackTickPolicyTests.swift */,
 				A00000000000000000009E06 /* ScanAdmissionDecisionTests.swift */,
@@ -993,14 +859,11 @@
 				B10000000000000000000138 /* WindowDisplayAttributionTests.swift */,
 				B10000000000000000000141 /* WindowDisplayMoveTests.swift */,
 				B1000000000000000000013A /* StripDisplayFilterTests.swift */,
-				B10000000000000000000204 /* StripSharedAffixTrimTests.swift */,
 				B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */,
 				A00000000000000000000E210 /* WindowTitleSettleTests.swift */,
-				A00000000000000000000B130 /* DockPanelRimPlanTests.swift */,
 				A00000000000000000000B200 /* AppNameRegistryTests.swift */,
 				F3A0000000000000000000B0 /* DiagnosticReportTests.swift */,
 				D1A000000000000000000013 /* DiagnosticsTests.swift */,
-				A00000000000000000009730 /* WindowReorderControllerTests.swift */,
 				A00000000000000000000C00 /* ManualPanelHostTests.swift */,
 				A0000000000000000000ACC0 /* NonConstrainingPanelTests.swift */,
 			);
@@ -1149,36 +1012,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE4B249A2C3346E2AEB41DA2,
+				990C73B8755645A6A2C7C8FA,
+				42DF1BB75786469A97FBDE8D,
+				2EC1DDE7C5CA431799EE1A93,
+				B9E65B806A194CAB9BF05DBA,
+				F8A4F179D2C24B2EA5ED5181,
+				097517D586044EF5AB85B1E6,
 				A00000000000000000001C21 /* IconBitmapRenderer.swift in Sources */,
 				A10CF0000000000000000001 /* AppIconFreshness.swift in Sources */,
 				EAA000000000000000000002 /* AppIconResolver.swift in Sources */,
-				E90000000000000000001031 /* DockStripView+Projection.swift in Sources */,
-				E90000000000000000001032 /* DockStripView+Hover.swift in Sources */,
 				E9000000000000000000102B /* PanelCoordinator+Visibility.swift in Sources */,
 				E9000000000000000000102C /* PanelCoordinator+Layout.swift in Sources */,
 				E9000000000000000000102D /* PanelCoordinator+PanelSetup.swift in Sources */,
 				E90000000000000000001028 /* PanelCoordinator+Fullscreen.swift in Sources */,
-				E90000000000000000001020 /* PanelCoordinator+Tooltip.swift in Sources */,
 				E90000000000000000001021 /* PanelCoordinator+Spaces.swift in Sources */,
 				E90000000000000000001010 /* StripProjection.swift in Sources */,
-				E90000000000000000001011 /* ChipView.swift in Sources */,
-				E90000000000000000001014 /* StripFramePreferenceKeys.swift in Sources */,
-				E90000000000000000001016 /* DockVisualEffectView.swift in Sources */,
-				E90000000000000000001017 /* StripWheelScrollInterceptor.swift in Sources */,
-				E90000000000000000001019 /* StripPointerTracker.swift in Sources */,
-				E9D000000000000000001031 /* StripResizeGrip.swift in Sources */,
-				E9D000000000000000001034 /* ResizeCursorGlyph.swift in Sources */,
-				E9D000000000000000001036 /* SystemCursorHider.swift in Sources */,
-				E9D000000000000000001037 /* SystemResizeCursor.swift in Sources */,
-				E9D000000000000000001035 /* PanelCoordinator+ResizeCursor.swift in Sources */,
 				E90000000000000000001007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000001006 /* DockSnapshot.swift in Sources */,
-				E90000000000000000001001 /* StatusMenuWidgets.swift in Sources */,
 				E90000000000000000001002 /* TaskbarDebugSnapshot.swift in Sources */,
 				E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */,
 				E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */,
-				E9D000000000000000001032 /* DockHeightDragSession.swift in Sources */,
-				BAA000000000000000001001 /* BarArrowCursorDecision.swift in Sources */,
 					F20000000000000000000001 /* FullscreenIntentDecision.swift in Sources */,
 					E26000000000000000000002 /* CopiedGestureEvent.swift in Sources */,
 					F20000000000000000000002 /* FullscreenIntentMonitor.swift in Sources */,
@@ -1188,18 +1042,8 @@
 					A00000000000000000001040 /* AppDelegate.swift in Sources */,
 					D20000000000000000000003 /* SettingsCoordinator.swift in Sources */,
 					D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */,
-					D20000000000000000000041 /* StripContextMenuZone.swift in Sources */,
-					D2000000000000000000006B /* StripWheelScroll.swift in Sources */,
-					D20000000000000000000061 /* StripHoverResolution.swift in Sources */,
-					D20000000000000000000064 /* DragLandingPlan.swift in Sources */,
-					D20000000000000000000000 /* CarrierSnapshot.swift in Sources */,
-					D20000000000000000000007 /* DragCarrierGeometry.swift in Sources */,
-					D20000000000000000000009 /* ChipSnapshotter.swift in Sources */,
 					A00000000000000000001046 /* PanelCoordinator.swift in Sources */,
 					B10000000000000000000122 /* TaskbarScreenOrchestrator.swift in Sources */,
-					A00000000000000000001041 /* DockStripView.swift in Sources */,
-					A00000000000000000009D01 /* WindowTitleTooltip.swift in Sources */,
-					B71000000000000000000001 /* ScreenRectReader.swift in Sources */,
 					A000000000000000000010F1 /* PermissionOnboardingView.swift in Sources */,
 					A0000000000000000000B011 /* AccessibilityPermissionDecision.swift in Sources */,
 					A0000000000000000000B021 /* PermissionRecoveryMachine.swift in Sources */,
@@ -1210,19 +1054,16 @@
 					D90000000000000000000102 /* ScreenTopologySnapshot.swift in Sources */,
 					D90000000000000000000104 /* DisplayTopologyRefreshController.swift in Sources */,
 					A00000000000000000005011 /* StripOrderStore.swift in Sources */,
-					A00000000000000000006011 /* DragController.swift in Sources */,
 					A00000000000000000009751 /* NonConstrainingPanel.swift in Sources */,
 					A00000000000000000008011 /* AppSettingsStore.swift in Sources */,
 					F1B0000000000000000000C3 /* DisplayIdentity.swift in Sources */,
 					A00000000000000000009011 /* LaunchAtLoginService.swift in Sources */,
 					A00000000000000000009031 /* PanelVisibilityState.swift in Sources */,
-					A00000000000000000009081 /* PanelGeometry.swift in Sources */,
 					A00000000000000000009A11 /* WindowLiftAvoidanceController.swift in Sources */,
 					A00000000000000000009A31 /* FrontmostWindowGeometryObserver.swift in Sources */,
 					A00000000000000000009A01 /* WindowLiftAvoidance.swift in Sources */,
 					A00000000000000000008021 /* StatusMenuController.swift in Sources */,
 					A000000000000000000019A1 /* AppDisplayNameResolver.swift in Sources */,
-					C90000000000000000000002 /* ChipPressFeedback.swift in Sources */,
 					A000000000000000000019D1 /* AppMenuFragments.swift in Sources */,
 					F3A0000000000000000000A1 /* DiagnosticReport.swift in Sources */,
 					D1A000000000000000000002 /* StripProjectionRegistry.swift in Sources */,
@@ -1234,17 +1075,10 @@
 					B10000000000000000000131 /* WindowDisplayAttribution.swift in Sources */,
 					B1000000000000000000013F /* WindowDisplayMove.swift in Sources */,
 					B10000000000000000000134 /* StripDisplayFilter.swift in Sources */,
-					B10000000000000000000202 /* StripSharedAffixTrim.swift in Sources */,
 					B72000000000000000000001 /* AppDisplayNameCache.swift in Sources */,
 					C90000000000000000000006 /* ClickLatencyTrace.swift in Sources */,
 				A00000000000000000009AB1 /* HoverTrace.swift in Sources */,
-					A0000000000000000000FB01 /* DockThemeTokens.swift in Sources */,
-					E20000000000000000000001 /* DockLiquidGlassConfiguration.swift in Sources */,
-					A0000000000000000000FC01 /* DockTheme.swift in Sources */,
-					A0000000000000000000FE01 /* DockGlassBackdrop.swift in Sources */,
-					E20000000000000000000003 /* DockGlassRuntimeBridge.m in Sources */,
 					A00000000000000000000E201 /* WindowTitleSettle.swift in Sources */,
-					A00000000000000000000B121 /* DockPanelRimPlan.swift in Sources */,
 					A00000000000000000001005 /* IntentPipeline.swift in Sources */,
 					A00000000000000000001006 /* Identifiers.swift in Sources */,
 					A00000000000000000001007 /* WindowModels.swift in Sources */,
@@ -1323,14 +1157,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				902B466BD03649EAB3253707,
+				198D8C3204574A9286CFDDCC,
+				0F5CC1EB825B4A55BC3CCE65,
+				7E00449F40734FF98AF73E32,
+				845E3AC75B674A1DB2254E95,
+				3E958158FEE645A791E6686D,
+				CF33F5D1994448D5BCD5424F,
+				F51C1B1E601A480CAA535288,
+				85FF79B3D196457F900E2ACB,
+				E5082E5487F14C51ABD3CAC0,
 				E90000000000000000002008 /* DebugSwitchTests.swift in Sources */,
 				E90000000000000000002007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000002006 /* DockSnapshot.swift in Sources */,
-				E90000000000000000002001 /* StatusMenuWidgets.swift in Sources */,
 				E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */,
 				E90000000000000000002004 /* DefaultsValueParsing.swift in Sources */,
-				E9D000000000000000002032 /* DockHeightDragSession.swift in Sources */,
-				BAA000000000000000002001 /* BarArrowCursorDecision.swift in Sources */,
 				F20000000000000000000003 /* FullscreenIntentDecision.swift in Sources */,
 				E26000000000000000000003 /* CopiedGestureEvent.swift in Sources */,
 				F20000000000000000000004 /* FullscreenIntentDecisionTests.swift in Sources */,
@@ -1344,36 +1185,16 @@
 				A0000000000000000000B052 /* PermissionService.swift in Sources */,
 				A0000000000000000000B062 /* PermissionOnboardingTests.swift in Sources */,
 				A00000000000000000008031 /* AppSettingsStore.swift in Sources */,
-				E9D000000000000000002034 /* ResizeCursorGlyph.swift in Sources */,
-				E9D000000000000000002036 /* SystemCursorHider.swift in Sources */,
-				E9D000000000000000002037 /* SystemResizeCursor.swift in Sources */,
 				D20000000000000000000013 /* SettingsCoordinator.swift in Sources */,
 				D20000000000000000000016 /* AccessoryWindowPresentation.swift in Sources */,
-				D20000000000000000000042 /* StripContextMenuZone.swift in Sources */,
-				D2000000000000000000006C /* StripWheelScroll.swift in Sources */,
-				D20000000000000000000062 /* StripHoverResolution.swift in Sources */,
-				D20000000000000000000065 /* DragLandingPlan.swift in Sources */,
-				D20000000000000000000005 /* CarrierSnapshot.swift in Sources */,
-				D20000000000000000000008 /* DragCarrierGeometry.swift in Sources */,
-				D2000000000000000000000A /* DragCarrierGeometryTests.swift in Sources */,
 				D20000000000000000000067 /* HoverTrace.swift in Sources */,
 				D20000000000000000000017 /* SettingsCoordinatorTests.swift in Sources */,
 				D20000000000000000000019 /* AccessoryWindowPresentationTests.swift in Sources */,
-				D20000000000000000000043 /* StripContextMenuZoneTests.swift in Sources */,
-				E9D000000000000000002033 /* DockHeightDragSessionTests.swift in Sources */,
-				D2000000000000000000006D /* StripWheelScrollTests.swift in Sources */,
-				D20000000000000000000063 /* StripHoverResolutionTests.swift in Sources */,
-				D20000000000000000000066 /* DragLandingPlanTests.swift in Sources */,
 				A00000000000000000008041 /* AppSettingsStoreTests.swift in Sources */,
 				F3A0000000000000000000A2 /* DiagnosticReport.swift in Sources */,
 				A00000000000000000009071 /* StatusMenuController.swift in Sources */,
 				A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */,
 				A00000000000000000009051 /* PanelVisibilityState.swift in Sources */,
-				A00000000000000000009091 /* PanelGeometry.swift in Sources */,
-				A000000000000000000090A1 /* PanelGeometryTests.swift in Sources */,
-				A00000000000000000009D02 /* WindowTitleTooltip.swift in Sources */,
-				B71000000000000000000002 /* ScreenRectReader.swift in Sources */,
-				A00000000000000000009D03 /* WindowTitleTooltipTests.swift in Sources */,
 				A00000000000000000001C02 /* IconRenditionChoice.swift in Sources */,
 				A10CF0000000000000000002 /* AppIconFreshness.swift in Sources */,
 				A10CF0000000000000000011 /* AppIconStampTests.swift in Sources */,
@@ -1387,18 +1208,11 @@
 				B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */,
 				B10000000000000000000140 /* WindowDisplayMove.swift in Sources */,
 				B10000000000000000000135 /* StripDisplayFilter.swift in Sources */,
-				B10000000000000000000203 /* StripSharedAffixTrim.swift in Sources */,
 				B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */,
-				A0000000000000000000FB02 /* DockThemeTokens.swift in Sources */,
-				E20000000000000000000002 /* DockLiquidGlassConfiguration.swift in Sources */,
-				A0000000000000000000FC02 /* DockTheme.swift in Sources */,
-				C9000000000000000000000D /* ChipPressFeedback.swift in Sources */,
 				C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */,
 				C9000000000000000000000B /* AXElementCache.swift in Sources */,
 				A00000000000000000001C11 /* IconRenditionChoiceTests.swift in Sources */,
 				A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */,
-				A0000000000000000000FD01 /* DockThemeTests.swift in Sources */,
-				E20000000000000000000004 /* DockLiquidGlassConfigurationTests.swift in Sources */,
 				A00000000000000000009771 /* WindowOrderingTests.swift in Sources */,
 				A00000000000000000005012 /* StripOrderStore.swift in Sources */,
 				A000000000000000000090B1 /* FullscreenClassificationTests.swift in Sources */,
@@ -1424,7 +1238,6 @@
 					B73000000000000000000001 /* AppTracker.swift in Sources */,
 					A00000000000000000009E14 /* AXWindowReaderResultTests.swift in Sources */,
 					C9000000000000000000000A /* AXElementCacheTests.swift in Sources */,
-					C90000000000000000000008 /* ChipPressFeedbackTests.swift in Sources */,
 					A00000000000000000009E15 /* AXWindowMatchPolicy.swift in Sources */,
 					A00000000000000000009E17 /* ProcessLiveness.swift in Sources */,
 					A00000000000000000009E18 /* ProcessLivenessTests.swift in Sources */,
@@ -1460,18 +1273,13 @@
 					B10000000000000000000139 /* WindowDisplayAttributionTests.swift in Sources */,
 					B10000000000000000000142 /* WindowDisplayMoveTests.swift in Sources */,
 					B1000000000000000000013B /* StripDisplayFilterTests.swift in Sources */,
-					B10000000000000000000205 /* StripSharedAffixTrimTests.swift in Sources */,
 					B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */,
 					A00000000000000000000E202 /* WindowTitleSettle.swift in Sources */,
-					A00000000000000000000B122 /* DockPanelRimPlan.swift in Sources */,
-					A00000000000000000006012 /* DragController.swift in Sources */,
 					A00000000000000000009752 /* NonConstrainingPanel.swift in Sources */,
 					A00000000000000000000E211 /* WindowTitleSettleTests.swift in Sources */,
-					A00000000000000000000B131 /* DockPanelRimPlanTests.swift in Sources */,
 					A00000000000000000000B201 /* AppNameRegistryTests.swift in Sources */,
 					F3A0000000000000000000B1 /* DiagnosticReportTests.swift in Sources */,
 					D1A000000000000000000003 /* DiagnosticsTests.swift in Sources */,
-					A00000000000000000009731 /* WindowReorderControllerTests.swift in Sources */,
 					A00000000000000000000C01 /* ManualPanelHostTests.swift in Sources */,
 					A0000000000000000000ACC1 /* NonConstrainingPanelTests.swift in Sources */,
 					A00000000000000000001031 /* DockWindowEligibilityPolicy.swift in Sources */,
@@ -1570,7 +1378,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "App/ProperWM-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1593,7 +1400,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
-				SWIFT_OBJC_BRIDGING_HEADER = "App/ProperWM-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

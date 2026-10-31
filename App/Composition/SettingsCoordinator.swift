@@ -9,23 +9,11 @@ final class SettingsCoordinator: ObservableObject {
     private let launchAtLoginService: LaunchAtLoginServicing
     private var launchRefreshGeneration: UInt64 = 0
 
-    var taskbarHeightSessionHandler: ((Bool) -> Void)?
-    var taskbarHeightUpdateHandler: (() -> Void)?
 
     init(store: AppSettingsStore, launchAtLoginService: LaunchAtLoginServicing) {
         self.store = store
         self.launchAtLoginService = launchAtLoginService
         launchAtLoginState = store.launchAtLogin ? .on : .off
-    }
-
-    func setTaskbarHeightEditing(_ editing: Bool) {
-        taskbarHeightSessionHandler?(editing)
-    }
-
-    func setTaskbarHeight(_ height: DockPanelHeight) {
-        guard store.dockPanelHeight != height else { return }
-        store.setDockPanelHeight(height)
-        taskbarHeightUpdateHandler?()
     }
 
     @discardableResult

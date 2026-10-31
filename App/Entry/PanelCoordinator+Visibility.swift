@@ -24,7 +24,6 @@ extension PanelCoordinator {
 
     func setTaskbarMenuOpen(_ open: Bool) {
         isTaskbarMenuOpen = open
-        resizeCursorMenuVisibilityChanged(open)
     }
 
     func reconcilePanelVisibility() {
@@ -39,7 +38,7 @@ extension PanelCoordinator {
         if shouldShow {
             let fadeIn = lastHideWasForFullscreen
             lastHideWasForFullscreen = false
-            let fadingPanels = [dockGlassBackgroundPanel, dockPanel].compactMap { $0 }
+            let fadingPanels = [dockPanel].compactMap { $0 }
             if fadeIn { for panel in fadingPanels { panel.alphaValue = 0 } }
             orderDockSurfaceFront()
             pinResidentPanelsIfNeeded()
@@ -53,9 +52,9 @@ extension PanelCoordinator {
             repairAllSpacesMembershipIfNeeded()
         } else {
             lastHideWasForFullscreen = visibilityState.hideReasons.contains(.fullscreen)
-            dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
+            taskbarView?.taskbarContent.prepareForHiding()
             orderDockSurfaceOut()
-            for panel in [dockGlassBackgroundPanel, dockPanel] { panel?.alphaValue = 1 }
+            for panel in [dockPanel] { panel?.alphaValue = 1 }
         }
     }
 

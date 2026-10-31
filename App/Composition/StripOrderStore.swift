@@ -124,6 +124,13 @@ final class StripOrderStore: ObservableObject {
         if next != liveOrder { liveOrder = next; persistLiveOrder() }
     }
 
+    func reorderGroup(_ appKey: String, relativeTo targetAppKey: String, after: Bool, current: [String]) {
+        let base = StripOrdering.reconcile(remembered: liveOrder, current: current, appKeyOf: stickyAppKeys)
+        let next = TaskbarGroupOrdering.moving(appKey, relativeTo: targetAppKey, after: after,
+                                              order: base, appKeys: stickyAppKeys)
+        if next != liveOrder { liveOrder = next; persistLiveOrder() }
+    }
+
     private func persistLiveOrder() {
         defaults.set(StripOrdering.persistableLiveOrder(liveOrder), forKey: orderKey)
         defaults.set(bootTime, forKey: bootKey)

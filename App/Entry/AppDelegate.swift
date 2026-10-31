@@ -42,7 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasStartedApp = false
     private let permissionLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "permissions")
     private lazy var statusMenuController = StatusMenuController(
-        store: settingsStore,
         settingsCoordinator: settingsCoordinator,
         onMenuVisibilityChanged: { [weak self] isOpen in
             self?.panelCoordinator?.setTaskbarMenuOpen(isOpen)
@@ -144,8 +143,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        SystemResizeCursor.shared.reset()   // never leave the ▲▼ or a hidden pointer behind us
-        SystemCursorHider.shared.show()
 
         permissionCoordinator?.terminationRequested()
         windowLiftAvoidanceController?.stop()
@@ -218,12 +215,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             displayTopologyStore: displayTopologyStore
         )
         panelCoordinator = coordinator
-        settingsCoordinator.taskbarHeightSessionHandler = { [weak coordinator] editing in
-            coordinator?.setSettingsHeightSessionActive(editing)
-        }
-        settingsCoordinator.taskbarHeightUpdateHandler = { [weak coordinator] in
-            coordinator?.commitSettingsPanelHeight()
-        }
         coordinator.onRequestTaskbarMenu = { [weak self] event, view in
             self?.statusMenuController.popUpFromTaskbar(with: event, in: view)
         }

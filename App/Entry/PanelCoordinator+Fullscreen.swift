@@ -245,7 +245,7 @@ extension PanelCoordinator {
                 fullscreenIntentLogger.notice(
                     "space-confirmed source=\(source, privacy: .public) generation=\(spaceGeneration, privacy: .public)"
                 )
-                dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
+                dismissTaskbarPopups()
                 diagnosticFullscreenSource = source
                 diagnosticFullscreenVerdict = true
                 reconcilePanelVisibility()
@@ -291,7 +291,7 @@ extension PanelCoordinator {
             } else {
                 visibilityState.setFullscreen(true)
             }
-            dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
+            dismissTaskbarPopups()
         } else {
             if fullscreenIntentTransaction != nil { return }
             visibilityState.setFullscreen(false)
@@ -375,13 +375,11 @@ extension PanelCoordinator {
 
     private func orderOutPanelsForFullscreenPrediction() {
 
-        dragController.cancelDrag()
-        dismissWindowTitleTooltip(suppressCurrentUntilExit: true)
+        taskbarView?.taskbarContent.prepareForHiding()
 
         noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
         lastHideWasForFullscreen = true
         orderDockSurfaceOut()
-        windowTitleTooltipPanel?.orderOut(nil)
     }
 
     func beginFullscreenSpaceIntent(direction: SpaceSwitchDirection) {
@@ -402,7 +400,7 @@ extension PanelCoordinator {
 
         noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
         lastHideWasForFullscreen = true
-        let fadingPanels = [dockGlassBackgroundPanel, dockPanel].compactMap { $0 }
+        let fadingPanels = [dockPanel].compactMap { $0 }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.15
             for panel in fadingPanels { panel.animator().alphaValue = 0 }

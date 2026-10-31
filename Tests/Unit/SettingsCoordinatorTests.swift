@@ -4,43 +4,6 @@ import XCTest
 
 @MainActor
 final class SettingsCoordinatorTests: XCTestCase {
-    func testTaskbarHeightCommitReadsTheNewHeightBeforeTheSetterReturns() {
-        let store = makeStore()
-        let coordinator = makeCoordinator(store: store)
-        var committed: [DockPanelHeight] = []
-        coordinator.taskbarHeightUpdateHandler = { committed.append(store.dockPanelHeight) }
-
-        let heights = [63, 32, 120, 54].map { DockPanelHeight(clamping: CGFloat($0)) }
-        for (index, height) in heights.enumerated() {
-            coordinator.setTaskbarHeight(height)
-            XCTAssertEqual(store.dockPanelHeight, height)
-            XCTAssertEqual(committed, Array(heights.prefix(index + 1)))
-        }
-    }
-
-    func testUnchangedTaskbarHeightDoesNotCommitAgain() {
-        let store = makeStore()
-        let coordinator = makeCoordinator(store: store)
-        var commits = 0
-        coordinator.taskbarHeightUpdateHandler = { commits += 1 }
-
-        coordinator.setTaskbarHeight(store.dockPanelHeight)
-        XCTAssertEqual(commits, 0)
-        coordinator.setTaskbarHeight(DockPanelHeight(clamping: 80))
-        coordinator.setTaskbarHeight(DockPanelHeight(clamping: 80))
-        XCTAssertEqual(commits, 1)
-    }
-
-    func testTaskbarHeightStillUpdatesWithoutARunningTaskbar() {
-        let store = makeStore()
-        let coordinator = makeCoordinator(store: store)
-        let height = DockPanelHeight(clamping: 63)
-
-        coordinator.setTaskbarHeight(height)
-
-        XCTAssertEqual(store.dockPanelHeight, height)
-    }
-
     func testLaunchStateStartsFromCacheThenRefreshesFromService() async {
         let store = makeStore(launchAtLogin: true)
         let launch = LaunchServiceStub(state: .off)
@@ -116,15 +79,6 @@ final class SettingsCoordinatorTests: XCTestCase {
         let accepted = await refresh.value
         XCTAssertFalse(accepted)
         XCTAssertEqual(coordinator.launchAtLoginState, .off)
-    }
-
-    func testHeightEditingSignalsBothStartAndEnd() {
-        let coordinator = makeCoordinator()
-        var states: [Bool] = []
-        coordinator.taskbarHeightSessionHandler = { states.append($0) }
-        coordinator.setTaskbarHeightEditing(true)
-        coordinator.setTaskbarHeightEditing(false)
-        XCTAssertEqual(states, [true, false])
     }
 
     func testLaunchApprovalCanOpenSystemSettings() {
