@@ -10,6 +10,9 @@ final class TaskbarRendererTests: XCTestCase {
         var onDismiss: (() -> Void)?
         var content: NSView?
         var presentations = 0
+        var keyboardFocusRequests = 0
+
+        func focusForKeyboard() { keyboardFocusRequests += 1 }
 
         func present(content: NSView, frame: CGRect, anchorWindow: NSWindow?) {
             dismiss()
@@ -31,6 +34,14 @@ final class TaskbarRendererTests: XCTestCase {
             menu = TaskbarNativeMenuFactory.menu(entries: entries)
         }
         func dismiss() { menu = nil }
+    }
+
+    private final class RecordingPopupPanel: NSPanel {
+        var frontRequests = 0
+        var keyRequests = 0
+        override var canBecomeKey: Bool { true }
+        override func orderFrontRegardless() { frontRequests += 1 }
+        override func makeKey() { keyRequests += 1 }
     }
 
     @MainActor
@@ -170,6 +181,59 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertFalse(popup.isPresented)
     }
 
+    func testClickPromotesAHoverListWithoutRecreatingIt() async {
+        let popup = Popup()
+        let clock = Clock()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 200, height: 32), popup: popup,
+                                         delay: { await clock.sleep($0) })
+        content.update(groups: groups())
+        let button = content.buttonViews["group:test.editor"]!
+        button.onHover?(true)
+        await clock.advance()
+        XCTAssertEqual(popup.presentations, 1)
+        XCTAssertEqual(popup.keyboardFocusRequests, 0)
+        let original = popup.content
+        XCTAssertTrue(button.accessibilityPerformPress())
+        XCTAssertTrue(popup.content === original)
+        XCTAssertEqual(popup.presentations, 1)
+        XCTAssertEqual(popup.keyboardFocusRequests, 1)
+    }
+
+    func testOverflowClickRequestsKeyboardFocus() {
+        let popup = Popup()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 60, height: 32), popup: popup)
+        content.update(groups: twoGroups())
+        XCTAssertTrue(content.overflowButton?.accessibilityPerformPress() == true)
+        XCTAssertTrue(popup.isPresented)
+        XCTAssertEqual(popup.keyboardFocusRequests, 1)
+    }
+
+    func testPopupControllerRoutesPanelKeyboardEventsToItsList() throws {
+        _ = NSApplication.shared
+        let panel = RecordingPopupPanel(contentRect: CGRect(x: 0, y: 0, width: 216, height: 120),
+                                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let controller = TaskbarPopupController(makePanel: { _ in panel }, monitorsOutsideEvents: false)
+        defer { controller.dismiss() }
+        var activated: [String] = []
+        let list = TaskbarWindowListView(windows: groups()[0].windows, availableHeight: 120, icon: { _ in nil },
+                                        activate: { activated.append($0.id) }, close: { _ in }, fileHover: { _ in })
+        controller.present(content: list, frame: list.bounds, anchorWindow: nil)
+        XCTAssertEqual(panel.frontRequests, 1)
+        XCTAssertEqual(panel.keyRequests, 0)
+        controller.focusForKeyboard()
+        XCTAssertEqual(panel.keyRequests, 1)
+        XCTAssertTrue(panel.firstResponder === list)
+        for code: UInt16 in [125, 125, 36, 53] {
+            let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: panel.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "",
+                isARepeat: false, keyCode: code))
+            panel.sendEvent(event)
+        }
+        XCTAssertEqual(activated, ["window-1"])
+        XCTAssertFalse(controller.isPresented)
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testFileHoverRestoresOnlyTheExactSeparateWindow() async {
         let clock = Clock()
         let popup = Popup()
@@ -221,6 +285,7 @@ final class TaskbarRendererTests: XCTestCase {
         content.scheduleFileHover(buttonID: "group:test.editor")
         await clock.advance()
         XCTAssertTrue(activated.isEmpty)
+        XCTAssertEqual(popup.keyboardFocusRequests, 0)
         let list = popup.content as? TaskbarWindowListView
         XCTAssertNotNil(list)
         list?.cells[2].scheduleFileHover()

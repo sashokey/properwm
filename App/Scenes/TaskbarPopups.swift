@@ -19,6 +19,7 @@ protocol TaskbarPopupPresenting: AnyObject {
     var onPresent: ((NSPanel) -> Void)? { get set }
     var onDismiss: (() -> Void)? { get set }
     func present(content: NSView, frame: CGRect, anchorWindow: NSWindow?)
+    func focusForKeyboard()
     func dismiss()
 }
 
@@ -28,13 +29,21 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
     var isPresented: Bool { panel != nil }
     private var localMonitor: Any?
     private var globalMonitor: Any?
+    private let makePanel: (CGRect) -> NSPanel
+    private let monitorsOutsideEvents: Bool
     var onPresent: ((NSPanel) -> Void)?
     var onDismiss: (() -> Void)?
 
+    init(makePanel: ((CGRect) -> NSPanel)? = nil, monitorsOutsideEvents: Bool = true) {
+        self.makePanel = makePanel ?? {
+            TaskbarPopupPanel(contentRect: $0, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        }
+        self.monitorsOutsideEvents = monitorsOutsideEvents
+    }
+
     func present(content: NSView, frame: CGRect, anchorWindow: NSWindow?) {
         dismiss()
-        let panel = TaskbarPopupPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
-                                          backing: .buffered, defer: false)
+        let panel = makePanel(frame)
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -47,9 +56,11 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
         content.frame = CGRect(origin: .zero, size: frame.size)
         panel.contentView = content
         panel.makeFirstResponder(content)
+        (content as? TaskbarWindowListView)?.onCancel = { [weak self] in self?.dismiss() }
         self.panel = panel
         panel.orderFrontRegardless()
         onPresent?(panel)
+        guard monitorsOutsideEvents else { return }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
             let consumed = MainActor.assumeIsolated {
                 guard let self else { return false }
@@ -66,6 +77,12 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
                 self.dismiss()
             }
         }
+    }
+
+    func focusForKeyboard() {
+        guard let panel, let content = panel.contentView else { return }
+        panel.makeKey()
+        panel.makeFirstResponder(content)
     }
 
     func dismiss() {
@@ -172,6 +189,7 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
     let tableView: NSTableView = TaskbarWindowTable()
     let scrollView = NSScrollView()
     var onHover: ((Bool) -> Void)?
+    var onCancel: (() -> Void)?
     private var tracking: NSTrackingArea?
     override var acceptsFirstResponder: Bool { true }
 
@@ -262,6 +280,9 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
     private func handleKey(_ event: NSEvent) -> Bool {
         guard !cells.isEmpty else { return false }
         switch event.keyCode {
+        case 53:
+            onCancel?()
+            return true
         case 125, 126:
             let delta = event.keyCode == 125 ? 1 : -1
             let selected = tableView.selectedRow

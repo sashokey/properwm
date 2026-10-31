@@ -275,6 +275,7 @@
 		132A413EF5B9FD9566329B23 = {isa = PBXBuildFile; fileRef = 0A95269DF31CDA0184AA1F40; };
 		36FA945289DCB7E45C8EDCAD = {isa = PBXBuildFile; fileRef = CAC68C8C9934A6358A28C8B7; };
 		A5CD963E34F2C13932637822 = {isa = PBXBuildFile; fileRef = F1B0000000000000000000C2; };
+		B8DB1A1303F488BF81C82186 = {isa = PBXBuildFile; fileRef = A21A879D58AA513652B6EAAB; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -463,6 +464,7 @@
 		9DA777C38F1AC5C766FA2467 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/AsyncWorkScope.swift"; sourceTree = SOURCE_ROOT; };
 		0A95269DF31CDA0184AA1F40 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/InventoryLifecycleTests.swift"; sourceTree = SOURCE_ROOT; };
 		CAC68C8C9934A6358A28C8B7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/AppRuntimeTests.swift"; sourceTree = SOURCE_ROOT; };
+		A21A879D58AA513652B6EAAB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarDrawingTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -493,6 +495,7 @@
 		A0000000000000000000001C = {
 			isa = PBXGroup;
 			children = (
+				A21A879D58AA513652B6EAAB,
 				CAC68C8C9934A6358A28C8B7,
 				0A95269DF31CDA0184AA1F40,
 				9DA777C38F1AC5C766FA2467,
@@ -1196,6 +1199,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B8DB1A1303F488BF81C82186,
 				A5CD963E34F2C13932637822,
 				36FA945289DCB7E45C8EDCAD,
 				132A413EF5B9FD9566329B23,

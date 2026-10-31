@@ -180,7 +180,7 @@ final class TaskbarContentView: NSView {
             view.frame = frame
             view.isOverflow = true
             view.title = String(localized: "More windows")
-            view.onClick = { [weak self] in self?.showOverflow() }
+            view.onClick = { [weak self] in self?.showOverflow(focusForKeyboard: true) }
         } else { overflowButton?.removeFromSuperview(); overflowButton = nil }
     }
 
@@ -188,7 +188,7 @@ final class TaskbarContentView: NSView {
         guard !suppressClick,
               let button = layoutResult.buttons.first(where: { $0.id == id }),
               let group = groups.first(where: { $0.id == button.groupID }) else { return }
-        if button.isCombined { showWindowList(group: group, anchor: button.frame) }
+        if button.isCombined { showWindowList(group: group, anchor: button.frame, focusForKeyboard: true) }
         else if let item = group.windows.first(where: { button.windowIDs.contains($0.id) }) {
             dismissPopups()
             actions.toggle(item.item.actionWindowID)
@@ -246,10 +246,13 @@ final class TaskbarContentView: NSView {
         return window.convertToScreen(convert(rect, to: nil))
     }
 
-    private func showWindowList(group: TaskbarGroupPresentation, anchor: CGRect) {
+    private func showWindowList(group: TaskbarGroupPresentation, anchor: CGRect, focusForKeyboard: Bool = false) {
         guard let screen = window?.screen ?? NSScreen.main else { return }
         dismissTask?.cancel()
-        if listGroupID == group.id && listSignature == group.windows.map(\.id) && popup.isPresented { return }
+        if listGroupID == group.id && listSignature == group.windows.map(\.id) && popup.isPresented {
+            if focusForKeyboard { popup.focusForKeyboard() }
+            return
+        }
         let view = TaskbarWindowListView(windows: group.windows,
                                       availableHeight: screen.visibleFrame.height - TaskbarMetrics.height - 24,
                                       delay: delay,
@@ -259,6 +262,7 @@ final class TaskbarContentView: NSView {
                                       fileHover: { [weak self] item in self?.activateIfLive(item, dismiss: false) })
         let frame = TaskbarPopupGeometry.frame(anchor: screenAnchor(anchor), contentSize: view.frame.size, screen: screen.frame)
         popup.present(content: view, frame: frame, anchorWindow: window)
+        if focusForKeyboard { popup.focusForKeyboard() }
         windowList = view
         listGroupID = group.id
         listSignature = group.windows.map(\.id)
@@ -268,12 +272,12 @@ final class TaskbarContentView: NSView {
         }
     }
 
-    private func showOverflow() {
+    private func showOverflow(focusForKeyboard: Bool = false) {
         guard let anchor = layoutResult.overflowFrame else { return }
         let ids = Set(layoutResult.overflowGroups)
         let windows = groups.filter { ids.contains($0.id) }.flatMap(\.windows)
         showWindowList(group: TaskbarGroupPresentation(id: "overflow", name: String(localized: "More windows"), windows: windows),
-                    anchor: anchor)
+                    anchor: anchor, focusForKeyboard: focusForKeyboard)
     }
 
     private func showContextMenu(buttonID: String, event: NSEvent) {
