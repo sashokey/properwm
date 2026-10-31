@@ -45,10 +45,10 @@ final class AsyncWorkScope {
 
     private func finish(_ id: UUID) { tasks.removeValue(forKey: id) }
 
-    nonisolated static func performBlocking<Value: Sendable>(
+    nonisolated static func performBlocking<Value>(
         on queue: DispatchQueue = .global(qos: .userInitiated),
-        operation: @escaping @Sendable () -> Value
-    ) async -> Value? {
+        operation: @escaping @Sendable () -> sending Value
+    ) async -> sending Value? {
         let cancelled = Mutex(false)
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in

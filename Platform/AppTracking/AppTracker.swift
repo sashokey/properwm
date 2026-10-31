@@ -1422,8 +1422,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var results: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
             for identity in candidates {
                 guard !Task.isCancelled else { return }
-                let result = messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0) }
-                    ?? reader.windowReadResult(forPID: identity.pid)
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
+                    messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0) }
+                        ?? reader.windowReadResult(forPID: identity.pid)
+                }) else { return }
                 results.append((identity, result))
             }
             let probed = results
@@ -1741,7 +1743,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     return self.processIdentity(pid: pid, bundleID: current.bundleIdentifier)
                 }
                 guard let identity, !Task.isCancelled else { return }
-                let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
+                    reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+                }) else { return }
                 await MainActor.run {
                     guard let self, self.work.isCurrent(generation), self.apps[pid] == nil,
                           let current = self.applicationForAdmission(pid: pid),
@@ -2073,54 +2077,57 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let ticket = makeCGSnapshotReuseTicket(pid: pid)
 
         work.launch { [weak self] generation in
-            let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
-            // Absence probes run only on a readable round, after the AX list and before the CG
-            // capture: a window shown again meanwhile is then on-screen in the table that decides.
-            var evidence: [AbsentSeatProbeEvidence] = []
-            if !request.absenceProbes.isEmpty, case .success = result {
-                evidence = request.absenceProbes.map { prober.probe($0, messagingTimeout: 0.1) }
-            }
-            // 顺序硬规则：先探针、后全拍（理由见 CGSnapshotReuseDecision 头注释）。
-            let acquisition: CGSnapshotAcquisition
-            switch request.absenceProbes.isEmpty
-                ? CGSnapshotReuseDecision.preVerdict(ticket.input) : .captureWithoutProbe {
-            case .captureWithoutProbe:
-                acquisition = CGSnapshotAcquisition(
-                    snapshot: cgSnapshotProvider(), probeIDs: nil, fresh: true, ticket: ticket
-                )
-            case .captureAndPrime:
-                let probe = probeProvider()
-                acquisition = CGSnapshotAcquisition(
-                    snapshot: cgSnapshotProvider(), probeIDs: probe, fresh: true, ticket: ticket
-                )
-            case .probeThenCompare:
-                let probe = probeProvider()
-                switch CGSnapshotReuseDecision.probeVerdict(
-                    probe: probe, cachedProbe: ticket.cachedProbeIDs ?? []
-                ) {
-                case .reuse:
-                    if let cached = ticket.cachedSnapshot,
-                       !CGSnapshotReuseDecision.cachedLayerVetoApplies(
-                           axWindowIDs: Set(result.windowsOrEmpty.compactMap(\.cgWindowID)),
-                           cachedBelowNormalLayerIDs: cached.belowNormalLayerWindowIDs
-                       ) {
-                        acquisition = CGSnapshotAcquisition(
-                            snapshot: cached, probeIDs: probe, fresh: false, ticket: ticket
-                        )
-                    } else {
-                        // No cache (preVerdict guarantees one; defensive), or the cached table
-                        // would veto a window AX just listed — that verdict needs a fresh layer.
+            guard let read = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
+                let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+                // Absence probes run only on a readable round, after the AX list and before the CG
+                // capture: a window shown again meanwhile is then on-screen in the table that decides.
+                var evidence: [AbsentSeatProbeEvidence] = []
+                if !request.absenceProbes.isEmpty, case .success = result {
+                    evidence = request.absenceProbes.map { prober.probe($0, messagingTimeout: 0.1) }
+                }
+                // 顺序硬规则：先探针、后全拍（理由见 CGSnapshotReuseDecision 头注释）。
+                let acquisition: CGSnapshotAcquisition
+                switch request.absenceProbes.isEmpty
+                    ? CGSnapshotReuseDecision.preVerdict(ticket.input) : .captureWithoutProbe {
+                case .captureWithoutProbe:
+                    acquisition = CGSnapshotAcquisition(
+                        snapshot: cgSnapshotProvider(), probeIDs: nil, fresh: true, ticket: ticket
+                    )
+                case .captureAndPrime:
+                    let probe = probeProvider()
+                    acquisition = CGSnapshotAcquisition(
+                        snapshot: cgSnapshotProvider(), probeIDs: probe, fresh: true, ticket: ticket
+                    )
+                case .probeThenCompare:
+                    let probe = probeProvider()
+                    switch CGSnapshotReuseDecision.probeVerdict(
+                        probe: probe, cachedProbe: ticket.cachedProbeIDs ?? []
+                    ) {
+                    case .reuse:
+                        if let cached = ticket.cachedSnapshot,
+                           !CGSnapshotReuseDecision.cachedLayerVetoApplies(
+                               axWindowIDs: Set(result.windowsOrEmpty.compactMap(\.cgWindowID)),
+                               cachedBelowNormalLayerIDs: cached.belowNormalLayerWindowIDs
+                           ) {
+                            acquisition = CGSnapshotAcquisition(
+                                snapshot: cached, probeIDs: probe, fresh: false, ticket: ticket
+                            )
+                        } else {
+                            // No cache (preVerdict guarantees one; defensive), or the cached table
+                            // would veto a window AX just listed — that verdict needs a fresh layer.
+                            acquisition = CGSnapshotAcquisition(
+                                snapshot: cgSnapshotProvider(), probeIDs: probe, fresh: true, ticket: ticket
+                            )
+                        }
+                    case .captureAndPrime:
                         acquisition = CGSnapshotAcquisition(
                             snapshot: cgSnapshotProvider(), probeIDs: probe, fresh: true, ticket: ticket
                         )
                     }
-                case .captureAndPrime:
-                    acquisition = CGSnapshotAcquisition(
-                        snapshot: cgSnapshotProvider(), probeIDs: probe, fresh: true, ticket: ticket
-                    )
                 }
-            }
-            let landedEvidence = evidence
+                return (result, acquisition, evidence)
+            }) else { return }
+            let (result, acquisition, landedEvidence) = read
             await MainActor.run { [weak self] in
                 guard let self, self.work.isCurrent(generation) else { return }
                 self.noteCGSnapshotAcquisition(acquisition)
@@ -2457,11 +2464,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var results: [(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult)] = []
             for entry in pending {
                 guard !Task.isCancelled else { return }
-                results.append((
-                    entry.pid,
-                    entry.request,
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
                     reader.inventoryWindows(forPID: entry.pid, messagingTimeout: timeout)
-                ))
+                }) else { return }
+                results.append((entry.pid, entry.request, result))
             }
             let landed = results
             await MainActor.run { [weak self] in
@@ -2598,11 +2604,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
             for candidate in candidates {
                 guard !Task.isCancelled else { return }
-                probed.append((
-                    candidate.pid,
-                    candidate.identity,
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
                     reader.inventoryWindows(forPID: candidate.pid, messagingTimeout: 0.1)
-                ))
+                }) else { return }
+                probed.append((candidate.pid, candidate.identity, result))
             }
             let results = probed
             let probeElapsed = TimeInterval(DispatchTime.now().uptimeNanoseconds - probeStart) / 1_000_000_000

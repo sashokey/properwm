@@ -96,6 +96,24 @@ jobs:
         if: (success() || failure()) && steps.tests.outcome != 'skipped'
         run: python3 Scripts/check_availability_warnings.py build/xcodebuild-test.log
 
+      - name: Verify inventory with a constrained Swift executor
+        if: success()
+        env:
+          TEST_RUNNER_LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building \
+            -project ProperWM.xcodeproj \
+            -scheme ProperWM \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/ConstrainedInventory.xcresult \
+            -destination 'platform=macOS' \
+            -only-testing:ProperWMTests/InventoryLifecycleTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild-inventory.log
+
       - name: Export coverage
         if: success() || failure()
         shell: bash
@@ -135,7 +153,9 @@ jobs:
           path: |
             build/xcodebuild-test.log
             build/xcodebuild-release.log
+            build/xcodebuild-inventory.log
             build/TestResults.xcresult
+            build/ConstrainedInventory.xcresult
             build/coverage.txt
             build/coverage.json
           if-no-files-found: warn
