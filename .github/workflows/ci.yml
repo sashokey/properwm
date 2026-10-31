@@ -109,6 +109,7 @@ jobs:
             -configuration Debug \
             -derivedDataPath build/DerivedData \
             -resultBundlePath build/ConstrainedInventory.xcresult \
+            -enableCodeCoverage NO \
             -destination 'platform=macOS' \
             -only-testing:ProperWMTests/InventoryLifecycleTests \
             -only-testing:ProperWMTests/AppRuntimeTests \
@@ -156,7 +157,6 @@ jobs:
             build/xcodebuild-release.log
             build/xcodebuild-inventory.log
             build/TestResults.xcresult
-            build/ConstrainedInventory.xcresult
             build/coverage.txt
             build/coverage.json
           if-no-files-found: warn
