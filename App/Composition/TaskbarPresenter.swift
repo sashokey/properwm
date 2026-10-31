@@ -15,7 +15,8 @@ final class TaskbarPresenter {
     init(view: TaskbarView, runtime: AppRuntime, ordering: StripOrderStore,
          topology: DisplayTopologyStore, displayUUID: String?,
          backgroundMenu: @escaping (NSEvent, NSView) -> Void,
-         popupPresented: @escaping (NSPanel) -> Void) {
+         popupPresented: @escaping (NSPanel) -> Void,
+         contextMenuVisibilityChanged: @escaping (Bool) -> Void) {
         self.view = view
         self.runtime = runtime
         self.ordering = ordering
@@ -38,7 +39,8 @@ final class TaskbarPresenter {
                 self.ordering.reorderGroup(app, relativeTo: target, after: after, current: self.liveIDs)
             },
             backgroundMenu: backgroundMenu,
-            popupPresented: popupPresented
+            popupPresented: popupPresented,
+            contextMenuVisibilityChanged: contextMenuVisibilityChanged
         )
         view.taskbarContent.iconProvider = { item in
             if let bundleID = item.item.bundleIdentifier { return AppIconResolver.icon(for: bundleID) }

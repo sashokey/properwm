@@ -91,113 +91,69 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
 }
 
 @MainActor
-final class TaskbarMenuView: NSView {
-    static let width: CGFloat = 294
-    static let rowHeight: CGFloat = 32
+private final class TaskbarMenuAction: NSObject {
+    let action: @MainActor () -> Void
 
-    override var isFlipped: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
-    private var selectedIndex: Int?
-    private var rows: [TaskbarMenuRow] = []
+    init(action: @escaping @MainActor () -> Void) { self.action = action }
 
-    init(entries: [TaskbarMenuEntry], dismiss: @escaping () -> Void) {
-        super.init(frame: CGRect(x: 0, y: 0, width: Self.width, height: CGFloat(entries.count) * Self.rowHeight + 4))
-        wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.borderWidth = 1
-        setAccessibilityElement(false)
-        setAccessibilityRole(.menu)
-        for (index, entry) in entries.enumerated() {
-            let row = TaskbarMenuRow(entry: entry) { dismiss(); entry.action() }
-            row.frame = CGRect(x: 4, y: 2 + CGFloat(index) * Self.rowHeight,
-                               width: Self.width - 8, height: Self.rowHeight)
-            addSubview(row)
-            rows.append(row)
-        }
-        updateColors()
+    @objc func invokeMenuItem(_ sender: NSMenuItem) { action() }
+}
+
+@MainActor
+enum TaskbarNativeMenuFactory {
+    static func menu(entries: [TaskbarMenuEntry]) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for entry in entries { menu.addItem(item(entry)) }
+        return menu
     }
 
-    required init?(coder: NSCoder) { nil }
-    override func viewDidChangeEffectiveAppearance() { updateColors() }
-
-    override func keyDown(with event: NSEvent) {
-        guard !rows.isEmpty else { return }
-        switch event.keyCode {
-        case 125, 126:
-            let delta = event.keyCode == 125 ? 1 : -1
-            let index = selectedIndex.map { ($0 + delta + rows.count) % rows.count } ?? (delta > 0 ? 0 : rows.count - 1)
-            selectedIndex = index
-            for (i, row) in rows.enumerated() { row.keyboardSelected = i == index }
-        case 36, 49:
-            if let selectedIndex { rows[selectedIndex].action() }
-        default: super.keyDown(with: event)
-        }
+    static func statusMenu(launchAtLogin: NSMenuItem, quit: @escaping @MainActor () -> Void) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(launchAtLogin)
+        menu.addItem(.separator())
+        menu.addItem(item(TaskbarMenuEntry(title: String(localized: "Quit"), symbol: "", action: quit)))
+        return menu
     }
 
-    private func updateColors() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        layer?.backgroundColor = NSColor(white: dark ? 0.165 : 0.98, alpha: 1).cgColor
-        layer?.borderColor = NSColor(white: dark ? 0 : 0.75, alpha: 0.35).cgColor
+    private static func item(_ entry: TaskbarMenuEntry) -> NSMenuItem {
+        let target = TaskbarMenuAction(action: entry.action)
+        let item = NSMenuItem(title: entry.title, action: #selector(TaskbarMenuAction.invokeMenuItem(_:)), keyEquivalent: "")
+        item.target = target
+        item.representedObject = target
+        if !entry.symbol.isEmpty {
+            item.image = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: nil)
+        }
+        return item
     }
 }
 
 @MainActor
-private final class TaskbarMenuRow: NSView {
-    let entry: TaskbarMenuEntry
-    let action: () -> Void
-    private var hovered = false
-    var keyboardSelected = false { didSet { needsDisplay = true } }
-    private var tracking: NSTrackingArea?
-    override var isFlipped: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+protocol TaskbarContextMenuPresenting: AnyObject {
+    var visibilityChanged: ((Bool) -> Void)? { get set }
+    func present(entries: [TaskbarMenuEntry], event: NSEvent, view: NSView)
+    func dismiss()
+}
 
-    init(entry: TaskbarMenuEntry, action: @escaping () -> Void) {
-        self.entry = entry
-        self.action = action
-        super.init(frame: .zero)
-        setAccessibilityElement(true)
-        setAccessibilityRole(.menuItem)
-        setAccessibilityLabel(entry.title)
-    }
+@MainActor
+final class TaskbarNativeContextMenu: TaskbarContextMenuPresenting {
+    var visibilityChanged: ((Bool) -> Void)?
+    private var menu: NSMenu?
 
-    required init?(coder: NSCoder) { nil }
-
-    override func updateTrackingAreas() {
-        if let tracking { removeTrackingArea(tracking) }
-        let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self)
-        addTrackingArea(area)
-        tracking = area
-        super.updateTrackingAreas()
-    }
-
-    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
-    override func mouseUp(with event: NSEvent) {
-        if bounds.contains(convert(event.locationInWindow, from: nil)) { action() }
-    }
-    override func accessibilityPerformPress() -> Bool { action(); return true }
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 36 || event.keyCode == 49 { action() }
-        else { super.keyDown(with: event) }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        if hovered || keyboardSelected {
-            NSColor.labelColor.withAlphaComponent(0.07).setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+    func present(entries: [TaskbarMenuEntry], event: NSEvent, view: NSView) {
+        dismiss()
+        let menu = TaskbarNativeMenuFactory.menu(entries: entries)
+        self.menu = menu
+        visibilityChanged?(true)
+        defer {
+            self.menu = nil
+            visibilityChanged?(false)
         }
-        if let symbol = NSImage(systemSymbolName: entry.symbol, accessibilityDescription: nil) {
-            let configuration = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
-            symbol.withSymbolConfiguration(configuration)?.draw(in: CGRect(x: 12, y: 8, width: 16, height: 16),
-                                                                 from: .zero, operation: .sourceOver, fraction: 1,
-                                                                 respectFlipped: true, hints: nil)
-        }
-        (entry.title as NSString).draw(at: CGPoint(x: 40, y: 8), withAttributes: [
-            .font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor
-        ])
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
     }
+
+    func dismiss() { menu?.cancelTrackingWithoutAnimation() }
 }
 
 @MainActor

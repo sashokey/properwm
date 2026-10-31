@@ -24,6 +24,15 @@ final class TaskbarRendererTests: XCTestCase {
         }
     }
 
+    private final class ContextMenu: TaskbarContextMenuPresenting {
+        var visibilityChanged: ((Bool) -> Void)?
+        var menu: NSMenu?
+        func present(entries: [TaskbarMenuEntry], event: NSEvent, view: NSView) {
+            menu = TaskbarNativeMenuFactory.menu(entries: entries)
+        }
+        func dismiss() { menu = nil }
+    }
+
     @MainActor
     private final class Clock {
         var waiters: [CheckedContinuation<Void, Never>] = []
@@ -237,7 +246,8 @@ final class TaskbarRendererTests: XCTestCase {
 
     func testSeparateContextMenuClosesOneWindowAndThenOffersNormalQuit() {
         let popup = Popup()
-        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: popup)
+        let context = ContextMenu()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: popup, contextMenu: context)
         var closed: [String] = []
         var quit = false
         content.actions.close = { closed.append($0) }
@@ -246,9 +256,9 @@ final class TaskbarRendererTests: XCTestCase {
         let event = NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
                                        windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
         content.buttonViews["window:window-1"]?.onContextMenu?(event)
-        let menu = popup.content as? TaskbarMenuView
-        XCTAssertEqual(menu?.subviews.map { $0.accessibilityLabel() }, ["Close window", "Quit"])
-        XCTAssertTrue(menu?.subviews.first?.accessibilityPerformPress() == true)
+        let menu = context.menu
+        XCTAssertEqual(menu?.items.map(\.title), ["Close window", "Quit"])
+        menu?.performActionForItem(at: 0)
         XCTAssertEqual(closed, ["window-1"])
         XCTAssertFalse(quit)
     }
@@ -273,17 +283,173 @@ final class TaskbarRendererTests: XCTestCase {
 
     func testAStaleContextMenuCannotCloseAnAlreadyRemovedWindow() {
         let popup = Popup()
-        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: popup)
+        let context = ContextMenu()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: popup, contextMenu: context)
         var closed: [String] = []
         content.actions.close = { closed.append($0) }
         content.update(groups: groups())
         let event = NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
                                       windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
         content.buttonViews["window:window-1"]?.onContextMenu?(event)
-        let menu = popup.content
+        let menu = context.menu
         content.update(groups: groups(count: 1))
-        _ = menu?.subviews.first?.accessibilityPerformPress()
+        menu?.performActionForItem(at: 0)
         XCTAssertTrue(closed.isEmpty)
+    }
+
+    func testStatusMenuPlacesNormalQuitBelowOpenAtLogin() {
+        let login = NSMenuItem(title: "Open at Login", action: nil, keyEquivalent: "")
+        var quits = 0
+        let menu = TaskbarNativeMenuFactory.statusMenu(launchAtLogin: login) { quits += 1 }
+        XCTAssertTrue(menu.items.first === login)
+        XCTAssertEqual(menu.items.last?.title, "Quit")
+        XCTAssertTrue(menu.items[1].isSeparatorItem)
+        XCTAssertNil(menu.items.last?.view)
+        menu.performActionForItem(at: menu.numberOfItems - 1)
+        XCTAssertEqual(quits, 1)
+    }
+
+    func testContextMenuUsesSystemItemsInsteadOfCustomMenuViews() {
+        var calls: [String] = []
+        let menu = TaskbarNativeMenuFactory.menu(entries: [
+            TaskbarMenuEntry(title: "Close window", symbol: "xmark") { calls.append("close") },
+            TaskbarMenuEntry(title: "Quit", symbol: "power") { calls.append("quit") }
+        ])
+        XCTAssertEqual(menu.items.map(\.title), ["Close window", "Quit"])
+        XCTAssertTrue(menu.items.allSatisfy { $0.view == nil })
+        menu.performActionForItem(at: 1)
+        XCTAssertEqual(calls, ["quit"])
+    }
+
+    private func mouseEvent(_ type: NSEvent.EventType, point: CGPoint, in view: NSView) -> NSEvent {
+        NSEvent.mouseEvent(with: type, location: view.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+                           windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+    }
+
+    func testDraggingOutsideCannotLiftAnyGroupButtonOutOfTheBarOrActivateAWindow() {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        var toggles = 0
+        var moves = 0
+        content.actions.toggle = { _ in toggles += 1 }
+        content.actions.reorder = { _, _, _ in moves += 1 }
+        content.update(groups: groups())
+        let button = content.buttonViews["window:window-0"]!
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+        for point in [CGPoint(x: -500, y: -400), CGPoint(x: 3000, y: 700)] {
+            button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: point, in: content))
+            for view in content.buttonViews.values {
+                XCTAssertEqual(view.frame.minY, 2)
+                XCTAssertEqual(view.frame.height, 28)
+                XCTAssertGreaterThanOrEqual(view.frame.minX, 0)
+                XCTAssertLessThanOrEqual(view.frame.maxX, content.bounds.width)
+            }
+        }
+        button.mouseUp(with: mouseEvent(.leftMouseUp, point: CGPoint(x: 3000, y: -400), in: content))
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(toggles, 0)
+        XCTAssertEqual(moves, 0)
+        XCTAssertEqual(content.buttonViews["window:window-0"]?.frame.minX, 10)
+    }
+
+    private func twoGroups() -> [TaskbarGroupPresentation] {
+        let editor = groups(count: 2)[0]
+        let record = WindowRecord(id: WindowID(rawValue: "browser-window"), appID: AppID(rawValue: "browser"), pid: 200,
+                                  bundleIdentifier: "test.browser", title: "Browser window", bounds: .zero, status: .inactive,
+                                  cgWindowID: 20, groupID: "browser-window", displayUUID: "left")
+        let browser = TaskbarWindowPresentation(item: StripItem(record: record), title: record.title, isActive: false)
+        return [editor, TaskbarGroupPresentation(id: "test.browser", name: "Browser", windows: [browser])]
+    }
+
+    func testDraggingAcrossAnotherApplicationCommitsTheWholeGroupInMemberOrder() {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        var moves: [String] = []
+        var toggles = 0
+        content.actions.reorder = { source, target, after in moves.append("\(source):\(target):\(after)") }
+        content.actions.toggle = { _ in toggles += 1 }
+        content.update(groups: twoGroups())
+        let button = content.buttonViews["window:window-0"]!
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        let destination = CGPoint(x: content.buttonViews["window:browser-window"]!.frame.maxX - 4, y: 16)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+        button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: destination, in: content))
+        XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), ["browser-window", "window-0", "window-1"])
+        XCTAssertEqual(content.buttonViews["window:window-1"]!.frame.minX - button.frame.maxX, 2)
+        button.mouseUp(with: mouseEvent(.leftMouseUp, point: destination, in: content))
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(moves, ["test.editor:test.browser:true"])
+        XCTAssertEqual(toggles, 0)
+        XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), ["browser-window", "window-0", "window-1"])
+    }
+
+    func testCancellingAReorderedGroupRestoresTheOriginalOrderWithoutPersisting() {
+        for escape in [false, true] {
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+            var moves = 0
+            var toggles = 0
+            content.actions.reorder = { _, _, _ in moves += 1 }
+            content.actions.toggle = { _ in toggles += 1 }
+            content.update(groups: twoGroups())
+            let button = content.buttonViews["window:window-0"]!
+            let start = CGPoint(x: button.frame.midX, y: 16)
+            let destination = CGPoint(x: content.buttonViews["window:browser-window"]!.frame.maxX - 4, y: 16)
+            button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+            button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: destination, in: content))
+            if escape { button.cancelOperation(nil) }
+            button.mouseUp(with: mouseEvent(.leftMouseUp, point: CGPoint(x: destination.x, y: -400), in: content))
+            content.layoutSubtreeIfNeeded()
+            XCTAssertEqual(moves, 0)
+            XCTAssertEqual(toggles, 0)
+            XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), ["window-0", "window-1", "browser-window"])
+        }
+    }
+
+    func testShrinkingTheBarDuringADragCancelsAHiddenSourceSafely() {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        var moves = 0
+        content.actions.reorder = { _, _, _ in moves += 1 }
+        content.update(groups: twoGroups())
+        let button = content.buttonViews["window:browser-window"]!
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+        button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: CGPoint(x: start.x + 10, y: 16), in: content))
+        content.frame.size.width = 100
+        content.update(groups: twoGroups())
+        XCTAssertNil(content.buttonViews["window:browser-window"])
+        button.mouseUp(with: mouseEvent(.leftMouseUp, point: CGPoint(x: 30, y: 16), in: content))
+        content.frame.size.width = 800
+        content.update(groups: twoGroups())
+        XCTAssertEqual(moves, 0)
+        XCTAssertEqual(content.buttonViews["window:browser-window"]?.layer?.zPosition, 0)
+        XCTAssertTrue(content.buttonViews.values.allSatisfy { $0.frame.minX.isFinite && $0.frame.width.isFinite })
+    }
+
+    func testHoverAndActiveStateUseAnimatedLayerTransitions() {
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+        button.reduceMotion = { false }
+        button.layoutSubtreeIfNeeded()
+        let entered = NSEvent.enterExitEvent(with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0,
+                                            windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
+        button.mouseEntered(with: entered)
+        XCTAssertNotNil(button.plateLayer.animation(forKey: "fillColor"))
+        button.isActiveWindow = true
+        XCTAssertEqual(button.indicatorLayer.bounds.width, 16)
+        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
+        button.needsLayout = true
+        button.layoutSubtreeIfNeeded()
+        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
+        button.isActiveWindow = false
+        XCTAssertEqual(button.indicatorLayer.bounds.width, 4)
+        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
+    }
+
+    func testReduceMotionUpdatesTheButtonWithoutStartingAnimations() {
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+        button.reduceMotion = { true }
+        button.isActiveWindow = true
+        XCTAssertEqual(button.indicatorLayer.bounds.width, 16)
+        XCTAssertTrue(button.indicatorLayer.animationKeys()?.isEmpty ?? true)
+        XCTAssertTrue(button.plateLayer.animationKeys()?.isEmpty ?? true)
     }
 
     func testRepresentativeVisualFixturesRenderWithoutScreenCapturePermission() throws {
@@ -305,6 +471,25 @@ final class TaskbarRendererTests: XCTestCase {
                     let directory = URL(fileURLWithPath: paths, isDirectory: true)
                     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                     try bitmap.representation(using: .png, properties: [:])!.write(to: directory.appendingPathComponent("\(name)-\(dark ? "dark" : "light").png"))
+                }
+                if let paths {
+                    let directory = URL(fileURLWithPath: paths, isDirectory: true)
+                    let content = view.taskbarContent
+                    content.layer?.backgroundColor = NSColor(white: dark ? 0.11 : 0.94, alpha: 1).cgColor
+                    content.layoutSubtreeIfNeeded()
+                    content.displayIfNeeded()
+                    for button in content.buttonViews.values {
+                        button.layoutSubtreeIfNeeded()
+                        button.displayIfNeeded()
+                    }
+                    let image = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * 2), pixelsHigh: 64,
+                                                 bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                                 colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+                    let context = NSGraphicsContext(bitmapImageRep: image)!.cgContext
+                    context.translateBy(x: 0, y: 64)
+                    context.scaleBy(x: 2, y: -2)
+                    content.layer?.render(in: context)
+                    try image.representation(using: .png, properties: [:])!.write(to: directory.appendingPathComponent("buttons-\(name)-\(dark ? "dark" : "light").png"))
                 }
                 view.taskbarContent.dismissPopups()
             }

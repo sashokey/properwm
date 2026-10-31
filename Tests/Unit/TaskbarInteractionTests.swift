@@ -102,4 +102,24 @@ final class TaskbarInteractionTests: XCTestCase {
         XCTAssertEqual(drag.order(order), order)
         XCTAssertNil(drag.target)
     }
+
+    func testDragGeometryKeepsTheGroupOnTheTaskbarWhileThePointerLeavesIt() {
+        let geometry = TaskbarDragGeometry.make(pointer: CGPoint(x: 60, y: 16),
+                                                groupFrame: CGRect(x: 10, y: 2, width: 280, height: 28))
+        let occupied = CGRect(x: 10, y: 2, width: 600, height: 28)
+        for point in [CGPoint(x: -1000, y: -1000), CGPoint(x: 10000, y: 10000), CGPoint(x: 300, y: -400)] {
+            let frame = geometry.frame(pointer: point, groupWidth: 280, occupiedBounds: occupied)
+            XCTAssertEqual(frame.minY, 2)
+            XCTAssertEqual(frame.height, 28)
+            XCTAssertGreaterThanOrEqual(frame.minX, occupied.minX)
+            XCTAssertLessThanOrEqual(frame.maxX, occupied.maxX)
+        }
+        XCTAssertEqual(geometry.frame(pointer: CGPoint(x: 300, y: -400), groupWidth: 280, occupiedBounds: occupied).minX, 250)
+    }
+
+    func testTheOnlyGroupCannotBeDraggedIntoEmptyTaskbarSpace() {
+        let group = CGRect(x: 10, y: 2, width: 140, height: 28)
+        let geometry = TaskbarDragGeometry.make(pointer: CGPoint(x: 60, y: 16), groupFrame: group)
+        XCTAssertEqual(geometry.frame(pointer: CGPoint(x: 700, y: -300), groupWidth: 140, occupiedBounds: group), group)
+    }
 }

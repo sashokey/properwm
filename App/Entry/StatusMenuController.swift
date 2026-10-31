@@ -4,7 +4,9 @@ import Combine
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private let menu = NSMenu()
+    private lazy var menu = TaskbarNativeMenuFactory.statusMenu(launchAtLogin: launchAtLoginItem) {
+        NSApp.terminate(nil)
+    }
     private let settingsCoordinator: SettingsCoordinator
     private let onMenuVisibilityChanged: (Bool) -> Void
     private let launchAtLoginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
@@ -27,7 +29,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.autoenablesItems = false
 
         launchAtLoginItem.target = self
-        menu.addItem(launchAtLoginItem)
 
         settingsCoordinator.$launchAtLoginState
             .sink { [weak self] state in self?.updateLaunchAtLogin(state) }

@@ -1,5 +1,24 @@
 import Foundation
 
+enum TaskbarMotion {
+    static let buttonTransition: TimeInterval = 0.12
+    static let reorderTransition: TimeInterval = 0.16
+}
+
+struct TaskbarDragGeometry {
+    let grabOffsetX: CGFloat
+
+    static func make(pointer: CGPoint, groupFrame: CGRect) -> Self {
+        Self(grabOffsetX: min(max(0, pointer.x - groupFrame.minX), groupFrame.width))
+    }
+
+    func frame(pointer: CGPoint, groupWidth: CGFloat, occupiedBounds: CGRect) -> CGRect {
+        let width = min(max(0, groupWidth), max(0, occupiedBounds.width))
+        let x = min(max(occupiedBounds.minX, pointer.x - grabOffsetX), occupiedBounds.maxX - width)
+        return CGRect(x: x, y: TaskbarMetrics.buttonTop, width: width, height: TaskbarMetrics.buttonHeight)
+    }
+}
+
 @MainActor
 final class TaskbarDelayedAction {
     typealias Delay = @MainActor (Duration) async -> Void

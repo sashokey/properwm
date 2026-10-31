@@ -21,6 +21,11 @@ extension PanelCoordinator {
                 guard let self else { return }
                 self.onAccessoryWillOpen?(self, .popup)
                 _ = self.overlaySpaceHost?.pin(windowNumbers: [popup.windowNumber])
+            },
+            contextMenuVisibilityChanged: { [weak self] visible in
+                guard let self else { return }
+                if visible { self.onAccessoryWillOpen?(self, .popup) }
+                self.setTaskbarMenuOpen(visible)
             }
         )
     }

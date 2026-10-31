@@ -10,6 +10,7 @@ struct TaskbarViewActions {
     var reorder: (String, String, Bool) -> Void = { _, _, _ in }
     var backgroundMenu: (NSEvent, NSView) -> Void = { _, _ in }
     var popupPresented: (NSPanel) -> Void = { _ in }
+    var contextMenuVisibilityChanged: (Bool) -> Void = { _ in }
 }
 
 @MainActor
@@ -31,8 +32,7 @@ final class TaskbarView: NSGlassEffectView {
 }
 
 @MainActor
-final class TaskbarContentView: NSView, NSDraggingSource {
-    static let groupPasteboardType = NSPasteboard.PasteboardType("io.github.sashokey.properwm.window-group")
+final class TaskbarContentView: NSView {
     var actions = TaskbarViewActions()
     var iconProvider: (TaskbarWindowPresentation) -> NSImage? = { _ in nil }
     private(set) var groups: [TaskbarGroupPresentation] = []
@@ -40,6 +40,7 @@ final class TaskbarContentView: NSView, NSDraggingSource {
     private(set) var buttonViews: [String: TaskbarButtonView] = [:]
     private(set) var overflowButton: TaskbarButtonView?
     private let popup: any TaskbarPopupPresenting
+    private let contextMenu: any TaskbarContextMenuPresenting
     private var listGroupID: String?
     private var listSignature: [String] = []
     private weak var windowList: TaskbarWindowListView?
@@ -48,6 +49,13 @@ final class TaskbarContentView: NSView, NSDraggingSource {
     private let delay: TaskbarDelayedAction.Delay
     private let fileHover: TaskbarDelayedAction
     private var draggedGroupID: String?
+    private var dragMembers: [String] = []
+    private var dragButtonIDs = Set<String>()
+    private var dragGeometry: TaskbarDragGeometry?
+    private var dragPointer = CGPoint.zero
+    private var animateNextLayout = false
+    private var localDragMonitor: Any?
+    private var globalDragMonitor: Any?
     private var groupDrag = TaskbarGroupDrag()
     private var suppressClick = false
 
@@ -56,15 +64,20 @@ final class TaskbarContentView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init(frame: CGRect, popup: any TaskbarPopupPresenting = TaskbarPopupController(),
+         contextMenu: any TaskbarContextMenuPresenting = TaskbarNativeContextMenu(),
          delay: @escaping TaskbarDelayedAction.Delay = { try? await Task.sleep(for: $0) }) {
         self.popup = popup
+        self.contextMenu = contextMenu
         self.delay = delay
         fileHover = TaskbarDelayedAction(delay: delay)
         super.init(frame: frame)
-        registerForDraggedTypes([Self.groupPasteboardType, .fileURL])
+        wantsLayer = true
+        layer?.masksToBounds = true
+        registerForDraggedTypes([.fileURL])
         setAccessibilityElement(false)
         setAccessibilityRole(.toolbar)
         setAccessibilityLabel("ProperWM")
+        contextMenu.visibilityChanged = { [weak self] visible in self?.actions.contextMenuVisibilityChanged(visible) }
         popup.onPresent = { [weak self] panel in self?.actions.popupPresented(panel) }
         popup.onDismiss = { [weak self] in
             self?.listGroupID = nil
@@ -79,14 +92,15 @@ final class TaskbarContentView: NSView, NSDraggingSource {
         hoverTask?.cancel()
         dismissTask?.cancel()
         fileHover.cancel()
+        if let localDragMonitor { NSEvent.removeMonitor(localDragMonitor) }
+        if let globalDragMonitor { NSEvent.removeMonitor(globalDragMonitor) }
     }
 
     func update(groups: [TaskbarGroupPresentation]) {
         self.groups = groups
         groupDrag.reconcile(liveGroups: groups.map(\.id))
-        if let draggedGroupID, !groups.contains(where: { $0.id == draggedGroupID }) {
-            self.draggedGroupID = nil
-            groupDrag.cancel()
+        if let draggedGroupID, groups.first(where: { $0.id == draggedGroupID })?.windows.map(\.id) != dragMembers {
+            endGroupDrag(event: nil, cancelled: true)
         }
         needsLayout = true
         layoutSubtreeIfNeeded()
@@ -104,7 +118,13 @@ final class TaskbarContentView: NSView, NSDraggingSource {
                 TaskbarLayoutWindow(id: $0.id, desiredWidth: TaskbarMetrics.buttonWidth(textWidth: ($0.title as NSString).size(withAttributes: [.font: font]).width))
             })
         }
-        let result = TaskbarLayout.resolve(groups: inputs, width: bounds.width)
+        var result = TaskbarLayout.resolve(groups: inputs, width: bounds.width)
+        if let draggedGroupID,
+           Set(result.buttons.filter { $0.groupID == draggedGroupID }.map(\.id)) != dragButtonIDs {
+            endGroupDrag(event: nil, cancelled: true)
+            let inputLookup = Dictionary(inputs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            result = TaskbarLayout.resolve(groups: groups.compactMap { inputLookup[$0.id] }, width: bounds.width)
+        }
         let changed = result != layoutResult
         layoutResult = result
         if let listGroupID {
@@ -114,6 +134,11 @@ final class TaskbarContentView: NSView, NSDraggingSource {
             if liveList.map(\.id) != listSignature { dismissPopups() }
             else { windowList?.updateTitles(windows: liveList) }
         }
+        let animateLayout = animateNextLayout || (changed && groupDrag.target != nil)
+        animateNextLayout = false
+        let occupied = result.buttons.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let groupFrame = result.buttons.filter { $0.groupID == draggedGroupID }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let dragFrame = dragGeometry.map { $0.frame(pointer: dragPointer, groupWidth: groupFrame.width, occupiedBounds: occupied) }
         let liveIDs = Set(result.buttons.map(\.id))
         for id in Array(buttonViews.keys) where !liveIDs.contains(id) { buttonViews.removeValue(forKey: id)?.removeFromSuperview() }
         for layout in result.buttons {
@@ -134,11 +159,17 @@ final class TaskbarContentView: NSView, NSDraggingSource {
             view.onClick = { [weak self] in self?.click(layout.id) }
             view.onContextMenu = { [weak self] event in self?.showContextMenu(buttonID: layout.id, event: event) }
             view.onHover = { [weak self] entered in self?.hover(buttonID: layout.id, entered: entered) }
-            view.onBeginDrag = { [weak self] event in self?.beginGroupDrag(layout.groupID, event: event) }
-            view.alphaValue = draggedGroupID == layout.groupID ? 0.35 : 1
-            if changed && groupDrag.target != nil && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            view.onBeginDrag = { [weak self] event, start in self?.beginGroupDrag(layout.groupID, event: event, start: start) }
+            view.onDragMoved = { [weak self] event in self?.moveGroupDrag(event: event) }
+            view.onEndDrag = { [weak self] event, cancelled in self?.endGroupDrag(event: event, cancelled: cancelled) }
+            view.alphaValue = 1
+            view.layer?.zPosition = draggedGroupID == layout.groupID ? 1 : 0
+            if draggedGroupID == layout.groupID, let dragFrame {
+                view.layer?.removeAllAnimations()
+                view.frame = layout.frame.offsetBy(dx: dragFrame.minX - groupFrame.minX, dy: 0)
+            } else if animateLayout && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.16
+                    context.duration = TaskbarMotion.reorderTransition
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     view.animator().setFrameSize(layout.frame.size)
                     view.animator().setFrameOrigin(layout.frame.origin)
@@ -203,15 +234,13 @@ final class TaskbarContentView: NSView, NSDraggingSource {
         hoverTask?.cancel()
         dismissTask?.cancel()
         popup.dismiss()
+        contextMenu.dismiss()
     }
 
     func prepareForHiding() {
         dismissPopups()
         cancelFileHover()
-        groupDrag.cancel()
-        draggedGroupID = nil
-        suppressClick = false
-        needsLayout = true
+        endGroupDrag(event: nil, cancelled: true)
     }
 
     private func screenAnchor(_ rect: CGRect) -> CGRect {
@@ -251,8 +280,7 @@ final class TaskbarContentView: NSView, NSDraggingSource {
 
     private func showContextMenu(buttonID: String, event: NSEvent) {
         guard let button = layoutResult.buttons.first(where: { $0.id == buttonID }),
-              let group = groups.first(where: { $0.id == button.groupID }),
-              let screen = window?.screen ?? NSScreen.main else { return }
+              let group = groups.first(where: { $0.id == button.groupID }) else { return }
         dismissPopups()
         let entries = TaskbarContextMenuModel.actions(button: button, group: group).map { action in
             switch action {
@@ -272,9 +300,7 @@ final class TaskbarContentView: NSView, NSDraggingSource {
                 })
             }
         }
-        let view = TaskbarMenuView(entries: entries) { [weak self] in self?.dismissPopups() }
-        let frame = TaskbarPopupGeometry.frame(anchor: screenAnchor(button.frame), contentSize: view.frame.size, screen: screen.frame)
-        popup.present(content: view, frame: frame, anchorWindow: window)
+        contextMenu.present(entries: entries, event: event, view: self)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -287,54 +313,76 @@ final class TaskbarContentView: NSView, NSDraggingSource {
         else { dismissPopups() }
     }
 
-    private func beginGroupDrag(_ id: String, event: NSEvent) {
+    private func beginGroupDrag(_ id: String, event: NSEvent, start: CGPoint) {
         guard let group = groups.first(where: { $0.id == id }), !group.windows.isEmpty else { return }
         dismissPopups()
+        cancelFileHover()
         let rectangles = layoutResult.buttons.filter { $0.groupID == id }.map(\.frame)
         guard let first = rectangles.first else { return }
         let frame = rectangles.dropFirst().reduce(first) { $0.union($1) }
-        guard let bitmap = bitmapImageRepForCachingDisplay(in: frame) else { return }
-        cacheDisplay(in: frame, to: bitmap)
-        let image = NSImage(size: frame.size)
-        image.addRepresentation(bitmap)
-        let pasteboard = NSPasteboardItem()
-        pasteboard.setString(id, forType: Self.groupPasteboardType)
-        let item = NSDraggingItem(pasteboardWriter: pasteboard)
-        item.setDraggingFrame(frame, contents: image)
         draggedGroupID = id
+        dragMembers = group.windows.map(\.id)
+        dragButtonIDs = Set(layoutResult.buttons.filter { $0.groupID == id }.map(\.id))
+        dragPointer = convert(event.locationInWindow, from: nil)
+        dragGeometry = .make(pointer: convert(start, from: nil), groupFrame: frame)
         suppressClick = true
+        if window != nil { installDragCancellation() }
         needsLayout = true
-        let session = beginDraggingSession(with: [item], event: event, source: self)
-        session.animatesToStartingPositionsOnCancelOrFail = true
-        session.draggingFormation = .none
     }
 
-    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-        context == .withinApplication ? .move : []
+    private func moveGroupDrag(event: NSEvent) {
+        guard let id = draggedGroupID else { return }
+        dragPointer = convert(event.locationInWindow, from: nil)
+        if bounds.contains(dragPointer) {
+            let targets = layoutResult.buttons.filter { $0.groupID != id }
+            if let target = targets.first(where: { $0.frame.contains(dragPointer) }) {
+                let frame = targets.filter { $0.groupID == target.groupID }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+                groupDrag.update(groupID: id, target: target.groupID, after: dragPointer.x > frame.midX, liveGroups: groups.map(\.id))
+            }
+        }
+        needsLayout = true
+        layoutSubtreeIfNeeded()
     }
 
-    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+    private func endGroupDrag(event: NSEvent?, cancelled: Bool) {
+        guard let id = draggedGroupID else { return }
+        let inside = event.map { bounds.contains(convert($0.locationInWindow, from: nil)) } ?? false
+        let target = !cancelled && inside ? groupDrag.target : nil
+        if let target {
+            let lookup = Dictionary(groups.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            groups = groupDrag.order(groups.map(\.id)).compactMap { lookup[$0] }
+            actions.reorder(id, target.groupID, target.after)
+        }
         draggedGroupID = nil
+        dragGeometry = nil
+        dragMembers = []
+        dragButtonIDs = []
         groupDrag.cancel()
+        suppressClick = false
+        if let localDragMonitor { NSEvent.removeMonitor(localDragMonitor) }
+        if let globalDragMonitor { NSEvent.removeMonitor(globalDragMonitor) }
+        localDragMonitor = nil
+        globalDragMonitor = nil
+        animateNextLayout = true
         needsLayout = true
-        DispatchQueue.main.async { [weak self] in self?.suppressClick = false }
+    }
+
+    private func installDragCancellation() {
+        localDragMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return event }
+            MainActor.assumeIsolated { self?.endGroupDrag(event: nil, cancelled: true) }
+            return nil
+        }
+        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return }
+            MainActor.assumeIsolated { self?.endGroupDrag(event: nil, cancelled: true) }
+        }
     }
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { draggingUpdated(sender) }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let point = convert(sender.draggingLocation, from: nil)
-        if let id = sender.draggingPasteboard.string(forType: Self.groupPasteboardType) {
-            guard sender.draggingSource is TaskbarContentView, groups.contains(where: { $0.id == id }) else { return [] }
-            let targets = layoutResult.buttons.filter { $0.groupID != id }
-            guard let target = targets.first(where: { $0.frame.contains(point) }) else { return .move }
-            let groupFrame = targets.filter { $0.groupID == target.groupID }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-            let after = point.x > groupFrame.midX
-            groupDrag.update(groupID: id, target: target.groupID, after: after, liveGroups: groups.map(\.id))
-            needsLayout = true
-
-            return .move
-        }
         if sender.draggingPasteboard.availableType(from: [.fileURL]) != nil,
            let frame = layoutResult.overflowFrame, frame.contains(point) {
             fileHover.schedule(target: "overflow", after: .milliseconds(600)) { [weak self] in self?.showOverflow() }
@@ -360,14 +408,7 @@ final class TaskbarContentView: NSView, NSDraggingSource {
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         cancelFileHover()
-        guard let id = sender.draggingPasteboard.string(forType: Self.groupPasteboardType),
-              sender.draggingSource is TaskbarContentView,
-              let target = groupDrag.target, groupDrag.groupID == id,
-              groups.contains(where: { $0.id == id }),
-              groups.contains(where: { $0.id == target.groupID }) else { return false }
-        actions.reorder(id, target.groupID, target.after)
-        groupDrag.cancel()
-        return true
+        return false
     }
 
     func scheduleFileHover(buttonID: String) {
