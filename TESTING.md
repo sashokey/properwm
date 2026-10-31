@@ -18,7 +18,7 @@ The suite covers:
 - Native AppKit context-menu items and action dispatch, exact-window activation and close actions, Close all windows for a combined group, and Quit as a separate application action.
 - File-drag hover activation, cancelled delays, stale targets, and list disposal.
 - Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture.
-- Hover/active layer transitions, interrupted animations, Reduce Motion, and status-menu Quit below Open at Login.
+- Hover/active layer transitions, interrupted animations, Reduce Motion, and the ordered Open at Login / Hide Status Bar Icon / Quit menu, native-restored visibility, icon restoration, and independent login/quit actions.
 - Launch-at-login state, localization, debug-switch registration, stable toolchain selection, release publication, and artifact cleanup.
 
 Coverage reports identify untested paths; a count or percentage alone does not establish correct behavior. Automated tests cannot establish real Accessibility interoperability, native WindowServer animation, or hot-plug behavior on every Mac.
@@ -46,7 +46,10 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Finder file drag over a combined button | Open the icon/title list; hovering a row restores that exact window so the file can be dropped into it. |
 | Fixed bar geometry | Full display width, attached to the bottom, 32 points high; first button starts 10 points from the left. |
 | Retina, light/dark, accessibility display options | Geometry follows scale; system font and public Liquid Glass remain legible. |
-| Background/menu-bar menu | Open at Login, separator, then Quit, which exits ProperWM normally. No size setting or native Dock controls. |
+| Background/menu-bar menu | Open at Login, Hide Status Bar Icon, separator, then Quit, which exits ProperWM normally. No size setting or native Dock controls. |
+| Hide status icon and restart | The icon disappears while taskbar operation continues; the choice survives application restart and login/reboot. |
+| Reopen the running app from Applications | The same status item reappears; its visible state is saved. No second taskbar instance or new document window appears. |
+| Open the taskbar menu while the icon is hidden | Open at Login and Quit remain available; the already-completed Hide action is disabled and menu refresh does not reveal the icon. |
 | Maximize, restore, manual move/resize | Maximized windows avoid the 32-point bar; manual geometry remains respected. |
 | Two displays and moving windows | Each bar shows windows on that display; combining is calculated separately for its available width. |
 | Disconnect/reconnect, sleep/wake | No stale panels, duplicate buttons, or inaccessible windows after attribution settles. |
