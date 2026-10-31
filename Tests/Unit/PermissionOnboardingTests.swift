@@ -199,6 +199,101 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(effects, [.setActivationPolicy(.accessory), .startApp, .startWatchdog])
     }
 
+    func testInitialUntrustedLaunchRequestsOnlyTheSystemPrompt() {
+        for location: AppInstallLocation in [.applications, .other] {
+            var machine = PermissionRecoveryMachine()
+            let effects = machine.handle(.launched(location: location, trusted: false))
+            guard case let .onboarding(episode) = machine.phase else { return XCTFail("expected onboarding") }
+            XCTAssertEqual(effects, [
+                .setActivationPolicy(.accessory),
+                .startPermissionEpisode(purpose: .initialLaunch, episode: episode),
+                .requestSystemPrompt,
+            ])
+            for state: PermissionOnboardingState in [.waiting, .stalled, .granted] {
+                XCTAssertNil(PermissionRecoveryMachine.presentation(phase: machine.phase, onboarding: state))
+            }
+        }
+    }
+
+    func testMissingInitialGrantNeverOpensAnAppGuideOrRepeatsThePrompt() {
+        var clock: TimeInterval = 0
+        let spy = PermissionSpy(trusted: false)
+        let handler = EffectSpy()
+        let model = AccessibilityPermissionModel(permissionService: spy.service, installLocation: .applications, now: { clock })
+        let coordinator = PermissionRecoveryCoordinator(handler: handler, permissionService: spy.service,
+                                                        installLocation: .applications, now: { clock }, makeModel: { _, _ in model })
+        defer { coordinator.quit() }
+        coordinator.launched(trusted: false)
+        for elapsed: TimeInterval in [0, 8, 60, 86_400] {
+            clock = elapsed
+            model.checkNow()
+            coordinator.applicationDidBecomeActive()
+            coordinator.recheck()
+            coordinator.sampleTrust(false)
+            XCTAssertNil(coordinator.presentation)
+            XCTAssertFalse(handler.calls.contains("showGuide"))
+            XCTAssertFalse(handler.calls.contains("updateGuide"))
+            XCTAssertFalse(handler.calls.contains("startApp"))
+            XCTAssertEqual(spy.promptCount, 1)
+        }
+        XCTAssertEqual(handler.calls, ["policy:accessory"])
+    }
+
+    func testLateInitialGrantStartsTheTaskbarOnceWithoutEverOpeningTheGuide() {
+        var clock: TimeInterval = 0
+        let spy = PermissionSpy(trusted: false)
+        let handler = EffectSpy()
+        let model = AccessibilityPermissionModel(permissionService: spy.service, installLocation: .applications, now: { clock })
+        let coordinator = PermissionRecoveryCoordinator(handler: handler, permissionService: spy.service,
+                                                        installLocation: .applications, now: { clock }, makeModel: { _, _ in model })
+        defer { coordinator.quit() }
+        coordinator.launched(trusted: false)
+        clock = 120
+        model.checkNow()
+        spy.trusted = true
+        coordinator.applicationDidBecomeActive()
+        coordinator.recheck()
+        model.checkNow()
+        XCTAssertEqual(coordinator.phase, .running)
+        XCTAssertNil(coordinator.presentation)
+        XCTAssertEqual(handler.calls.filter { $0 == "startApp" }.count, 1)
+        XCTAssertEqual(handler.calls.filter { $0 == "startWatchdog" }.count, 1)
+        XCTAssertFalse(handler.calls.contains("showGuide"))
+        XCTAssertFalse(handler.calls.contains("launchNewInstance"))
+        XCTAssertEqual(spy.promptCount, 1)
+    }
+
+    func testGrantBetweenLaunchCheckAndPollingDoesNotFlashEitherPrompt() {
+        let spy = PermissionSpy(trusted: true)
+        let handler = EffectSpy()
+        let coordinator = PermissionRecoveryCoordinator(handler: handler, permissionService: spy.service, installLocation: .applications)
+        defer { coordinator.quit() }
+        coordinator.launched(trusted: false)
+        XCTAssertEqual(coordinator.phase, .running)
+        XCTAssertNil(coordinator.presentation)
+        XCTAssertFalse(handler.calls.contains("showGuide"))
+        XCTAssertEqual(handler.calls.filter { $0 == "startApp" }.count, 1)
+        XCTAssertEqual(spy.promptCount, 0)
+    }
+
+    func testQuittingWhileWaitingForInitialPermissionPreventsALateStartup() {
+        let spy = PermissionSpy(trusted: false)
+        let handler = EffectSpy()
+        let model = AccessibilityPermissionModel(permissionService: spy.service, installLocation: .applications)
+        let coordinator = PermissionRecoveryCoordinator(handler: handler, permissionService: spy.service,
+                                                        installLocation: .applications, makeModel: { _, _ in model })
+        coordinator.launched(trusted: false)
+        coordinator.quit()
+        spy.trusted = true
+        model.checkNow()
+        coordinator.applicationDidBecomeActive()
+        XCTAssertEqual(coordinator.phase, .terminating)
+        XCTAssertNil(coordinator.presentation)
+        XCTAssertFalse(handler.calls.contains("showGuide"))
+        XCTAssertFalse(handler.calls.contains("startApp"))
+        XCTAssertEqual(handler.calls.filter { $0 == "terminateSelf" }.count, 1)
+    }
+
     func testInitialGrantContinuesInProcessWithoutRelaunch() {
         var machine = PermissionRecoveryMachine()
         _ = machine.handle(.launched(location: .applications, trusted: false))
@@ -303,18 +398,16 @@ final class PermissionOnboardingTests: XCTestCase {
         XCTAssertEqual(machine.handle(.retryRequested), [])
     }
 
-    func testStalledAndRecoveryStalledArePresentedSeparately() {
-        XCTAssertEqual(
-            PermissionRecoveryMachine.presentation(phase: .onboarding(episode: 1), onboarding: .stalled),
-            .stalled
+    func testOnlyConfirmedRecoveryCanPresentAStalledGuide() {
+        XCTAssertNil(
+            PermissionRecoveryMachine.presentation(phase: .onboarding(episode: 1), onboarding: .stalled)
         )
         XCTAssertEqual(
             PermissionRecoveryMachine.presentation(phase: .suspended(episode: 2), onboarding: .stalled),
             .recoveryStalled
         )
-        XCTAssertEqual(
-            PermissionRecoveryMachine.presentation(phase: .onboarding(episode: 1), onboarding: .waiting),
-            .waiting
+        XCTAssertNil(
+            PermissionRecoveryMachine.presentation(phase: .onboarding(episode: 1), onboarding: .waiting)
         )
         XCTAssertEqual(
             PermissionRecoveryMachine.presentation(phase: .suspended(episode: 2), onboarding: .waiting),
@@ -353,7 +446,7 @@ final class PermissionOnboardingTests: XCTestCase {
         coordinator.launched(trusted: false)
         XCTAssertEqual(made.count, 1)
         XCTAssertEqual(spy.promptCount, 1)
-        XCTAssertEqual(coordinator.presentation, .waiting)
+        XCTAssertNil(coordinator.presentation)
 
         spy.trusted = true
         made[0].checkNow()

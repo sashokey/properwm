@@ -144,8 +144,7 @@ struct PermissionRecoveryMachine: Equatable {
         let episode = nextEpisode()
         phase = .onboarding(episode: episode)
         return [
-            .setActivationPolicy(.regular),
-            .showGuide,
+            .setActivationPolicy(.accessory),
             .startPermissionEpisode(purpose: .initialLaunch, episode: episode),
             .requestSystemPrompt,
         ]
@@ -223,11 +222,7 @@ struct PermissionRecoveryMachine: Equatable {
             return .moveToApplications(location)
 
         case .onboarding:
-            switch onboarding {
-            case let .moveToApplications(location): return .moveToApplications(location)
-            case .waiting, .granted: return .waiting
-            case .stalled: return .stalled
-            }
+            return nil
 
         case .suspended:
             switch onboarding {
