@@ -13,7 +13,7 @@ The suite covers:
 - Window identity, inventory admission, minimized/hidden retention, native tabs, activation, focus handoff, and permission recovery.
 - Display attribution, topology changes, fullscreen prediction, and maximized-window clearance.
 - Separate labeled buttons, content-sized short captions including the exact `.` reference, the measured 74-point compressed width for long captions, pixel rounding, combining under crowding, expansion after space returns, and accessible overflow.
-- Whole-application group moves confined to the taskbar, preserved member order, mouse-up outside, Escape cancellation, and windows/apps or available width changing during a drag.
+- Whole-application group moves selected by the dragged leading/trailing edge crossing the neighboring group midpoint, unequal widths and different grab positions, stable repeated pointer events, round trips without persistence, preserved member order, mouse-up outside, Escape cancellation, and windows/apps or available width changing during a drag.
 - No hover popup for separate buttons; icon/title lists for combined groups and overflow only.
 - Native AppKit context-menu items and action dispatch, exact-window activation and close actions, Close all windows for a combined group, and Quit as a separate application action.
 - File-drag hover activation, cancelled delays, stale targets, and list disposal.
@@ -34,7 +34,7 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Several windows of one app | Separate labeled buttons while space remains, adjacent in stable discovery order. |
 | Activate, minimize, restore, rename, close, create | Surviving siblings keep their order; a new window joins its app group. |
 | Crowding and freeing space | Long buttons shrink to the measured 74-point limit before combining. Short captions keep their content-sized widths. Groups separate again when space permits. |
-| Group dragging and cancellation | The whole group stays inside the 32-point bar even when the pointer leaves it; its members cannot be reordered independently. Escape or release outside restores the original order. |
+| Group dragging and cancellation | The whole group stays inside the 32-point bar even when the pointer leaves it. A wide group swaps with a narrow neighbor when its edge crosses that neighbor's midpoint, regardless of which member or side was grabbed. Its members cannot be reordered independently. Escape or release outside restores the original order. |
 | Separate-window click | Activate/restore the exact window; clicking the active window minimizes it. |
 | Separate-window hover | Smooth hover/active feedback, with immediate state changes under Reduce Motion. No popup, tooltip, thumbnail, or extra title. |
 | Combined-group click/hover | A Windows-style list of icons and window titles; no captured window images. |
