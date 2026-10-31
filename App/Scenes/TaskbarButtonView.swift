@@ -53,7 +53,7 @@ final class TaskbarButtonView: NSButton {
         selectionView.wantsLayer = true
         selectionView.boxType = .custom
         selectionView.titlePosition = .noTitle
-        selectionView.borderWidth = 0
+        selectionView.borderWidth = 1
         selectionView.cornerRadius = TaskbarMetrics.buttonCornerRadius
         selectionView.contentViewMargins = .zero
         selectionView.fillColor = .unemphasizedSelectedContentBackgroundColor
@@ -104,6 +104,11 @@ final class TaskbarButtonView: NSButton {
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         updateAppearance(animated: false)
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        needsLayout = true
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -198,14 +203,37 @@ final class TaskbarButtonView: NSButton {
     }
 
     private var indicatorFrame: CGRect {
-        let width: CGFloat = isActiveWindow ? 16 : 4
-        return CGRect(x: TaskbarMetrics.iconInset + (16 - width) / 2, y: 24, width: width, height: 2)
+        let width: CGFloat = isActiveWindow ? 11 : 4
+        let frame = CGRect(x: TaskbarMetrics.iconInset + (TaskbarMetrics.iconSize - width) / 2,
+                           y: 25, width: width, height: 2)
+        return backingAlignedRect(frame, options: [.alignMinXNearest, .alignWidthNearest, .alignMinYNearest, .alignHeightNearest])
     }
 
     private func updateAppearance(animated: Bool) {
         state = isActiveWindow ? .on : .off
-        let opacity: CGFloat = pressed ? 1 : hovered ? 0.9 : isActiveWindow ? 0.65 : 0
+        let opacity: CGFloat
+        let borderEmphasis: CGFloat
+        if pressed {
+            opacity = 0.45
+            borderEmphasis = 0
+        } else if isActiveWindow && hovered {
+            opacity = 0.95
+            borderEmphasis = 0.2
+        } else if isActiveWindow {
+            opacity = 0.65
+            borderEmphasis = 1
+        } else if hovered {
+            opacity = 0.65
+            borderEmphasis = 0.5
+        } else {
+            opacity = 0
+            borderEmphasis = 0
+        }
         selectionView.fillColor = .unemphasizedSelectedContentBackgroundColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let separator = NSColor.separatorColor
+            selectionView.borderColor = separator.withAlphaComponent(separator.alphaComponent * borderEmphasis)
+        }
         indicator.fillColor = isActiveWindow ? .controlAccentColor : .secondaryLabelColor
         let duration = animated && !reduceMotion() ? TaskbarMotion.buttonTransition : 0
         NSAnimationContext.runAnimationGroup { context in

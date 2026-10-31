@@ -527,7 +527,7 @@ final class TaskbarRendererTests: XCTestCase {
                 XCTAssertEqual(textRect.minX, 28)
                 XCTAssertEqual(textRect.maxX, width - 8)
                 XCTAssertEqual(button.selectionView.frame, button.bounds)
-                XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 6 : 12, y: 24, width: active ? 16 : 4, height: 2))
+                XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 9 : 12, y: 25, width: active ? 11 : 4, height: 2))
             }
         }
     }
@@ -578,6 +578,80 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(button.selectionView.fillColor, .unemphasizedSelectedContentBackgroundColor)
     }
 
+    func testWindowsReferenceDistinguishesHoverActiveAndHeldPress() {
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
+            let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+            button.appearance = NSAppearance(named: appearance)
+            button.reduceMotion = { true }
+            var clicks = 0
+            button.onClick = { clicks += 1 }
+            let enter = NSEvent.enterExitEvent(with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0,
+                                              windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
+            let exit = NSEvent.enterExitEvent(with: .mouseExited, location: .zero, modifierFlags: [], timestamp: 0,
+                                             windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
+            button.mouseEntered(with: enter)
+            let hoverFill = button.selectionView.alphaValue
+            let hoverBorder = button.selectionView.borderColor.alphaComponent
+            XCTAssertGreaterThan(hoverFill, 0)
+            XCTAssertEqual(button.selectionView.borderWidth, 1)
+            XCTAssertEqual(button.indicator.frame.width, 4)
+            button.mouseExited(with: exit)
+            XCTAssertEqual(button.selectionView.alphaValue, 0)
+            button.isActiveWindow = true
+            let activeFill = button.selectionView.alphaValue
+            let activeBorder = button.selectionView.borderColor.alphaComponent
+            XCTAssertEqual(hoverFill, activeFill)
+            XCTAssertGreaterThan(activeBorder, hoverBorder)
+            XCTAssertEqual(button.indicator.frame.width, 11)
+            button.mouseEntered(with: enter)
+            let activeHoverFill = button.selectionView.alphaValue
+            XCTAssertGreaterThan(activeHoverFill, activeFill)
+            XCTAssertLessThan(button.selectionView.borderColor.alphaComponent, activeBorder)
+            button.mouseDown(with: mouseEvent(.leftMouseDown, point: CGPoint(x: 50, y: 14), in: button))
+            XCTAssertLessThan(button.selectionView.alphaValue, activeFill)
+            XCTAssertEqual(button.selectionView.borderColor.alphaComponent, 0)
+            XCTAssertEqual(clicks, 0)
+            button.cancelOperation(nil)
+            XCTAssertEqual(button.selectionView.alphaValue, activeHoverFill)
+            XCTAssertEqual(clicks, 0)
+            button.isActiveWindow = false
+            XCTAssertEqual(button.selectionView.alphaValue, hoverFill)
+            XCTAssertEqual(button.selectionView.borderColor.alphaComponent, hoverBorder)
+            button.mouseExited(with: exit)
+            XCTAssertEqual(button.selectionView.alphaValue, 0)
+        }
+    }
+
+    func testActiveUnderlineMatchesTheSettledWindowsReferenceAtBothBackingScales() {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 280, height: 56),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 280, height: 56))
+        panel.contentView = content
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+        button.reduceMotion = { true }
+        content.addSubview(button)
+        for scale: CGFloat in [1, 2, 1] {
+            content.bounds.size = CGSize(width: 280 * panel.backingScaleFactor / scale,
+                                         height: 56 * panel.backingScaleFactor / scale)
+            for active in [false, true] {
+                button.isActiveWindow = active
+                button.needsLayout = true
+                button.layoutSubtreeIfNeeded()
+                let frame = button.indicator.frame
+                XCTAssertEqual(frame.width, active ? 11 : 4)
+                XCTAssertEqual(frame.height, 2)
+                XCTAssertEqual(button.bounds.maxY - frame.maxY, 1)
+                XCTAssertLessThanOrEqual(abs(frame.midX - button.iconView.frame.midX), 0.5 / scale)
+                let backing = button.convertToBacking(frame)
+                XCTAssertEqual(backing.width, (active ? 11 : 4) * scale)
+                XCTAssertEqual(backing.height, 2 * scale)
+                XCTAssertEqual(backing.minX, backing.minX.rounded())
+                XCTAssertEqual(backing.minY, backing.minY.rounded())
+            }
+        }
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testNeutralHighlightAndWindowsIndicatorsRespectReduceMotion() {
         let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
         button.reduceMotion = { true }
@@ -586,7 +660,7 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(button.indicator.frame.size, CGSize(width: 4, height: 2))
         button.isActiveWindow = true
         XCTAssertGreaterThan(button.selectionView.alphaValue, 0)
-        XCTAssertEqual(button.indicator.frame.size, CGSize(width: 16, height: 2))
+        XCTAssertEqual(button.indicator.frame.size, CGSize(width: 11, height: 2))
         XCTAssertEqual(button.indicator.fillColor, .controlAccentColor)
         XCTAssertTrue(button.selectionView.layer?.animationKeys()?.isEmpty ?? true)
         XCTAssertTrue(button.indicator.layer?.animationKeys()?.isEmpty ?? true)
