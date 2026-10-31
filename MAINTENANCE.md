@@ -34,3 +34,15 @@ Build and test artifacts expire after seven days. Artifact maintenance runs afte
 For each managed name (`ProperWM`, `test-results`, and legacy `xcodebuild-test-log`), keep the three newest completed artifacts and the newest successful result. Also keep artifacts from active runs, the triggering run, unknown runs, and unrelated artifact names. The maintenance workflow reads trusted `master` code and does not run for fork or pull-request completion events.
 
 Only GitHub Actions artifacts are deleted. Published release assets, tags, source, workflow runs, and their logs are not deletion targets.
+
+## Taskbar reference and boundaries
+
+The UI reference is Windows 11 Pro 26H2 (26300.9711), 1920×1080 at 100%, dark theme, Small taskbar, bottom, left aligned, with combining set to When taskbar is full and window buttons shown on the taskbar where the window is open. Inspect the real UI as well as Microsoft's [current taskbar settings documentation](https://support.microsoft.com/en-us/windows/experience/personalization/customize-the-taskbar-in-windows). The [Win32 taskbar design guide](https://learn.microsoft.com/en-us/windows/win32/uxguide/winenv-taskbar) explicitly describes Windows 7; its screenshots are not the current visual reference.
+
+Retain only the open-window area. The observed taskbar height is 32, button height 28, top/bottom inset 2, icon size 16, and Start's outer left inset 10. Translate these to macOS points, not unscaled Retina pixels. Use the macOS system font and native app icons. The bar fills the screen width and touches its bottom edge.
+
+The deliberate material replacement is Apple's public [NSGlassEffectView](https://developer.apple.com/documentation/appkit/nsglasseffectview), with content inside `contentView`. Do not restore private glass selectors, a separate fake blur layer, or the former floating capsule/resize grip. Preserve existing window tracking, native tabs, display attribution, fullscreen prediction, and maximized-window avoidance.
+
+No thumbnails or screen capture are allowed. A separate button has no hover popup. Combined groups and overflow use only window titles and application icons, including during file dragging. Closing the popup cancels pending row actions. ScreenCaptureKit and Screen Recording permission must not be reintroduced for these lists.
+
+Accessibility remains necessary for window management. App Sandbox is incompatible with the retained cross-application Accessibility operations; see [Apple's restrictions](https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox). Do not add privacy permissions to solve unrelated implementation issues. Existing fullscreen prediction observes global input events and recognizes specific keys, clicks, and gestures without recording typed text. Treat window titles and diagnostic reports as potentially sensitive; they must not be uploaded automatically.
