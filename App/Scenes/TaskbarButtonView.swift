@@ -1,21 +1,24 @@
 import AppKit
-import QuartzCore
 
 @MainActor
-private final class TaskbarButtonContentView: NSView {
-    weak var button: TaskbarButtonView?
-    override var isFlipped: Bool { true }
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    override func draw(_ dirtyRect: NSRect) { button?.drawContent() }
-}
-
-@MainActor
-final class TaskbarButtonView: NSView {
-    var title = "" { didSet { content.needsDisplay = true; setAccessibilityLabel(title) } }
-    var image: NSImage? { didSet { content.needsDisplay = true } }
+final class TaskbarButtonView: NSButton {
+    override var title: String {
+        didSet {
+            titleLabel.stringValue = title
+            setAccessibilityLabel(title)
+        }
+    }
+    override var image: NSImage? { didSet { iconView.image = image } }
     var isActiveWindow = false { didSet { if oldValue != isActiveWindow { updateAppearance(animated: true) } } }
-    var isCombined = false { didSet { content.needsDisplay = true } }
-    var isOverflow = false { didSet { if oldValue != isOverflow { content.needsDisplay = true; updateAppearance(animated: false) } } }
+    var isCombined = false { didSet { groupIndicator.isHidden = !isCombined } }
+    var isOverflow = false {
+        didSet {
+            if isOverflow { image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: nil) }
+            titleLabel.isHidden = isOverflow
+            indicator.isHidden = isOverflow
+            needsLayout = true
+        }
+    }
     var onClick: (() -> Void)?
     var onContextMenu: ((NSEvent) -> Void)?
     var onHover: ((Bool) -> Void)?
@@ -23,14 +26,16 @@ final class TaskbarButtonView: NSView {
     var onDragMoved: ((NSEvent) -> Void)?
     var onEndDrag: ((NSEvent?, Bool) -> Void)?
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    let plateLayer = CAShapeLayer()
-    let indicatorLayer = CALayer()
-    private let content = TaskbarButtonContentView()
+    let selectionView = NSBox()
+    let iconView = NSImageView()
+    let titleLabel = NSTextField(labelWithString: "")
+    let indicator = NSBox()
+    private let groupIndicator = NSBox()
     private var tracking: NSTrackingArea?
-    private var hovered = false
-    private var pressed = false
     private var downPointInWindow: CGPoint?
     private var beganDrag = false
+    private var hovered = false
+    private var pressed = false
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -38,18 +43,45 @@ final class TaskbarButtonView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        setButtonType(.momentaryPushIn)
+        isBordered = false
+        isTransparent = true
+        tintProminence = .none
+        target = self
+        action = #selector(activateButton)
         wantsLayer = true
-        layer?.isGeometryFlipped = true
-        layer?.addSublayer(plateLayer)
-        layer?.addSublayer(indicatorLayer)
-        indicatorLayer.cornerRadius = 1
-        content.button = self
-        content.wantsLayer = true
-        content.setAccessibilityElement(false)
-        addSubview(content)
-        content.layer?.zPosition = 1
-        setAccessibilityElement(true)
-        setAccessibilityRole(.button)
+        selectionView.wantsLayer = true
+        selectionView.boxType = .custom
+        selectionView.titlePosition = .noTitle
+        selectionView.borderWidth = 0
+        selectionView.cornerRadius = TaskbarMetrics.buttonCornerRadius
+        selectionView.contentViewMargins = .zero
+        selectionView.fillColor = .unemphasizedSelectedContentBackgroundColor
+        selectionView.alphaValue = 0
+        selectionView.setAccessibilityElement(false)
+        addSubview(selectionView)
+        iconView.imageScaling = .scaleProportionallyDown
+        iconView.setAccessibilityElement(false)
+        addSubview(iconView)
+        titleLabel.font = NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.maximumNumberOfLines = 1
+        titleLabel.setAccessibilityElement(false)
+        addSubview(titleLabel)
+        indicator.wantsLayer = true
+        indicator.boxType = .custom
+        indicator.titlePosition = .noTitle
+        indicator.borderWidth = 0
+        indicator.cornerRadius = 1
+        indicator.contentViewMargins = .zero
+        indicator.setAccessibilityElement(false)
+        addSubview(indicator)
+        groupIndicator.boxType = .separator
+        groupIndicator.isHidden = true
+        groupIndicator.setAccessibilityElement(false)
+        addSubview(groupIndicator)
+        title = ""
         updateAppearance(animated: false)
     }
 
@@ -57,50 +89,57 @@ final class TaskbarButtonView: NSView {
 
     override func layout() {
         super.layout()
-        content.frame = bounds
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        plateLayer.frame = bounds
-        plateLayer.path = CGPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
-                                cornerWidth: TaskbarMetrics.buttonCornerRadius,
-                                cornerHeight: TaskbarMetrics.buttonCornerRadius, transform: nil)
-        plateLayer.lineWidth = 1
-        CATransaction.commit()
+        selectionView.frame = bounds
+        let iconX = isOverflow ? floor((bounds.width - TaskbarMetrics.iconSize) / 2) : TaskbarMetrics.iconInset
+        iconView.frame = CGRect(x: iconX, y: 6, width: TaskbarMetrics.iconSize, height: TaskbarMetrics.iconSize)
+        let font = titleLabel.font ?? NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
+        let height = ceil((title as NSString).size(withAttributes: [.font: font]).height)
+        let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((bounds.height - height) / 2),
+                               width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset), height: height)
+        titleLabel.frame = titleLabel.frame(forAlignmentRect: titleRect)
+        if indicator.frame != indicatorFrame { indicator.frame = indicatorFrame }
+        groupIndicator.frame = CGRect(x: bounds.maxX - 3, y: 3, width: 2, height: 22)
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         updateAppearance(animated: false)
-        content.needsDisplay = true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        super.hitTest(point) == nil ? nil : self
     }
 
     override func updateTrackingAreas() {
         if let tracking { removeTrackingArea(tracking) }
         let area = NSTrackingArea(rect: .zero,
-                                  options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                                  owner: self)
+                                  options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(area)
         tracking = area
         super.updateTrackingAreas()
     }
 
     override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
         hovered = true
         updateAppearance(animated: true)
         onHover?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
         hovered = false
         updateAppearance(animated: true)
         onHover?(false)
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         if event.modifierFlags.contains(.control) { onContextMenu?(event); return }
         downPointInWindow = event.locationInWindow
-        pressed = true
         beganDrag = false
+        pressed = true
+        highlight(true)
         updateAppearance(animated: true)
     }
 
@@ -111,6 +150,7 @@ final class TaskbarButtonView: NSView {
             guard hypot(point.x - downPointInWindow.x, point.y - downPointInWindow.y) >= 4 else { return }
             beganDrag = true
             pressed = false
+            highlight(false)
             updateAppearance(animated: true)
             onBeginDrag?(event, downPointInWindow)
         }
@@ -121,17 +161,19 @@ final class TaskbarButtonView: NSView {
         let shouldClick = downPointInWindow != nil && !beganDrag && bounds.contains(convert(event.locationInWindow, from: nil))
         if beganDrag { onEndDrag?(event, false) }
         downPointInWindow = nil
-        pressed = false
         beganDrag = false
+        pressed = false
+        highlight(false)
         updateAppearance(animated: true)
-        if shouldClick { onClick?() }
+        if shouldClick { activateButton() }
     }
 
     override func cancelOperation(_ sender: Any?) {
         if beganDrag { onEndDrag?(nil, true) }
         downPointInWindow = nil
-        pressed = false
         beganDrag = false
+        pressed = false
+        highlight(false)
         updateAppearance(animated: true)
     }
 
@@ -139,78 +181,42 @@ final class TaskbarButtonView: NSView {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { cancelOperation(nil) }
-        else if event.keyCode == 36 || event.keyCode == 49 { onClick?() }
+        else if event.keyCode == 36 || event.keyCode == 49 { performClick(nil) }
         else { super.keyDown(with: event) }
     }
 
     override func accessibilityPerformPress() -> Bool {
+        guard isEnabled, onClick != nil else { return false }
+        activateButton()
+        return true
+    }
+
+    @objc private func activateButton() {
+        guard isEnabled else { return }
         onClick?()
-        return onClick != nil
+        state = isActiveWindow ? .on : .off
+    }
+
+    private var indicatorFrame: CGRect {
+        let width: CGFloat = isActiveWindow ? 16 : 4
+        return CGRect(x: TaskbarMetrics.iconInset + (16 - width) / 2, y: 24, width: width, height: 2)
     }
 
     private func updateAppearance(animated: Bool) {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let visible = isActiveWindow || hovered || pressed
-        let alpha: CGFloat = !visible ? 0 : pressed ? 0.11 : hovered ? 0.09 : 0.065
-        let color = NSColor(white: dark ? 1 : 0, alpha: alpha)
-        let border = NSColor(white: dark ? 1 : 0, alpha: visible ? (dark ? 0.10 : 0.06) : 0)
+        state = isActiveWindow ? .on : .off
+        let opacity: CGFloat = pressed ? 1 : hovered ? 0.9 : isActiveWindow ? 0.65 : 0
+        selectionView.fillColor = .unemphasizedSelectedContentBackgroundColor
+        indicator.fillColor = isActiveWindow ? .controlAccentColor : .secondaryLabelColor
         let duration = animated && !reduceMotion() ? TaskbarMotion.buttonTransition : 0
-        transition(plateLayer, key: "fillColor", to: color.cgColor, duration: duration)
-        transition(plateLayer, key: "strokeColor", to: border.cgColor, duration: duration)
-        let width: CGFloat = isActiveWindow ? 16 : 4
-        let frame = CGRect(x: TaskbarMetrics.iconInset + (16 - width) / 2, y: 24, width: width, height: 2)
-        transition(indicatorLayer, key: "bounds", to: NSValue(rect: CGRect(origin: .zero, size: frame.size)), duration: duration)
-        transition(indicatorLayer, key: "position", to: NSValue(point: CGPoint(x: frame.midX, y: frame.midY)), duration: duration)
-        transition(indicatorLayer, key: "backgroundColor",
-                   to: (isActiveWindow ? NSColor.controlAccentColor : NSColor.secondaryLabelColor).cgColor, duration: duration)
-        indicatorLayer.isHidden = isOverflow
-        content.needsDisplay = true
-    }
-
-    private func transition(_ layer: CALayer, key: String, to value: Any, duration: TimeInterval) {
-        let previous = layer.presentation()?.value(forKey: key) ?? layer.value(forKey: key)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layer.setValue(value, forKey: key)
-        CATransaction.commit()
-        if duration > 0, let previous {
-            let animation = CABasicAnimation(keyPath: key)
-            animation.fromValue = previous
-            animation.toValue = value
-            animation.duration = duration
-            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            layer.add(animation, forKey: key)
-        } else { layer.removeAnimation(forKey: key) }
-    }
-
-    fileprivate func drawContent() {
-        if isOverflow {
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 17), .foregroundColor: NSColor.labelColor
-            ]
-            let text = "···" as NSString
-            let size = text.size(withAttributes: attributes)
-            text.draw(at: CGPoint(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2), withAttributes: attributes)
-            return
-        }
-        image?.draw(in: CGRect(x: TaskbarMetrics.iconInset, y: 6, width: TaskbarMetrics.iconSize, height: TaskbarMetrics.iconSize),
-                    from: .zero, operation: .sourceOver, fraction: pressed ? 0.8 : 1,
-                    respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: TaskbarMetrics.fontSize),
-            .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph
-        ]
-        let size = (title as NSString).size(withAttributes: attributes)
-        (title as NSString).draw(in: CGRect(x: TaskbarMetrics.labelInset,
-                                            y: floor((bounds.height - size.height) / 2),
-                                            width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset),
-                                            height: ceil(size.height)), withAttributes: attributes)
-        if isCombined {
-            let line = NSBezierPath(roundedRect: CGRect(x: bounds.maxX - 3, y: 3, width: 2, height: 22), xRadius: 1, yRadius: 1)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.35).setFill()
-            line.fill()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = duration
+            if duration > 0 {
+                selectionView.animator().alphaValue = opacity
+                indicator.animator().frame = indicatorFrame
+            } else {
+                selectionView.alphaValue = opacity
+                indicator.frame = indicatorFrame
+            }
         }
     }
 }

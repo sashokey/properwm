@@ -59,20 +59,17 @@ struct PermissionOnboardingView: View {
     }
 
     private func troubleshootingBox(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Switch already on but nothing happens?")
-                .font(.callout.weight(.semibold))
-            Text(text)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(.secondary)
+        GroupBox {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Switch already on but nothing happens?")
+                    .font(.callout.weight(.semibold))
+                Text(text)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
-        )
     }
 
     // MARK: - 文案

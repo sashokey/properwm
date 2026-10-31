@@ -158,13 +158,22 @@ final class TaskbarNativeContextMenu: TaskbarContextMenuPresenting {
 }
 
 @MainActor
-final class TaskbarWindowListView: NSView {
+private final class TaskbarWindowTable: NSTableView {
+    var handleKey: ((NSEvent) -> Bool)?
+
+    override func keyDown(with event: NSEvent) {
+        if handleKey?(event) != true { super.keyDown(with: event) }
+    }
+}
+
+@MainActor
+final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NSTableViewDelegate {
     private(set) var cells: [TaskbarWindowListRow] = []
+    let tableView: NSTableView = TaskbarWindowTable()
+    let scrollView = NSScrollView()
     var onHover: ((Bool) -> Void)?
     private var tracking: NSTrackingArea?
-    override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
-    private var selectedIndex: Int?
 
     init(windows: [TaskbarWindowPresentation], availableHeight: CGFloat,
          delay: @escaping TaskbarDelayedAction.Delay = { try? await Task.sleep(for: $0) },
@@ -176,47 +185,100 @@ final class TaskbarWindowListView: NSView {
         let size = CGSize(width: TaskbarMetrics.windowListWidth,
                           height: min(max(cellHeight, availableHeight), cellHeight * CGFloat(windows.count)))
         super.init(frame: CGRect(origin: .zero, size: size))
-        wantsLayer = true
-        layer?.cornerRadius = 4
-        layer?.masksToBounds = true
-        let flipped = TaskbarFlippedView(frame: CGRect(x: 0, y: 0, width: size.width,
-                                                      height: cellHeight * CGFloat(windows.count)))
+        style = .regular
+        cornerRadius = 4
+        tintColor = nil
+        scrollView.frame = bounds
+        scrollView.autoresizingMask = [.width, .height]
+        scrollView.drawsBackground = false
+        scrollView.contentView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.automaticallyAdjustsContentInsets = false
+        tableView.frame = CGRect(x: 0, y: 0, width: size.width, height: cellHeight * CGFloat(windows.count))
+        tableView.autoresizingMask = [.width]
+        tableView.headerView = nil
+        tableView.style = .plain
+        tableView.backgroundColor = .clear
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.intercellSpacing = .zero
+        tableView.rowSizeStyle = .custom
+        tableView.rowHeight = cellHeight
+        tableView.usesAutomaticRowHeights = false
+        tableView.selectionHighlightStyle = .regular
+        tableView.allowsMultipleSelection = false
+        tableView.allowsEmptySelection = true
+        tableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("window"))
+        column.width = size.width
+        column.minWidth = 0
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.target = self
+        tableView.action = #selector(activateSelectedWindow)
+        (tableView as? TaskbarWindowTable)?.handleKey = { [weak self] in self?.handleKey($0) ?? false }
         for (index, item) in windows.enumerated() {
             let cell = TaskbarWindowListRow(window: item, icon: icon(item), delay: delay,
                                           activate: { activate(item) }, close: { close(item) },
                                           fileHover: { fileHover(item) })
             cell.onDragPresence = { [weak self] inside in self?.onHover?(inside) }
-            cell.frame = CGRect(x: 0,
-                                y: CGFloat(index) * cellHeight,
-                                width: TaskbarMetrics.windowListWidth, height: cellHeight)
-            flipped.addSubview(cell)
+            cell.onHighlightChanged = { [weak self] selected in
+                self?.tableView.rowView(atRow: index, makeIfNecessary: false)?.isSelected = selected
+            }
             cells.append(cell)
         }
-        if flipped.frame.height > size.height {
-            let scroll = NSScrollView(frame: bounds)
-            scroll.drawsBackground = false
-            scroll.hasVerticalScroller = true
-            scroll.autohidesScrollers = true
-            scroll.documentView = flipped
-            addSubview(scroll)
-        } else { addSubview(flipped) }
+        scrollView.documentView = tableView
+        contentView = scrollView
+        tableView.reloadData()
+        layoutSubtreeIfNeeded()
     }
 
     required init?(coder: NSCoder) { nil }
 
-    override func keyDown(with event: NSEvent) {
-        guard !cells.isEmpty else { return }
+    func numberOfRows(in tableView: NSTableView) -> Int { cells.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { cells[row] }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let view = NSTableRowView()
+        view.backgroundColor = .clear
+        view.isEmphasized = false
+        return view
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        for (index, cell) in cells.enumerated() { cell.keyboardSelected = tableView.selectedRowIndexes.contains(index) }
+    }
+
+    @objc private func activateSelectedWindow() {
+        let index = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
+        if cells.indices.contains(index) { cells[index].activate() }
+    }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard !cells.isEmpty else { return false }
         switch event.keyCode {
         case 125, 126:
             let delta = event.keyCode == 125 ? 1 : -1
-            let index = selectedIndex.map { ($0 + delta + cells.count) % cells.count } ?? (delta > 0 ? 0 : cells.count - 1)
-            selectedIndex = index
-            for (i, cell) in cells.enumerated() { cell.keyboardSelected = i == index }
-            cells[index].scrollToVisible(cells[index].bounds)
+            let selected = tableView.selectedRow
+            let index = selected >= 0 ? (selected + delta + cells.count) % cells.count : (delta > 0 ? 0 : cells.count - 1)
+            tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            tableView.scrollRowToVisible(index)
+            return true
         case 36, 49:
-            if let selectedIndex { cells[selectedIndex].activate() }
-        default: super.keyDown(with: event)
+            let index = tableView.selectedRow
+            if cells.indices.contains(index) { cells[index].activate() }
+            return true
+        default: return false
         }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if !handleKey(event) { super.keyDown(with: event) }
     }
 
     func cancelPendingActions() {
@@ -243,27 +305,27 @@ final class TaskbarWindowListView: NSView {
 }
 
 @MainActor
-private final class TaskbarFlippedView: NSView {
-    override var isFlipped: Bool { true }
-}
-
-@MainActor
-final class TaskbarWindowListRow: NSView {
+final class TaskbarWindowListRow: NSTableCellView {
     let item: TaskbarWindowPresentation
-    var title: String { didSet { setAccessibilityLabel(title); needsDisplay = true } }
+    var title: String {
+        didSet {
+            textField?.stringValue = title
+            setAccessibilityLabel(title)
+        }
+    }
     let icon: NSImage?
     let activate: () -> Void
     let close: () -> Void
     let fileHover: () -> Void
+    let closeButton = NSButton()
     var onDragPresence: ((Bool) -> Void)?
+    var onHighlightChanged: ((Bool) -> Void)?
     private var hovered = false
-    var keyboardSelected = false { didSet { needsDisplay = true } }
-    private var closeHovered = false
+    var keyboardSelected = false { didSet { updateHighlight() } }
     private var tracking: NSTrackingArea?
     private let delayedActivation: TaskbarDelayedAction
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    private var closeFrame: CGRect { CGRect(x: bounds.width - 36, y: 4, width: 32, height: 32) }
 
     init(window: TaskbarWindowPresentation, icon: NSImage?,
          delay: @escaping TaskbarDelayedAction.Delay = { try? await Task.sleep(for: $0) },
@@ -275,37 +337,70 @@ final class TaskbarWindowListRow: NSView {
         self.activate = activate
         self.close = close
         self.fileHover = fileHover
-        super.init(frame: .zero)
+        super.init(frame: CGRect(x: 0, y: 0, width: TaskbarMetrics.windowListWidth, height: TaskbarMetrics.windowListRowHeight))
+        let iconView = NSImageView()
+        iconView.image = icon
+        iconView.imageScaling = .scaleProportionallyDown
+        iconView.setAccessibilityElement(false)
+        imageView = iconView
+        addSubview(iconView)
+        let label = NSTextField(labelWithString: window.title)
+        label.font = NSFont.systemFont(ofSize: 13)
+        label.lineBreakMode = .byTruncatingTail
+        label.maximumNumberOfLines = 1
+        label.setAccessibilityElement(false)
+        textField = label
+        addSubview(label)
+        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
+        closeButton.imagePosition = .imageOnly
+        closeButton.bezelStyle = .accessoryBarAction
+        closeButton.controlSize = .small
+        closeButton.showsBorderOnlyWhileMouseInside = true
+        closeButton.tintProminence = .none
+        closeButton.isHidden = true
+        closeButton.setAccessibilityLabel(String(localized: "Close window"))
+        closeButton.target = self
+        closeButton.action = #selector(closeWindow)
+        addSubview(closeButton)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel(window.title)
         setAccessibilityCustomActions([NSAccessibilityCustomAction(name: String(localized: "Close window"), handler: { close(); return true })])
         registerForDraggedTypes([.fileURL])
+        needsLayout = true
     }
 
     required init?(coder: NSCoder) { nil }
     isolated deinit { delayedActivation.cancel() }
 
+    override func layout() {
+        super.layout()
+        imageView?.frame = CGRect(x: 8, y: 12, width: 16, height: 16)
+        if let textField {
+            textField.frame = textField.frame(forAlignmentRect: CGRect(x: 32, y: 12, width: max(0, bounds.width - 68), height: 20))
+        }
+        closeButton.frame = CGRect(x: bounds.width - 36, y: 4, width: 32, height: 32)
+    }
+
     override func updateTrackingAreas() {
         if let tracking { removeTrackingArea(tracking) }
-        let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .mouseMoved, .inVisibleRect], owner: self)
+        let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self)
         addTrackingArea(area)
         tracking = area
         super.updateTrackingAreas()
     }
 
-    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
-    override func mouseExited(with event: NSEvent) { hovered = false; closeHovered = false; needsDisplay = true }
-    override func mouseMoved(with event: NSEvent) {
-        closeHovered = closeFrame.contains(convert(event.locationInWindow, from: nil))
-        needsDisplay = true
-    }
-    override func mouseUp(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(point) else { return }
-        if closeFrame.contains(point) { close() } else { activate() }
-    }
+    override func mouseEntered(with event: NSEvent) { hovered = true; updateHighlight() }
+    override func mouseExited(with event: NSEvent) { hovered = false; updateHighlight() }
     override func accessibilityPerformPress() -> Bool { activate(); return true }
+
+    private func updateHighlight() {
+        let selected = hovered || keyboardSelected
+        closeButton.isHidden = !selected
+        onHighlightChanged?(selected)
+    }
+
+    @objc private func closeWindow() { close() }
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         guard sender.draggingPasteboard.availableType(from: [.fileURL]) != nil else { return [] }
@@ -324,34 +419,5 @@ final class TaskbarWindowListRow: NSView {
         cancelFileHover()
         onDragPresence?(false)
         return false
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let highlighted = hovered || keyboardSelected
-        NSColor(white: dark ? (highlighted ? 0.23 : 0.17) : (highlighted ? 0.94 : 0.98), alpha: 1).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
-        icon?.draw(in: CGRect(x: 8, y: 12, width: 16, height: 16), from: .zero,
-                   operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        (title as NSString).draw(in: CGRect(x: 32, y: 12, width: bounds.width - 68, height: 20), withAttributes: [
-            .font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph
-        ])
-        if hovered {
-            if closeHovered {
-                NSColor(red: 0.77, green: 0.17, blue: 0.11, alpha: 1).setFill()
-                NSBezierPath(roundedRect: closeFrame, xRadius: 4, yRadius: 4).fill()
-            }
-            let cross = NSBezierPath()
-            let center = CGPoint(x: closeFrame.midX, y: closeFrame.midY)
-            cross.move(to: CGPoint(x: center.x - 5, y: center.y - 5))
-            cross.line(to: CGPoint(x: center.x + 5, y: center.y + 5))
-            cross.move(to: CGPoint(x: center.x + 5, y: center.y - 5))
-            cross.line(to: CGPoint(x: center.x - 5, y: center.y + 5))
-            (closeHovered ? NSColor.white : NSColor.labelColor).setStroke()
-            cross.lineWidth = 1
-            cross.stroke()
-        }
     }
 }

@@ -152,7 +152,7 @@ final class TaskbarRendererTests: XCTestCase {
         let list = popup.content as? TaskbarWindowListView
         XCTAssertEqual(list?.cells.map(\.item.title), groups()[0].windows.map(\.title))
         XCTAssertTrue(list?.cells.allSatisfy { $0.icon === icon } == true)
-        XCTAssertEqual(list?.cells.map(\.frame.minY), [0, 40, 80])
+        XCTAssertEqual(list.map { value in value.cells.indices.map { value.tableView.rect(ofRow: $0).minY } }, [0, 40, 80])
         XCTAssertTrue(activated.isEmpty)
         XCTAssertTrue(list?.cells[1].accessibilityPerformPress() == true)
         XCTAssertEqual(activated, ["window-1"])
@@ -503,35 +503,229 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertTrue(content.buttonViews.values.allSatisfy { $0.frame.minX.isFinite && $0.frame.width.isFinite })
     }
 
-    func testHoverAndActiveStateUseAnimatedLayerTransitions() {
-        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
-        button.reduceMotion = { false }
-        button.layoutSubtreeIfNeeded()
-        let entered = NSEvent.enterExitEvent(with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0,
-                                            windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
-        button.mouseEntered(with: entered)
-        XCTAssertNotNil(button.plateLayer.animation(forKey: "fillColor"))
-        button.isActiveWindow = true
-        XCTAssertEqual(button.indicatorLayer.bounds.width, 16)
-        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
-        button.needsLayout = true
-        button.layoutSubtreeIfNeeded()
-        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
-        button.isActiveWindow = false
-        XCTAssertEqual(button.indicatorLayer.bounds.width, 4)
-        XCTAssertNotNil(button.indicatorLayer.animation(forKey: "bounds"))
+    func testNativeButtonsPreserveGeometryInEveryInteractionState() throws {
+        for title in [".", "Windows", "A very long window title that must truncate"] {
+            let width = TaskbarMetrics.buttonWidth(textWidth: (title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width)
+            let button = TaskbarButtonView(frame: CGRect(x: 10, y: 2, width: width, height: 28))
+            button.title = title
+            button.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)
+            let native: NSButton = button
+            XCTAssertFalse(native.isBordered)
+            XCTAssertTrue(native.isTransparent)
+            XCTAssertEqual(native.tintProminence, .none)
+            XCTAssertEqual(button.selectionView.fillColor, .unemphasizedSelectedContentBackgroundColor)
+            XCTAssertEqual(button.selectionView.cornerRadius, 4)
+            button.reduceMotion = { true }
+            XCTAssertEqual(native.title, title)
+            for active in [false, true, false] {
+                button.isActiveWindow = active
+                button.layoutSubtreeIfNeeded()
+                XCTAssertEqual(native.state, active ? .on : .off)
+                XCTAssertEqual(native.frame, CGRect(x: 10, y: 2, width: width, height: 28))
+                XCTAssertEqual(button.iconView.frame, CGRect(x: 6, y: 6, width: 16, height: 16))
+                let textRect = button.titleLabel.alignmentRect(forFrame: button.titleLabel.frame)
+                XCTAssertEqual(textRect.minX, 28)
+                XCTAssertEqual(textRect.maxX, width - 8)
+                XCTAssertEqual(button.selectionView.frame, button.bounds)
+                XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 6 : 12, y: 24, width: active ? 16 : 4, height: 2))
+            }
+        }
     }
 
-    func testReduceMotionUpdatesTheButtonWithoutStartingAnimations() {
+    func testNativePressAndKeyboardActionsDoNotInventAnActiveWindow() {
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+        var calls = 0
+        button.onClick = { calls += 1 }
+        let point = CGPoint(x: 50, y: 14)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: point, in: button))
+        XCTAssertTrue(button.isHighlighted)
+        XCTAssertEqual(calls, 0)
+        button.mouseUp(with: mouseEvent(.leftMouseUp, point: point, in: button))
+        XCTAssertFalse(button.isHighlighted)
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(button.state, .off)
+        button.performClick(nil)
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(button.state, .off)
+        button.isActiveWindow = true
+        button.performClick(nil)
+        XCTAssertEqual(calls, 3)
+        XCTAssertEqual(button.state, .on)
+        button.isEnabled = false
+        button.performClick(nil)
+        XCTAssertFalse(button.accessibilityPerformPress())
+        XCTAssertEqual(calls, 3)
+    }
+
+    func testHoverKeepsNeutralFeedbackAndPopupNotifications() async {
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
+        var hovering: [Bool] = []
+        button.onHover = { hovering.append($0) }
+        for type: NSEvent.EventType in [.mouseEntered, .mouseExited] {
+            let event = NSEvent.enterExitEvent(with: type, location: .zero, modifierFlags: [], timestamp: 0,
+                                              windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
+            if type == .mouseEntered { button.mouseEntered(with: event) }
+            else { button.mouseExited(with: event) }
+        }
+        XCTAssertEqual(hovering, [true, false])
+        XCTAssertEqual(button.selectionView.alphaValue, 0)
+        button.isActiveWindow = true
+        let deadline = ContinuousClock.now + .seconds(1)
+        while abs(button.selectionView.alphaValue - 0.65) > 0.001, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(button.selectionView.alphaValue, 0.65, accuracy: 0.001)
+        XCTAssertEqual(button.selectionView.fillColor, .unemphasizedSelectedContentBackgroundColor)
+    }
+
+    func testNeutralHighlightAndWindowsIndicatorsRespectReduceMotion() {
         let button = TaskbarButtonView(frame: CGRect(x: 0, y: 0, width: 140, height: 28))
         button.reduceMotion = { true }
+        button.layoutSubtreeIfNeeded()
+        XCTAssertEqual(button.selectionView.alphaValue, 0)
+        XCTAssertEqual(button.indicator.frame.size, CGSize(width: 4, height: 2))
         button.isActiveWindow = true
-        XCTAssertEqual(button.indicatorLayer.bounds.width, 16)
-        XCTAssertTrue(button.indicatorLayer.animationKeys()?.isEmpty ?? true)
-        XCTAssertTrue(button.plateLayer.animationKeys()?.isEmpty ?? true)
+        XCTAssertGreaterThan(button.selectionView.alphaValue, 0)
+        XCTAssertEqual(button.indicator.frame.size, CGSize(width: 16, height: 2))
+        XCTAssertEqual(button.indicator.fillColor, .controlAccentColor)
+        XCTAssertTrue(button.selectionView.layer?.animationKeys()?.isEmpty ?? true)
+        XCTAssertTrue(button.indicator.layer?.animationKeys()?.isEmpty ?? true)
+        button.isActiveWindow = false
+        XCTAssertEqual(button.selectionView.alphaValue, 0)
+        XCTAssertEqual(button.indicator.fillColor, .secondaryLabelColor)
+        XCTAssertEqual(button.indicator.frame.size, CGSize(width: 4, height: 2))
     }
 
-    func testRepresentativeVisualFixturesRenderWithoutScreenCapturePermission() throws {
+    func testOverflowUsesANativeSymbolButtonAtTheExistingSize() throws {
+        let button = TaskbarButtonView(frame: CGRect(x: 0, y: 2, width: 32, height: 28))
+        button.isOverflow = true
+        button.title = "More windows"
+        button.layoutSubtreeIfNeeded()
+        XCTAssertNotNil(button.iconView.image)
+        XCTAssertTrue(button.titleLabel.isHidden)
+        XCTAssertTrue(button.indicator.isHidden)
+        XCTAssertEqual(button.iconView.frame, CGRect(x: 8, y: 6, width: 16, height: 16))
+        XCTAssertEqual(button.title, "More windows")
+        XCTAssertNil(button.toolTip)
+    }
+
+    func testWindowListUsesGlassAndNativeRowsWithTheWindowsGeometry() throws {
+        let windows = groups()[0].windows
+        let list = TaskbarWindowListView(windows: windows, availableHeight: 80, icon: { _ in nil },
+                                        activate: { _ in }, close: { _ in }, fileHover: { _ in })
+        XCTAssertEqual(list.style, .regular)
+        XCTAssertNil(list.tintColor)
+        XCTAssertTrue(list.contentView === list.scrollView)
+        XCTAssertFalse(list.scrollView.drawsBackground)
+        XCTAssertFalse(list.scrollView.contentView.drawsBackground)
+        XCTAssertEqual(list.tableView.backgroundColor, .clear)
+        XCTAssertEqual(list.frame.size, CGSize(width: 216, height: 80))
+        XCTAssertEqual(list.tableView.numberOfRows, 3)
+        XCTAssertEqual(list.tableView.rowHeight, 40)
+        XCTAssertEqual(list.tableView.intercellSpacing, .zero)
+        for index in windows.indices {
+            XCTAssertEqual(list.tableView.rect(ofRow: index), CGRect(x: 0, y: CGFloat(index) * 40, width: 216, height: 40))
+            let cell: NSTableCellView = list.cells[index]
+            cell.layoutSubtreeIfNeeded()
+            XCTAssertEqual(cell.imageView?.frame, CGRect(x: 8, y: 12, width: 16, height: 16))
+            let label = try XCTUnwrap(cell.textField)
+            XCTAssertEqual(label.alignmentRect(forFrame: label.frame), CGRect(x: 32, y: 12, width: 148, height: 20))
+            XCTAssertEqual(list.cells[index].closeButton.frame, CGRect(x: 180, y: 4, width: 32, height: 32))
+            XCTAssertEqual(cell.textField?.stringValue, windows[index].title)
+        }
+        list.tableView.scrollRowToVisible(2)
+        XCTAssertGreaterThan(list.scrollView.contentView.bounds.minY, 0)
+    }
+
+    func testNativeListCloseButtonClosesOnlyItsWindowWithoutActivatingIt() throws {
+        let popup = Popup()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 200, height: 32), popup: popup)
+        var closed: [String] = []
+        var activated: [String] = []
+        content.actions.close = { closed.append($0) }
+        content.actions.activate = { activated.append($0) }
+        content.update(groups: groups())
+        _ = content.buttonViews["group:test.editor"]?.accessibilityPerformPress()
+        let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+        let row = list.cells[1]
+        row.keyboardSelected = true
+        XCTAssertFalse(row.closeButton.isHidden)
+        row.closeButton.performClick(nil)
+        XCTAssertEqual(closed, ["window-1"])
+        XCTAssertTrue(activated.isEmpty)
+        XCTAssertTrue(popup.isPresented)
+    }
+
+    func testNativeTableKeyboardSelectionScrollsAndUpdatesTitlesWithoutRecreatingRows() {
+        let windows = groups()[0].windows
+        var activated: [String] = []
+        let list = TaskbarWindowListView(windows: windows, availableHeight: 40, icon: { _ in nil },
+                                        activate: { activated.append($0.id) }, close: { _ in }, fileHover: { _ in })
+        let original = list.cells[2]
+        for code: UInt16 in [126, 36] {
+            let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                        windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+                                        isARepeat: false, keyCode: code)!
+            list.tableView.keyDown(with: event)
+        }
+        XCTAssertEqual(activated, ["window-2"])
+        XCTAssertEqual(list.tableView.selectedRow, 2)
+        XCTAssertTrue(original.keyboardSelected)
+        XCTAssertFalse(original.closeButton.isHidden)
+        var updated = windows
+        updated[2] = TaskbarWindowPresentation(item: windows[2].item, title: "Changed title", isActive: false)
+        list.updateTitles(windows: updated)
+        XCTAssertTrue(list.cells[2] === original)
+        XCTAssertEqual(original.textField?.stringValue, "Changed title")
+    }
+
+    func testNativeTableMouseTrackingActivatesTheClickedRow() throws {
+        _ = NSApplication.shared
+        var activated: [String] = []
+        let list = TaskbarWindowListView(windows: groups()[0].windows, availableHeight: 120, icon: { _ in nil },
+                                        activate: { activated.append($0.id) }, close: { _ in }, fileHover: { _ in })
+        let panel = NSPanel(contentRect: list.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = list
+        defer { panel.contentView = nil; panel.close() }
+        panel.layoutIfNeeded()
+        XCTAssertFalse(panel.isVisible)
+        let row = list.tableView.rect(ofRow: 1)
+        let location = list.tableView.convert(CGPoint(x: 60, y: row.midY), to: nil)
+        let up = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: location, modifierFlags: [], timestamp: 2,
+                                                windowNumber: panel.windowNumber, context: nil, eventNumber: 2, clickCount: 1, pressure: 0))
+        let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: location, modifierFlags: [], timestamp: 1,
+                                                  windowNumber: panel.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        NSApplication.shared.postEvent(up, atStart: true)
+        list.tableView.mouseDown(with: down)
+        XCTAssertEqual(activated, ["window-1"])
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testNativeListVisualFixturesRenderWithoutOpeningAWindow() throws {
+        for dark in [false, true] {
+            let list = TaskbarWindowListView(windows: groups()[0].windows, availableHeight: 120,
+                                            icon: { _ in NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil) },
+                                            activate: { _ in }, close: { _ in }, fileHover: { _ in })
+            list.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            list.tableView.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+            list.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(list.bitmapImageRepForCachingDisplay(in: list.bounds))
+            list.effectiveAppearance.performAsCurrentDrawingAppearance {
+                list.cacheDisplay(in: list.bounds, to: bitmap)
+            }
+            XCTAssertGreaterThanOrEqual(bitmap.pixelsWide, 216)
+            XCTAssertGreaterThanOrEqual(bitmap.pixelsHigh, 120)
+            XCTAssertEqual(bitmap.pixelsWide * 120, bitmap.pixelsHigh * 216)
+            if let path = ProcessInfo.processInfo.environment["PROPERWM_RENDER_PATH"] {
+                let directory = URL(fileURLWithPath: path, isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: directory.appendingPathComponent("list-\(dark ? "dark" : "light").png"))
+            }
+        }
+    }
+
+    func testRepresentativeVisualFixturesRenderWithoutScreenCapturePermission() async throws {
         let paths = ProcessInfo.processInfo.environment["PROPERWM_RENDER_PATH"]
         for dark in [false, true] {
             for (name, width, count) in [("separate", CGFloat(800), 3), ("combined", CGFloat(240), 8), ("single", CGFloat(800), 1)] {
@@ -539,11 +733,21 @@ final class TaskbarRendererTests: XCTestCase {
                 view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
                 view.taskbarContent.update(groups: groups(count: count))
                 view.layoutSubtreeIfNeeded()
+                let deadline = ContinuousClock.now + .seconds(1)
+                for button in view.taskbarContent.buttonViews.values {
+                    let expected: CGFloat = button.isActiveWindow ? 0.65 : 0
+                    while abs(button.selectionView.alphaValue - expected) > 0.001, ContinuousClock.now < deadline {
+                        try? await Task.sleep(for: .milliseconds(5))
+                    }
+                    XCTAssertEqual(button.selectionView.alphaValue, expected, accuracy: 0.001)
+                }
                 guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
                     XCTFail("No render target for \(name)")
                     continue
                 }
-                view.cacheDisplay(in: view.bounds, to: bitmap)
+                view.effectiveAppearance.performAsCurrentDrawingAppearance {
+                    view.cacheDisplay(in: view.bounds, to: bitmap)
+                }
                 XCTAssertGreaterThan(bitmap.pixelsWide, 0)
                 XCTAssertGreaterThan(bitmap.pixelsHigh, 0)
                 if let paths {
@@ -556,10 +760,12 @@ final class TaskbarRendererTests: XCTestCase {
                     let content = view.taskbarContent
                     content.layer?.backgroundColor = NSColor(white: dark ? 0.11 : 0.94, alpha: 1).cgColor
                     content.layoutSubtreeIfNeeded()
-                    content.displayIfNeeded()
-                    for button in content.buttonViews.values {
-                        button.layoutSubtreeIfNeeded()
-                        button.displayIfNeeded()
+                    content.effectiveAppearance.performAsCurrentDrawingAppearance {
+                        content.displayIfNeeded()
+                        for button in content.buttonViews.values {
+                            button.layoutSubtreeIfNeeded()
+                            button.displayIfNeeded()
+                        }
                     }
                     let image = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * 2), pixelsHigh: 64,
                                                  bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
