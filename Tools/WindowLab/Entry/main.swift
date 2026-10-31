@@ -34,6 +34,7 @@ let rawArguments = Array(CommandLine.arguments.dropFirst())
 let mode = rawArguments.first.flatMap(LabMode.init(rawValue:)) ?? .observe
 let modeArguments = Array(rawArguments.dropFirst())
 
+@MainActor
 func loadScenarioURL(named scenarioName: String) -> URL {
     let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     let preferred = currentDirectory.appendingPathComponent("Tools/WindowLab/Scenarios/\(scenarioName).json")
@@ -48,6 +49,7 @@ func loadScenarioURL(named scenarioName: String) -> URL {
     return FileManager.default.fileExists(atPath: preferred.path) ? preferred : fallback
 }
 
+@MainActor
 func analyze(_ observation: SystemObservation) -> AnalyzedObservation {
     AnalyzedObservation(
         observation: observation,
@@ -55,20 +57,24 @@ func analyze(_ observation: SystemObservation) -> AnalyzedObservation {
     )
 }
 
+@MainActor
 func analyze(_ observations: [SystemObservation]) -> [AnalyzedObservation] {
     observations.map(analyze)
 }
 
+@MainActor
 func frameString(for observation: SystemObservation) -> String {
     observation.bounds.map {
         "\(Int($0.origin.x.rounded())):\(Int($0.origin.y.rounded())):\(Int($0.width.rounded())):\(Int($0.height.rounded()))"
     } ?? "<unknown>"
 }
 
+@MainActor
 func displayName(for analyzed: AnalyzedObservation) -> String {
     analyzed.observation.title ?? analyzed.observation.appName ?? analyzed.identity.windowID.rawValue
 }
 
+@MainActor
 func printObservation(_ analyzed: AnalyzedObservation, label: String) {
     let observation = analyzed.observation
     let identity = analyzed.identity
@@ -82,12 +88,14 @@ func printObservation(_ analyzed: AnalyzedObservation, label: String) {
 }
 
 @discardableResult
+@MainActor
 func printObservation(_ observation: SystemObservation, label: String) -> IdentityDecision {
     let analyzed = analyze(observation)
     printObservation(analyzed, label: label)
     return analyzed.identity
 }
 
+@MainActor
 func collectRealObservations() -> [SystemObservation] {
     let cg = cgSource.observe()
     let ax = axSource.observe()
@@ -95,10 +103,12 @@ func collectRealObservations() -> [SystemObservation] {
     return cg + ax + finder
 }
 
+@MainActor
 func collectAnalyzedRealObservations() -> [AnalyzedObservation] {
     analyze(collectRealObservations())
 }
 
+@MainActor
 func baselineCandidates(from analyzed: [AnalyzedObservation]) -> [AnalyzedObservation] {
     analyzed
         .filter { analyzed in
@@ -111,6 +121,7 @@ func baselineCandidates(from analyzed: [AnalyzedObservation]) -> [AnalyzedObserv
         }
 }
 
+@MainActor
 func printPhaseObservations(_ analyzed: [AnalyzedObservation], phase: String) {
     for item in analyzed.prefix(12) {
         let label = item.observation.source == .coreGraphics ? "CG-\(phase)" : "AX-\(phase)"
@@ -118,6 +129,7 @@ func printPhaseObservations(_ analyzed: [AnalyzedObservation], phase: String) {
     }
 }
 
+@MainActor
 func printCandidateList(_ candidates: [AnalyzedObservation]) {
     print("# candidate windows:")
     for (index, candidate) in candidates.enumerated() {
@@ -128,6 +140,7 @@ func printCandidateList(_ candidates: [AnalyzedObservation]) {
     }
 }
 
+@MainActor
 func selectCandidate(from candidates: [AnalyzedObservation], preferredKeyword: String?) -> AnalyzedObservation? {
     if let preferredKeyword {
         let trimmed = preferredKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -171,6 +184,7 @@ func selectCandidate(from candidates: [AnalyzedObservation], preferredKeyword: S
     return candidates[index - 1]
 }
 
+@MainActor
 func candidateByIndexSelector(_ selector: String, from candidates: [AnalyzedObservation]) -> AnalyzedObservation? {
     guard selector.hasPrefix("index:") else { return nil }
     let raw = String(selector.dropFirst("index:".count))
@@ -181,6 +195,7 @@ func candidateByIndexSelector(_ selector: String, from candidates: [AnalyzedObse
     return candidates[index - 1]
 }
 
+@MainActor
 func candidateByCGSelector(_ selector: String, from candidates: [AnalyzedObservation]) -> AnalyzedObservation? {
     guard selector.hasPrefix("cg:") else { return nil }
     let raw = String(selector.dropFirst("cg:".count))
@@ -197,6 +212,7 @@ func candidateByCGSelector(_ selector: String, from candidates: [AnalyzedObserva
     return candidate
 }
 
+@MainActor
 func trackedObservation(in analyzed: [AnalyzedObservation], target: LabTarget) -> AnalyzedObservation? {
     if let sameIdentityCurrent = analyzed.first(where: {
         $0.identity.windowID == target.baselineIdentity && $0.observation.kind != .disappeared
@@ -213,6 +229,7 @@ func trackedObservation(in analyzed: [AnalyzedObservation], target: LabTarget) -
     }
 }
 
+@MainActor
 func targetRelatedObservations(in analyzed: [AnalyzedObservation], target: LabTarget) -> [AnalyzedObservation] {
     analyzed.filter { candidate in
         let observation = candidate.observation
@@ -243,6 +260,7 @@ func targetRelatedObservations(in analyzed: [AnalyzedObservation], target: LabTa
     }
 }
 
+@MainActor
 func currentVisibleCGWindowIDs(in analyzed: [AnalyzedObservation]) -> Set<UInt32> {
     Set(
         analyzed.compactMap { candidate in
@@ -255,6 +273,7 @@ func currentVisibleCGWindowIDs(in analyzed: [AnalyzedObservation]) -> Set<UInt32
     )
 }
 
+@MainActor
 func printTargetDiagnostics(phase: String, analyzed: [AnalyzedObservation], target: LabTarget) {
     let related = targetRelatedObservations(in: analyzed, target: target)
     let cgMatches = related.filter { $0.observation.source == .coreGraphics }
@@ -284,6 +303,7 @@ func printTargetDiagnostics(phase: String, analyzed: [AnalyzedObservation], targ
     }
 }
 
+@MainActor
 func areClose(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
     abs(lhs.origin.x - rhs.origin.x) <= 4
         && abs(lhs.origin.y - rhs.origin.y) <= 4
@@ -291,6 +311,7 @@ func areClose(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
         && abs(lhs.height - rhs.height) <= 4
 }
 
+@MainActor
 func runObserveMode(rounds: Int = 3) {
     for round in 0..<rounds {
         let cgObservations = cgSource.observe().filter { observation in
@@ -313,6 +334,7 @@ func runObserveMode(rounds: Int = 3) {
     }
 }
 
+@MainActor
 func runMinimizeRestoreMode() {
     let preferredKeyword = modeArguments.first
 
@@ -432,6 +454,7 @@ func runMinimizeRestoreMode() {
     }
 }
 
+@MainActor
 func runCloseTargetMode() {
     let preferredKeyword = modeArguments.first
 
@@ -565,6 +588,7 @@ struct TransitionReplayScenario: Decodable {
     let steps: [Step]
 }
 
+@MainActor
 func parseBounds(_ raw: String?) -> CGRect? {
     guard let raw else { return nil }
     let parts = raw.split(separator: ":").compactMap { Double($0) }
@@ -572,6 +596,7 @@ func parseBounds(_ raw: String?) -> CGRect? {
     return CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
 }
 
+@MainActor
 func systemObservation(from replay: ReplayScenario.ReplayObservation) -> SystemObservation {
     let timestamp = Date(timeIntervalSince1970: replay.atSeconds ?? 0)
     return SystemObservation(
@@ -589,6 +614,7 @@ func systemObservation(from replay: ReplayScenario.ReplayObservation) -> SystemO
     )
 }
 
+@MainActor
 func runReplayMode() {
     let replayScenarioName = modeArguments.first ?? "minimize-restore-replay"
     let root = loadScenarioURL(named: replayScenarioName)
@@ -645,6 +671,7 @@ func runReplayMode() {
     }
 }
 
+@MainActor
 func runPlacementReplayMode() {
     let placementScenarioName = modeArguments.first ?? "placement-permanent-hold-replay"
     let root = loadScenarioURL(named: placementScenarioName)
@@ -742,6 +769,7 @@ func runTransitionReplayMode() {
     }
 }
 
+@MainActor
 func nextSnapshot(
     from snapshot: DockSnapshot,
     lifecycle: LifecycleDecision,

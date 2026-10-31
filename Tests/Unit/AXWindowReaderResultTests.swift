@@ -108,6 +108,52 @@ final class ActionExecutionSwitchesTests: XCTestCase {
         XCTAssertFalse(switches.chipProbeEnabled)
     }
 
+    func testMissingExactWindowNeverFallsBackToAnIdenticalSurvivor() {
+        let bounds = CGRect(x: 40, y: 40, width: 640, height: 480)
+        let remaining = [AXWindowMatchPolicy.Candidate(title: "Untitled", bounds: bounds, cgWindowID: 202)]
+        for justUnhid in [false, true] {
+            var receivedID: CGWindowID?
+            let selected: Int? = WindowHandleCapturePlan.capture(
+                cachedEnabled: true, fastEnabled: true, cgWindowID: 101, justUnhid: justUnhid,
+                cached: { _ in nil }, fast: { _ in nil }, fallback: { expectedID in
+                    receivedID = expectedID
+                    return AXWindowMatchPolicy.uniqueBestMatchIndex(targetTitle: "Untitled", targetBounds: bounds,
+                        candidates: remaining, expectedCGWindowID: expectedID)
+                })
+            XCTAssertEqual(receivedID, 101)
+            XCTAssertNil(selected)
+        }
+    }
+
+    func testExactWindowSurvivesRenamingAndMovingWithoutMatchingASibling() {
+        let candidates = [
+            AXWindowMatchPolicy.Candidate(title: "Old title", bounds: .zero, cgWindowID: 202),
+            AXWindowMatchPolicy.Candidate(title: "New title", bounds: CGRect(x: 900, y: 80, width: 400, height: 300), cgWindowID: 101),
+        ]
+        XCTAssertEqual(AXWindowMatchPolicy.uniqueBestMatchIndex(targetTitle: "Old title", targetBounds: .zero,
+            candidates: candidates, expectedCGWindowID: 101), 1)
+    }
+
+    func testExactWindowRejectsUnreadZeroAndDuplicateIdentities() {
+        for candidates in [
+            [AXWindowMatchPolicy.Candidate(title: "Untitled", bounds: .zero)],
+            [AXWindowMatchPolicy.Candidate(title: "Untitled", bounds: .zero, cgWindowID: 101),
+             AXWindowMatchPolicy.Candidate(title: "Untitled", bounds: .zero, cgWindowID: 101)],
+        ] {
+            XCTAssertNil(AXWindowMatchPolicy.uniqueBestMatchIndex(targetTitle: "Untitled", targetBounds: .zero,
+                candidates: candidates, expectedCGWindowID: 101))
+        }
+        XCTAssertNil(AXWindowMatchPolicy.uniqueBestMatchIndex(targetTitle: "Untitled", targetBounds: .zero,
+            candidates: [.init(title: "Untitled", bounds: .zero, cgWindowID: 0)], expectedCGWindowID: 0))
+    }
+
+    func testKnownWindowNeverActivatesAnotherWindowThroughAppRecovery() {
+        for kind in [PlatformActionRequest.ActionKind.activateWindow, .minimizeWindow, .closeWindow] {
+            XCTAssertFalse(WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
+                requestKind: kind, isFinderWindow: false, knownMinimized: false, expectedCGWindowID: 101))
+        }
+    }
+
     func testCompatibilityKillSwitchesAreDirectional() {
         let switches = ActionExecutionSwitches(environment: [
             "DOCK_FAST_WINDOW_HANDLE": "0",
@@ -128,7 +174,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in nil },
             fast: { _ in fastCalls += 1; return "fast" },
-            fallback: { fallbackCalls += 1; return "fallback" }
+            fallback: { _ in fallbackCalls += 1; return "fallback" }
         )
 
         XCTAssertEqual(result, "fast")
@@ -146,7 +192,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in nil },
             fast: { _ in fastCalls += 1; return nil },
-            fallback: { fallbackCalls += 1; return "fallback" }
+            fallback: { _ in fallbackCalls += 1; return "fallback" }
         )
 
         XCTAssertEqual(result, "fallback")
@@ -165,7 +211,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in cachedCalls += 1; return "cached" },
             fast: { _ in fastCalls += 1; return "fast" },
-            fallback: { fallbackCalls += 1; return "fallback" }
+            fallback: { _ in fallbackCalls += 1; return "fallback" }
         )
 
         XCTAssertEqual(result, "cached")
@@ -185,7 +231,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in cachedCalls += 1; return nil },
             fast: { _ in fastCalls += 1; return nil },
-            fallback: { fallbackCalls += 1; return "fallback" }
+            fallback: { _ in fallbackCalls += 1; return "fallback" }
         )
 
         XCTAssertEqual(result, "fallback")
@@ -205,7 +251,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: true,
             cached: { _ in cachedCalls += 1; return "cached" },
             fast: { _ in fastCalls += 1; return "fast" },
-            fallback: { fallbackCalls += 1; return "fallback" }
+            fallback: { _ in fallbackCalls += 1; return "fallback" }
         )
 
         XCTAssertEqual(result, "fallback")
@@ -224,7 +270,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in cachedCalls += 1; return "cached" },
             fast: { _ in fastCalls += 1; return "fast" },
-            fallback: { "fallback" }
+            fallback: { _ in "fallback" }
         )
 
         XCTAssertEqual(result, "fast")
@@ -242,7 +288,7 @@ final class ActionExecutionSwitchesTests: XCTestCase {
             justUnhid: false,
             cached: { _ in cachedCalls += 1; return "cached" },
             fast: { _ in fastCalls += 1; return "fast" },
-            fallback: { "fallback" }
+            fallback: { _ in "fallback" }
         )
 
         XCTAssertEqual(result, "fallback")

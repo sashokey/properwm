@@ -5,6 +5,7 @@ struct AXWindowMatchPolicy {
     struct Candidate: Equatable {
         let title: String?
         let bounds: CGRect?
+        var cgWindowID: UInt32? = nil
     }
 
     static func matchScore(
@@ -46,8 +47,14 @@ struct AXWindowMatchPolicy {
     static func uniqueBestMatchIndex(
         targetTitle: String?,
         targetBounds: CGRect?,
-        candidates: [Candidate]
+        candidates: [Candidate],
+        expectedCGWindowID: UInt32? = nil
     ) -> Int? {
+        if let expectedCGWindowID {
+            guard expectedCGWindowID != 0 else { return nil }
+            let matches = candidates.indices.filter { candidates[$0].cgWindowID == expectedCGWindowID }
+            return matches.count == 1 ? matches[0] : nil
+        }
         let scored = candidates.enumerated().compactMap { index, candidate -> (Int, Int)? in
             matchScore(
                 targetTitle: targetTitle,

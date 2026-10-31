@@ -71,6 +71,7 @@ struct AXWindowTarget {
     let pid: Int32
     let title: String?
     let bounds: CGRect?
+    var cgWindowID: CGWindowID? = nil
 }
 
 struct AXWindowHandle {
@@ -335,8 +336,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         )
     }
 
-    func focusedWindow(forPID pid: pid_t) -> AXUIElement? {
-        elementAttribute(kAXFocusedWindowAttribute as CFString, from: AXUIElementCreateApplication(pid))
+    func focusedWindow(forPID pid: pid_t, messagingTimeout: TimeInterval? = nil) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        applyMessagingTimeout(messagingTimeout, to: app)
+        return elementAttribute(kAXFocusedWindowAttribute as CFString, from: app,
+                                maxAttempts: messagingTimeout == nil ? 2 : 1)
     }
 
     func stringAttribute(_ attribute: CFString, from element: AXUIElement, maxAttempts: Int = 2) -> String? {
@@ -817,12 +821,13 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         from snapshots: [AXWindowSnapshot]
     ) -> AXWindowSnapshot? {
         let candidates = snapshots.map {
-            AXWindowMatchPolicy.Candidate(title: $0.title, bounds: $0.bounds)
+            AXWindowMatchPolicy.Candidate(title: $0.title, bounds: $0.bounds, cgWindowID: $0.cgWindowID)
         }
         guard let index = AXWindowMatchPolicy.uniqueBestMatchIndex(
             targetTitle: target.title,
             targetBounds: target.bounds,
-            candidates: candidates
+            candidates: candidates,
+            expectedCGWindowID: target.cgWindowID
         ) else { return nil }
         return snapshots[index]
     }

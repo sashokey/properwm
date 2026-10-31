@@ -258,6 +258,17 @@
 		CE4B249A2C3346E2AEB41DA2 = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
 		198D8C3204574A9286CFDDCC = {isa = PBXBuildFile; fileRef = 83751ED96AC24DA6AAC7A17A; };
 		902B466BD03649EAB3253707 = {isa = PBXBuildFile; fileRef = 9C33F094644B4978BAE7E77F; };
+		191673982C40DC4426AB092C = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		7B47D5BAC3BC8BF89A9D71C2 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		6EBF8AD5F79BCD4E6C3B6503 = {isa = PBXBuildFile; fileRef = 645980E95E1032661911676D; };
+		A415A5AFF953A43C81C0A8A0 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
+		0210673001E443780FF004F6 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
+		DA484AF47498D843DD545682 = {isa = PBXBuildFile; fileRef = 38EDF81CAE222EB752141E25; };
+		8B44AE2EBD3F2D407DE55F2C = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
+		F87D51234347E29DADF419A1 = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
+		542E559B05F00B87A3254C1C = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
+		96D026158DE9A044040EFEA4 = {isa = PBXBuildFile; fileRef = 35F0B6CC05AE5ECDAE656A24; };
+		14C901A396C207524EDF6C6E = {isa = PBXBuildFile; fileRef = A00000000000000000009E03; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -439,6 +450,10 @@
 		6BFD0EE8181542B9A95A2529 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarRendererTests.swift"; sourceTree = SOURCE_ROOT; };
 		83751ED96AC24DA6AAC7A17A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/TaskbarInteraction.swift"; sourceTree = SOURCE_ROOT; };
 		9C33F094644B4978BAE7E77F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarInteractionTests.swift"; sourceTree = SOURCE_ROOT; };
+		645980E95E1032661911676D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowActionExecutor.swift"; sourceTree = SOURCE_ROOT; };
+		38EDF81CAE222EB752141E25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowFocusBackend.swift"; sourceTree = SOURCE_ROOT; };
+		C757E51A34A4D4F65CA8C48C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/WindowRuntimeInterfaces.swift"; sourceTree = SOURCE_ROOT; };
+		35F0B6CC05AE5ECDAE656A24 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/WindowFocusTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -469,6 +484,10 @@
 		A0000000000000000000001C = {
 			isa = PBXGroup;
 			children = (
+				35F0B6CC05AE5ECDAE656A24,
+				C757E51A34A4D4F65CA8C48C,
+				38EDF81CAE222EB752141E25,
+				645980E95E1032661911676D,
 				9C33F094644B4978BAE7E77F,
 				83751ED96AC24DA6AAC7A17A,
 				6BFD0EE8181542B9A95A2529,
@@ -1012,6 +1031,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B44AE2EBD3F2D407DE55F2C,
+				A415A5AFF953A43C81C0A8A0,
+				191673982C40DC4426AB092C,
 				CE4B249A2C3346E2AEB41DA2,
 				990C73B8755645A6A2C7C8FA,
 				42DF1BB75786469A97FBDE8D,
@@ -1122,6 +1144,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				14C901A396C207524EDF6C6E,
+				542E559B05F00B87A3254C1C,
+				DA484AF47498D843DD545682,
+				6EBF8AD5F79BCD4E6C3B6503,
 				E90000000000000000003007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000004003 /* AXElementCache.swift in Sources */,
 				E90000000000000000004002 /* ClickLatencyTrace.swift in Sources */,
@@ -1157,6 +1183,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				96D026158DE9A044040EFEA4,
+				F87D51234347E29DADF419A1,
+				0210673001E443780FF004F6,
+				7B47D5BAC3BC8BF89A9D71C2,
 				902B466BD03649EAB3253707,
 				198D8C3204574A9286CFDDCC,
 				0F5CC1EB825B4A55BC3CCE65,
