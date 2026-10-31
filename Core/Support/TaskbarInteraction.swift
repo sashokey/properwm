@@ -60,8 +60,30 @@ struct TaskbarGroupDrag {
     private(set) var groupID: String?
     private(set) var target: Target?
 
+    mutating func update(groupID: String, draggedFrame: CGRect, buttons: [TaskbarButtonLayout], liveGroups: [String]) {
+        var frames: [(id: String, frame: CGRect)] = []
+        for button in buttons {
+            if let last = frames.indices.last, frames[last].id == button.groupID {
+                frames[last].frame = frames[last].frame.union(button.frame)
+            } else {
+                frames.append((button.groupID, button.frame))
+            }
+        }
+        guard let index = frames.firstIndex(where: { $0.id == groupID }) else {
+            cancel()
+            return
+        }
+        if let neighbor = frames.prefix(index).first(where: { draggedFrame.minX < $0.frame.midX }) {
+            update(groupID: groupID, target: neighbor.id, after: false, liveGroups: liveGroups)
+        } else if let neighbor = frames.suffix(from: index + 1).last(where: { draggedFrame.maxX > $0.frame.midX }) {
+            update(groupID: groupID, target: neighbor.id, after: true, liveGroups: liveGroups)
+        }
+    }
+
     mutating func update(groupID: String, target: String, after: Bool, liveGroups: [String]) {
-        guard groupID != target, liveGroups.contains(groupID), liveGroups.contains(target) else {
+        guard groupID != target, liveGroups.contains(groupID), liveGroups.contains(target),
+              TaskbarGroupOrdering.moving(groupID, relativeTo: target, after: after,
+                                         order: liveGroups, appKeys: [:]) != liveGroups else {
             cancel()
             return
         }

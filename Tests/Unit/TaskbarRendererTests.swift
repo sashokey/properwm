@@ -361,6 +361,82 @@ final class TaskbarRendererTests: XCTestCase {
         return [editor, TaskbarGroupPresentation(id: "test.browser", name: "Browser", windows: [browser])]
     }
 
+    private func unequalGroups(shortFirst: Bool) -> [TaskbarGroupPresentation] {
+        let specifications: [(String, [String])] = [
+            ("narrow", ["Windows"]),
+            ("wide", ["Release ProperWM 0.2.1", "New Tab — Google Chrome"])
+        ]
+        let result = specifications.enumerated().map { groupIndex, specification in
+            let windows = specification.1.enumerated().map { index, title in
+                let id = "\(specification.0)-\(index)"
+                let record = WindowRecord(id: WindowID(rawValue: id), appID: AppID(rawValue: specification.0),
+                                          pid: Int32(300 + groupIndex), bundleIdentifier: "test.\(specification.0)",
+                                          title: title, bounds: .zero, status: .inactive,
+                                          cgWindowID: UInt32(30 + groupIndex * 10 + index), groupID: id, displayUUID: "left")
+                return TaskbarWindowPresentation(item: StripItem(record: record), title: title, isActive: false)
+            }
+            return TaskbarGroupPresentation(id: "test.\(specification.0)", name: specification.0, windows: windows)
+        }
+        return shortFirst ? result : result.reversed()
+    }
+
+    func testWideGroupSwapsWithANarrowNeighborFromEveryGrabPosition() throws {
+        for shortFirst in [true, false] {
+            for fraction in [CGFloat(0.02), 0.45, 0.98] {
+                let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+                var moves: [String] = []
+                var toggles = 0
+                content.actions.reorder = { source, target, after in moves.append("\(source):\(target):\(after)") }
+                content.actions.toggle = { _ in toggles += 1 }
+                content.update(groups: unequalGroups(shortFirst: shortFirst))
+                let original = content.layoutResult.buttons
+                let wide = original.filter { $0.groupID == "test.wide" }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+                let occupied = original.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+                let offset = wide.width * fraction
+                let start = CGPoint(x: wide.minX + offset, y: 16)
+                let destinationX = shortFirst ? occupied.minX : occupied.maxX - wide.width
+                let destination = CGPoint(x: destinationX + offset, y: 16)
+                let button = try XCTUnwrap(content.buttonViews.values.first { $0.frame.contains(start) })
+                button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+                let expected = shortFirst ? ["wide-0", "wide-1", "narrow-0"] : ["narrow-0", "wide-0", "wide-1"]
+                for _ in 0..<5 {
+                    button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: destination, in: content))
+                    XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), expected,
+                                   "shortFirst=\(shortFirst), grabFraction=\(fraction)")
+                }
+                button.mouseUp(with: mouseEvent(.leftMouseUp, point: destination, in: content))
+                content.layoutSubtreeIfNeeded()
+                XCTAssertEqual(moves, ["test.wide:test.narrow:\(!shortFirst)"])
+                XCTAssertEqual(toggles, 0)
+                XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), expected)
+            }
+        }
+    }
+
+    func testDraggingAWideGroupAwayAndBackDoesNotPersistOrToggleAnything() throws {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        var moves = 0
+        var toggles = 0
+        content.actions.reorder = { _, _, _ in moves += 1 }
+        content.actions.toggle = { _ in toggles += 1 }
+        content.update(groups: unequalGroups(shortFirst: true))
+        let original = content.layoutResult
+        let button = try XCTUnwrap(content.buttonViews["window:wide-1"])
+        let wide = original.buttons.filter { $0.groupID == "test.wide" }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        let moved = CGPoint(x: 10 + start.x - wide.minX, y: 16)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+        button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: moved, in: content))
+        XCTAssertEqual(content.layoutResult.buttons.flatMap(\.windowIDs), ["wide-0", "wide-1", "narrow-0"])
+        button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: start, in: content))
+        XCTAssertEqual(content.layoutResult, original)
+        button.mouseUp(with: mouseEvent(.leftMouseUp, point: start, in: content))
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(moves, 0)
+        XCTAssertEqual(toggles, 0)
+        XCTAssertEqual(content.layoutResult, original)
+    }
+
     func testDraggingAcrossAnotherApplicationCommitsTheWholeGroupInMemberOrder() {
         let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
         var moves: [String] = []

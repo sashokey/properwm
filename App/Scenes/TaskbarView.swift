@@ -134,11 +134,9 @@ final class TaskbarContentView: NSView {
             if liveList.map(\.id) != listSignature { dismissPopups() }
             else { windowList?.updateTitles(windows: liveList) }
         }
-        let animateLayout = animateNextLayout || (changed && groupDrag.target != nil)
+        let animateLayout = animateNextLayout || (changed && draggedGroupID != nil)
         animateNextLayout = false
-        let occupied = result.buttons.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-        let groupFrame = result.buttons.filter { $0.groupID == draggedGroupID }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-        let dragFrame = dragGeometry.map { $0.frame(pointer: dragPointer, groupWidth: groupFrame.width, occupiedBounds: occupied) }
+        let dragFrames = dragFrames(in: result)
         let liveIDs = Set(result.buttons.map(\.id))
         for id in Array(buttonViews.keys) where !liveIDs.contains(id) { buttonViews.removeValue(forKey: id)?.removeFromSuperview() }
         for layout in result.buttons {
@@ -164,9 +162,9 @@ final class TaskbarContentView: NSView {
             view.onEndDrag = { [weak self] event, cancelled in self?.endGroupDrag(event: event, cancelled: cancelled) }
             view.alphaValue = 1
             view.layer?.zPosition = draggedGroupID == layout.groupID ? 1 : 0
-            if draggedGroupID == layout.groupID, let dragFrame {
+            if draggedGroupID == layout.groupID, let dragFrames {
                 view.layer?.removeAllAnimations()
-                view.frame = layout.frame.offsetBy(dx: dragFrame.minX - groupFrame.minX, dy: 0)
+                view.frame = layout.frame.offsetBy(dx: dragFrames.displayed.minX - dragFrames.slot.minX, dy: 0)
             } else if animateLayout && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = TaskbarMotion.reorderTransition
@@ -313,6 +311,14 @@ final class TaskbarContentView: NSView {
         else { dismissPopups() }
     }
 
+    private func dragFrames(in result: TaskbarLayoutResult) -> (slot: CGRect, displayed: CGRect)? {
+        guard let id = draggedGroupID, let dragGeometry else { return nil }
+        let slot = result.buttons.filter { $0.groupID == id }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        guard !slot.isNull else { return nil }
+        let occupied = result.buttons.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        return (slot, dragGeometry.frame(pointer: dragPointer, groupWidth: slot.width, occupiedBounds: occupied))
+    }
+
     private func beginGroupDrag(_ id: String, event: NSEvent, start: CGPoint) {
         guard let group = groups.first(where: { $0.id == id }), !group.windows.isEmpty else { return }
         dismissPopups()
@@ -333,12 +339,9 @@ final class TaskbarContentView: NSView {
     private func moveGroupDrag(event: NSEvent) {
         guard let id = draggedGroupID else { return }
         dragPointer = convert(event.locationInWindow, from: nil)
-        if bounds.contains(dragPointer) {
-            let targets = layoutResult.buttons.filter { $0.groupID != id }
-            if let target = targets.first(where: { $0.frame.contains(dragPointer) }) {
-                let frame = targets.filter { $0.groupID == target.groupID }.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-                groupDrag.update(groupID: id, target: target.groupID, after: dragPointer.x > frame.midX, liveGroups: groups.map(\.id))
-            }
+        if bounds.contains(dragPointer), let frames = dragFrames(in: layoutResult) {
+            groupDrag.update(groupID: id, draggedFrame: frames.displayed,
+                             buttons: layoutResult.buttons, liveGroups: groups.map(\.id))
         }
         needsLayout = true
         layoutSubtreeIfNeeded()
