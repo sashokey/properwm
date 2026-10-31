@@ -269,6 +269,12 @@
 		542E559B05F00B87A3254C1C = {isa = PBXBuildFile; fileRef = C757E51A34A4D4F65CA8C48C; };
 		96D026158DE9A044040EFEA4 = {isa = PBXBuildFile; fileRef = 35F0B6CC05AE5ECDAE656A24; };
 		14C901A396C207524EDF6C6E = {isa = PBXBuildFile; fileRef = A00000000000000000009E03; };
+		CFF17899E7CD6F3FF3ECC379 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
+		A6D5BCC93E5F624BF6E1640B = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
+		452E9C541EDC0055C577545D = {isa = PBXBuildFile; fileRef = A00000000000000000000003; };
+		132A413EF5B9FD9566329B23 = {isa = PBXBuildFile; fileRef = 0A95269DF31CDA0184AA1F40; };
+		36FA945289DCB7E45C8EDCAD = {isa = PBXBuildFile; fileRef = CAC68C8C9934A6358A28C8B7; };
+		A5CD963E34F2C13932637822 = {isa = PBXBuildFile; fileRef = F1B0000000000000000000C2; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -454,6 +460,9 @@
 		38EDF81CAE222EB752141E25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowFocusBackend.swift"; sourceTree = SOURCE_ROOT; };
 		C757E51A34A4D4F65CA8C48C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/WindowRuntimeInterfaces.swift"; sourceTree = SOURCE_ROOT; };
 		35F0B6CC05AE5ECDAE656A24 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/WindowFocusTests.swift"; sourceTree = SOURCE_ROOT; };
+		9DA777C38F1AC5C766FA2467 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Core/Support/AsyncWorkScope.swift"; sourceTree = SOURCE_ROOT; };
+		0A95269DF31CDA0184AA1F40 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/InventoryLifecycleTests.swift"; sourceTree = SOURCE_ROOT; };
+		CAC68C8C9934A6358A28C8B7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/AppRuntimeTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -484,6 +493,9 @@
 		A0000000000000000000001C = {
 			isa = PBXGroup;
 			children = (
+				CAC68C8C9934A6358A28C8B7,
+				0A95269DF31CDA0184AA1F40,
+				9DA777C38F1AC5C766FA2467,
 				35F0B6CC05AE5ECDAE656A24,
 				C757E51A34A4D4F65CA8C48C,
 				38EDF81CAE222EB752141E25,
@@ -1031,6 +1043,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CFF17899E7CD6F3FF3ECC379,
 				8B44AE2EBD3F2D407DE55F2C,
 				A415A5AFF953A43C81C0A8A0,
 				191673982C40DC4426AB092C,
@@ -1183,6 +1196,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A5CD963E34F2C13932637822,
+				36FA945289DCB7E45C8EDCAD,
+				132A413EF5B9FD9566329B23,
+				452E9C541EDC0055C577545D,
+				A6D5BCC93E5F624BF6E1640B,
 				96D026158DE9A044040EFEA4,
 				F87D51234347E29DADF419A1,
 				0210673001E443780FF004F6,

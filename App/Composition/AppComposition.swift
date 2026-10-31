@@ -30,18 +30,16 @@ final class AppRuntime: ObservableObject {
     private var titleSettle = WindowTitleSettle()
     private var titleSettleTimer: Timer?
     private let titleSettleEnabled = DebugSwitch.titleSettle.isEnabled(in: ProcessInfo.processInfo.environment)
-    private let tracker: AppTracker
-
-    func diagnosticApps() -> [AppEntry] { tracker.diagnosticApps() }
-    var diagnosticAdmissions: [pid_t: DiagnosticAdmissionRecord] { tracker.lastAdmissionVerdictByPID }
+    private let tracker: any WindowInventoryTracking
+    private let work = AsyncWorkScope()
+    private var actionTokens: [String: UUID] = [:]
     private let intentPipeline = IntentPipeline(actionPlanning: LifecycleActionPlanner())
-    private let actionExecutor = PlatformActionExecutor()
+    private let actionExecutor: any WindowActionExecuting
     private let isAccessibilityTrusted: () -> Bool
     private var snapshotSubscription: AnyCancellable?
     private var feedbackTimer: Timer?
     private var startedAt: Date?
 
-    private let debugSnapshotLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "debug-snapshot")
     private let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
     private static let chipProbeEnabled = DebugSwitch.chipProbe.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let settleGateEnabled = DebugSwitch.minimizeSettleGate.isEnabled(in: ProcessInfo.processInfo.environment)
@@ -51,34 +49,40 @@ final class AppRuntime: ObservableObject {
     init(
         inventoryLog: WindowInventoryAnomalyLog = WindowInventoryAnomalyLog(),
         debugState: DebugRuntimeState? = nil,
+        tracker: (any WindowInventoryTracking)? = nil,
+        actionExecutor: any WindowActionExecuting = PlatformActionExecutor(),
         displayTableProvider: @escaping @MainActor () -> WindowDisplayAttribution.Table = {
             DisplayIdentity.attributionTable()
         },
         isAccessibilityTrusted: @escaping () -> Bool = { PermissionService().hasRequiredPermissions() }
     ) {
-        tracker = AppTracker(inventoryLog: inventoryLog, displayTableProvider: displayTableProvider)
+        self.tracker = tracker ?? AppTracker(inventoryLog: inventoryLog, displayTableProvider: displayTableProvider)
+        self.actionExecutor = actionExecutor
         self.debugState = debugState ?? DebugRuntimeState()
         self.isAccessibilityTrusted = isAccessibilityTrusted
     }
 
     func start() {
         guard snapshotSubscription == nil else { return }
+        work.restart()
+        let generation = work.generation
         startedAt = Date()
         hasRequiredPermissions = isAccessibilityTrusted()
-        tracker.start()
-
-        snapshotSubscription = tracker.$snapshot
+        snapshotSubscription = tracker.snapshots
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newSnapshot in
-                self?.handleSnapshotUpdate(newSnapshot)
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleSnapshotUpdate(newSnapshot)
             }
-
+        tracker.start()
         updateFeedbackTimer()
     }
 
     private var isRunning: Bool { snapshotSubscription != nil }
 
     func stop() {
+        work.stop()
+        actionTokens.removeAll()
         tracker.stop()
         snapshotSubscription?.cancel()
         snapshotSubscription = nil
@@ -89,23 +93,16 @@ final class AppRuntime: ObservableObject {
         for held in heldActionsByWindowID.values { held.workItem.cancel() }
         heldActionsByWindowID.removeAll()
         recentMinimizeDispatchAtByWindowID.removeAll()
+        optimisticStatesByWindowID.removeAll()
+        heldLabelTitlesByChipID.removeAll()
+        titleSettle = WindowTitleSettle()
+        intentPipeline.reset()
+        publishFeedbackEntries()
+        snapshot = .empty
+        startedAt = nil
     }
 
-    isolated deinit {
-        feedbackTimer?.invalidate()
-        titleSettleTimer?.invalidate()
-        snapshotSubscription?.cancel()
-        for held in heldActionsByWindowID.values { held.workItem.cancel() }
-    }
-
-    func exportDebugSnapshot() {
-        do {
-            let url = try TaskbarDebugSnapshotExporter.export(snapshot: snapshot)
-            debugSnapshotLogger.info("exported debug snapshot path=\(url.path, privacy: .public)")
-        } catch {
-            debugSnapshotLogger.error("export failed error=\(String(describing: error), privacy: .public)")
-        }
-    }
+    isolated deinit { stop() }
 
     func toggle(windowID: String) { trigger(.toggle(WindowID(rawValue: windowID))) }
     func activate(windowID: String) { trigger(.activate(WindowID(rawValue: windowID))) }
@@ -114,6 +111,7 @@ final class AppRuntime: ObservableObject {
     func close(windowID: String) { trigger(.close(WindowID(rawValue: windowID))) }
 
     private func trigger(_ intent: UserIntent) {
+        guard isRunning else { return }
         HoverTrace.action("\(intent.action)", phase: "begin")
         defer { HoverTrace.action("\(intent.action)", phase: "dispatched") }
         cancelHeldAction(for: intent)
@@ -148,6 +146,7 @@ final class AppRuntime: ObservableObject {
             )
         }
 
+        actionTokens[intent.windowID.rawValue] = UUID()
         let effectiveStatusAtPlan: WindowStatus? = request.windowID.flatMap { wid in
             optimisticStatesByWindowID[wid.rawValue]?.status ?? snapshot.windows[wid]?.status
         }
@@ -158,12 +157,6 @@ final class AppRuntime: ObservableObject {
 
         routeThroughSettleGate(intent: intent, request: request)
     }
-
-    static let actionQueue = DispatchQueue(
-        label: "io.github.sashokey.properwm.window-action",
-        qos: .userInitiated,
-        attributes: .concurrent
-    )
 
     private struct HeldAction {
         let intent: UserIntent
@@ -287,6 +280,9 @@ final class AppRuntime: ObservableObject {
     private func dispatchToExecutor(intent: UserIntent, request: PlatformActionRequest) {
         let executor = actionExecutor
         let capturedSnapshot = snapshot
+        let generation = work.generation
+        let key = intent.windowID.rawValue
+        guard let token = actionTokens[key] else { return }
         let forcedMinimizedPrior = request.kind == .activateWindow
             && MinimizeSettleGate.dispatchPrior(
                 minimizeDispatchedAt: request.windowID.flatMap { recentMinimizeDispatchAtByWindowID[$0.rawValue] },
@@ -296,7 +292,8 @@ final class AppRuntime: ObservableObject {
         if (request.kind == .minimizeWindow || request.kind == .closeWindow) && Self.handoffActivePredictionEnabled {
             onHandoffActivePrediction = { @Sendable [weak self] (windowID: WindowID) in
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.work.isCurrent(generation),
+                          self.actionTokens[key] == token else { return }
                     guard self.optimisticStatesByWindowID[windowID.rawValue] == nil else { return }
                     guard let current = self.snapshot.windows[windowID],
                           current.status != .minimized, current.status != .hidden else { return }
@@ -308,17 +305,20 @@ final class AppRuntime: ObservableObject {
         } else {
             onHandoffActivePrediction = nil
         }
-        Self.actionQueue.async { [weak self] in
+        work.launch(priority: .userInitiated) { [weak self] generation in
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "execStart")
-            let success = executor.execute(
-                request,
-                snapshot: capturedSnapshot,
-                forcedMinimizedPrior: forcedMinimizedPrior,
-                onHandoffActivePrediction: onHandoffActivePrediction
-            )
-            ClickLatencyTrace.end(windowID: request.windowID?.rawValue, success: success)
-            Task { @MainActor [weak self] in
-                guard let self else { return }
+            let result = await AsyncWorkScope.performBlocking {
+                executor.execute(request, snapshot: capturedSnapshot,
+                                 forcedMinimizedPrior: forcedMinimizedPrior,
+                                 onHandoffActivePrediction: onHandoffActivePrediction)
+            }
+            ClickLatencyTrace.end(windowID: request.windowID?.rawValue, success: result == true)
+            guard let success = result else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.work.isCurrent(generation),
+                      self.actionTokens[key] == token else { return }
+                self.actionTokens.removeValue(forKey: key)
+                if !success { self.optimisticStatesByWindowID.removeValue(forKey: key) }
                 self.intentPipeline.registerExecutionResult(intent: intent, request: request, success: success)
                 self.publishFeedbackEntries()
                 self.updateFeedbackTimer()
@@ -366,6 +366,7 @@ final class AppRuntime: ObservableObject {
     }
 
     private func tickFeedback() {
+        guard isRunning else { return }
         intentPipeline.reconcile(with: snapshot)
         publishFeedbackEntries()
         reconcileOptimisticStates()
@@ -396,6 +397,10 @@ final class AppRuntime: ObservableObject {
         timer.tolerance = 0.05
         feedbackTimer = timer
     }
+
+    #if DEBUG
+    var pendingActionsForTesting: [Task<Void, Never>] { work.pendingForTesting }
+    #endif
 
     private static let optimisticTimeout: TimeInterval = 4.0
 

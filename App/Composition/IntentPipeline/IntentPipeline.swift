@@ -11,6 +11,8 @@ final class IntentPipeline {
         self.actionPlanning = actionPlanning
     }
 
+    func reset() { feedbackState = IntentFeedbackState() }
+
     func plan(
         intent: UserIntent,
         snapshot: DockSnapshot,

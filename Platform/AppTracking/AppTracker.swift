@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -108,7 +109,8 @@ struct LiveAppTrackerProcessProvider: AppTrackerProcessProviding {
 }
 
 @MainActor
-final class AppTracker: ObservableObject {
+final class AppTracker: ObservableObject, WindowInventoryTracking {
+    var snapshots: AnyPublisher<DockSnapshot, Never> { $snapshot.eraseToAnyPublisher() }
     @Published private(set) var snapshot: DockSnapshot = .empty
 
     private var apps: [pid_t: AppEntry] = [:]
@@ -127,6 +129,7 @@ final class AppTracker: ObservableObject {
     private var reconcileTimer: Timer?
     private var frontmostPollTimer: Timer?
     private var isScanningCandidates = false
+    private let work = AsyncWorkScope()
     /// Per-pid retry task asking whether a freshly seatless process is still `.regular`
     /// (`scheduleNonRegularEviction`). Ice flips back to `.accessory` right after its settings
     /// window closes, sometimes after our destroy handler has already landed, hence the retries.
@@ -306,8 +309,11 @@ final class AppTracker: ObservableObject {
         self.uptimeProvider = uptimeProvider
     }
 
+    isolated deinit { stop() }
+
     func start() {
         guard workspaceObservers.isEmpty else { return }
+        work.restart()
         let info = Bundle.main.infoDictionary
         inventoryLog.record(.sessionStart(InventorySessionStartPayload(
             version: info?["CFBundleShortVersionString"] as? String,
@@ -319,12 +325,16 @@ final class AppTracker: ObservableObject {
         subscribeWorkspaceNotifications()
         // Screen parameters changed: skip one turn before refreshing so `TaskbarScreenOrchestrator`
         // has pushed the shared topology snapshot into the common table first.
+        let generation = work.generation
         screenParametersObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.handleScreenParametersChanged() }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleScreenParametersChanged()
+            }
         }
         displayTable = displayTableProvider()
         seedRunningApps()
@@ -332,14 +342,27 @@ final class AppTracker: ObservableObject {
         startFrontmostPollTimer()
         // seed 后补扫四轮：挂死 app 在 seed 限时读里会被跳过，补扫用 inventoryWindows 限时读逐步收入。
         for delay in [0.5, 1.0, 2.0, 4.0] {
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                self?.scanNonAdmittedApps()
+            work.launch(after: delay) { [weak self] generation in
+                await MainActor.run {
+                    guard let self, self.work.isCurrent(generation) else { return }
+                    self.scanNonAdmittedApps()
+                }
             }
         }
     }
 
     func stop() {
+        work.stop()
+        isScanningCandidates = false
+        for task in nonRegularEvictionTasks.values { task.cancel() }
+        nonRegularEvictionTasks.removeAll()
+        for item in absenceProbeTimers.values { item.cancel() }
+        absenceProbeTimers.removeAll()
+        retryCandidates.removeAll()
+        retryFlushScheduled = false
+        cgEventGeneration &+= 1
+        cachedCGSnapshot = nil
+        for pid in appOrder { AXElementCache.shared.removeAll(pid: pid) }
         reconcileTimer?.invalidate()
         reconcileTimer = nil
         frontmostPollTimer?.invalidate()
@@ -1164,9 +1187,10 @@ final class AppTracker: ObservableObject {
             return
         }
         guard delay < 5 else { return }
+        let generation = work.generation
         let item = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
-                guard let self else { return }
+                guard let self, self.work.isCurrent(generation) else { return }
                 self.absenceProbeTimers.removeValue(forKey: pid)
                 self.armAbsenceProbes(pid: pid)
             }
@@ -1386,42 +1410,48 @@ final class AppTracker: ObservableObject {
     // MARK: - Seed
 
     private func seedRunningApps() {
+        guard work.isActive else { return }
         let seedStart = Date()
-        // 环境变量 DOCK_SEED_AX_TIMEOUT_MS：0 = 回退旧无超时读；其他值覆盖毫秒数；缺省 100ms。
-        let timeoutMS = DebugSwitch.seedAxTimeoutMs.value(in: ProcessInfo.processInfo.environment)
-        let useTimeout: Bool
-        var messagingTimeout: TimeInterval = 0.1
-        if let ms = timeoutMS, let val = Int(ms) {
-            if val == 0 {
-                useTimeout = false
-            } else {
-                useTimeout = true
-                messagingTimeout = TimeInterval(val) / 1000.0
-            }
-        } else {
-            useTimeout = true
+        let configured = Int(DebugSwitch.seedAxTimeoutMs.value() ?? "") ?? 100
+        let messagingTimeout: TimeInterval? = configured == 0 ? nil : max(0.001, Double(configured) / 1_000)
+        let candidates = runningApplications.filter(isRegularNonSelf).map {
+            processIdentity(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier)
         }
+        let reader = reader
+        work.launch { [weak self] generation in
+            var results: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
+            for identity in candidates {
+                guard !Task.isCancelled else { return }
+                let result = messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0) }
+                    ?? reader.windowReadResult(forPID: identity.pid)
+                results.append((identity, result))
+            }
+            let probed = results
+            await MainActor.run {
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.completeSeed(probed, messagingTimeout: messagingTimeout, startedAt: seedStart)
+            }
+        }
+    }
 
+    private func completeSeed(
+        _ probed: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)],
+        messagingTimeout: TimeInterval?, startedAt: Date
+    ) {
+        let useTimeout = messagingTimeout != nil
+        let messagingTimeout = messagingTimeout ?? 0
         var admittedCount = 0
         var unreadList: [String] = []
         let cgSnapshot = cgSnapshotProvider()
-
-        for app in runningApplications {
-            guard isRegularNonSelf(app) else { continue }
-            let pid = app.processIdentifier
+        for entry in probed {
+            let pid = entry.identity.pid
+            guard apps[pid] == nil, let app = applicationForAdmission(pid: pid),
+                  isRegularNonSelf(app), !isTerminatedForAdmission(app),
+                  ScanAdmissionDecision.ProcessIdentity.matches(probed: entry.identity,
+                    current: processIdentity(pid: pid, bundleID: app.bundleIdentifier)) else { continue }
             let bid = app.bundleIdentifier
             let eligibilityApplication = eligibilityApplication(for: app)
-            let probeIdentity = inventoryLog.isEnabled ? processIdentity(pid: pid, bundleID: bid) : nil
-
-            // 限时探测：挂死 app 第一条 AX 消息即超时 → .unread → 跳过，交给补扫。
-            let result: AXWindowReadResult
-            if useTimeout {
-                result = reader.inventoryWindows(forPID: pid, messagingTimeout: messagingTimeout)
-            } else {
-                // Keep legacy untimed/two-attempt behavior while preserving `.unread` for diagnostics.
-                result = reader.windowReadResult(forPID: pid)
-            }
-
+            let result = entry.result
             let probedEligible: [AXWindowSnapshot]
             let inventoryReadOutcome: InventoryAXReadOutcome
             switch result {
@@ -1447,10 +1477,10 @@ final class AppTracker: ObservableObject {
                 seedVerdict = .admit
             }
             noteAdmissionVerdict(pid: pid, verdict: seedVerdict.rawValue, source: "seed")
-            if let probeIdentity {
+            if inventoryLog.isEnabled {
                 recordAdmissionProbe(
                     source: .seed,
-                    identity: probeIdentity,
+                    identity: entry.identity,
                     readMode: useTimeout ? .timed : .untimed,
                     messagingTimeoutMs: useTimeout ? Int((messagingTimeout * 1_000).rounded()) : nil,
                     maxAttempts: useTimeout ? 1 : 2,
@@ -1492,14 +1522,14 @@ final class AppTracker: ObservableObject {
         }
 
         rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs)
-
-        let elapsed = Date().timeIntervalSince(seedStart)
-        logger.info("seed done: \(admittedCount) admitted, \(unreadList.count) unread [\(unreadList.joined(separator: ", "))], elapsed=\(String(format: "%.2f", elapsed))s")
+        let elapsed = Date().timeIntervalSince(startedAt)
+        logger.info("seed done: \(admittedCount) admitted, \(unreadList.count) unread, elapsed=\(String(format: "%.2f", elapsed))s")
     }
 
     // MARK: - Workspace Notifications
 
     private func subscribeWorkspaceNotifications() {
+        let generation = work.generation
         let nc = NSWorkspace.shared.notificationCenter
 
         workspaceObservers.append(nc.addObserver(
@@ -1507,7 +1537,10 @@ final class AppTracker: ObservableObject {
             object: nil, queue: .main
         ) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            Task { @MainActor [weak self] in self?.handleAppLaunched(app) }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleAppLaunched(app)
+            }
         })
 
         workspaceObservers.append(nc.addObserver(
@@ -1516,7 +1549,10 @@ final class AppTracker: ObservableObject {
         ) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pid = app.processIdentifier
-            Task { @MainActor [weak self] in self?.handleAppTerminated(pid: pid) }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleAppTerminated(pid: pid)
+            }
         })
 
         workspaceObservers.append(nc.addObserver(
@@ -1525,7 +1561,10 @@ final class AppTracker: ObservableObject {
         ) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pid = app.processIdentifier
-            Task { @MainActor [weak self] in self?.handleAppHidden(pid: pid) }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleAppHidden(pid: pid)
+            }
         })
 
         workspaceObservers.append(nc.addObserver(
@@ -1534,7 +1573,10 @@ final class AppTracker: ObservableObject {
         ) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pid = app.processIdentifier
-            Task { @MainActor [weak self] in self?.handleAppUnhidden(pid: pid) }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleAppUnhidden(pid: pid)
+            }
         })
 
         workspaceObservers.append(nc.addObserver(
@@ -1544,10 +1586,11 @@ final class AppTracker: ObservableObject {
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pid = app.processIdentifier
             Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
                 // 前台缓存对所有激活生效（accessory/自身也占前台）；handleAppActivated 里
                 // 的 regular 过滤只管准入，不管前台事实。
-                self?.cachedFrontmostPID = pid
-                self?.handleAppActivated(app)
+                self.cachedFrontmostPID = pid
+                self.handleAppActivated(app)
             }
         })
     }
@@ -1685,38 +1728,39 @@ final class AppTracker: ObservableObject {
 
     private func scheduleRetryAdmission(app: NSRunningApplication, delays: [TimeInterval]) {
         let pid = app.processIdentifier
+        let reader = reader
         for delay in delays {
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                guard let self else { return }
-                if self.apps[pid] != nil {
-                    self.enumerateWindows(for: pid, source: .initialEnumeration)
-                    return
-                }
-                guard self.processProvider.isAlive(pid: pid) else { return }
-                let identity = self.processIdentity(pid: pid, bundleID: app.bundleIdentifier)
-                let reader = self.reader
-                let result: AXWindowReadResult = await withCheckedContinuation { continuation in
-                    DispatchQueue.global(qos: .utility).async {
-                        continuation.resume(returning: reader.windowReadResult(forPID: pid))
+            work.launch(after: delay) { [weak self] generation in
+                let identity = await MainActor.run { () -> ScanAdmissionDecision.ProcessIdentity? in
+                    guard let self, self.work.isCurrent(generation), self.processProvider.isAlive(pid: pid) else { return nil }
+                    if self.apps[pid] != nil {
+                        self.scheduleEventRead(pid: pid, source: .initialEnumeration)
+                        return nil
                     }
+                    guard let current = self.applicationForAdmission(pid: pid) else { return nil }
+                    return self.processIdentity(pid: pid, bundleID: current.bundleIdentifier)
                 }
-                guard self.processProvider.isAlive(pid: pid),
-                      ScanAdmissionDecision.ProcessIdentity.matches(
-                        probed: identity, current: self.processIdentity(pid: pid, bundleID: app.bundleIdentifier)
-                      ) else { return }
-                let windows = result.windowsOrEmpty
-                let cgSnapshot = self.cgSnapshotProvider()
-                let eligibilityApplication = self.eligibilityApplication(for: app)
-                let hasEligible = windows.contains {
-                    self.isEligible($0, application: eligibilityApplication, cgSnapshot: cgSnapshot)
-                }
-                self.noteAdmissionVerdict(pid: pid,
-                    verdict: !result.isSuccess ? "skipUnread" : (hasEligible ? "admit" : "skipNoEligible"),
-                    source: "launchRetry")
-                if hasEligible {
-                    self.addApp(app, enumerateImmediately: true)
-                    self.rebuildSnapshot()
+                guard let identity, !Task.isCancelled else { return }
+                let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+                await MainActor.run {
+                    guard let self, self.work.isCurrent(generation), self.apps[pid] == nil,
+                          let current = self.applicationForAdmission(pid: pid),
+                          self.isRegularNonSelf(current), !self.isTerminatedForAdmission(current),
+                          ScanAdmissionDecision.ProcessIdentity.matches(probed: identity,
+                            current: self.processIdentity(pid: pid, bundleID: current.bundleIdentifier)) else { return }
+                    let cgSnapshot = self.cgSnapshotProvider()
+                    let application = self.eligibilityApplication(for: current)
+                    let prepared = ScanAdmissionDecision.prepare(rawWindows: result.isSuccess ? result.windowsOrEmpty : nil) {
+                        self.isEligible($0, application: application, cgSnapshot: cgSnapshot)
+                    }
+                    self.noteAdmissionVerdict(pid: pid,
+                        verdict: !result.isSuccess ? "skipUnread" : (prepared.eligible.isEmpty ? "skipNoEligible" : "admit"),
+                        source: "launchRetry")
+                    if !prepared.eligible.isEmpty {
+                        self.admit(app: current, prepared: prepared,
+                            readOutcome: .success(count: prepared.rawCount), cgSnapshot: cgSnapshot)
+                        self.rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs)
+                    }
                 }
             }
         }
@@ -1868,8 +1912,10 @@ final class AppTracker: ObservableObject {
             retryFlushScheduled = true
             // Runs after the whole landing (single event read, periodic batch, scan or seed), so the
             // pick sees every pid that landed together.
+            let generation = work.generation
             DispatchQueue.main.async { [weak self] in
-                MainActor.assumeIsolated { self?.flushRetryCandidates() }
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.flushRetryCandidates()
             }
         }
     }
@@ -1999,7 +2045,7 @@ final class AppTracker: ObservableObject {
     }
 
     private func scheduleEventRead(pid: pid_t, source: InventoryReconcileSource) {
-        guard apps[pid] != nil else { return }
+        guard work.isActive, apps[pid] != nil else { return }
         guard eventAXAsyncEnabled else {
             enumerateWindows(for: pid, source: source)
             return
@@ -2026,7 +2072,7 @@ final class AppTracker: ObservableObject {
         let prober = self.absentSeatProber
         let ticket = makeCGSnapshotReuseTicket(pid: pid)
 
-        Task.detached { [weak self] in
+        work.launch { [weak self] generation in
             let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
             // Absence probes run only on a readable round, after the AX list and before the CG
             // capture: a window shown again meanwhile is then on-screen in the table that decides.
@@ -2076,8 +2122,9 @@ final class AppTracker: ObservableObject {
             }
             let landedEvidence = evidence
             await MainActor.run { [weak self] in
-                self?.noteCGSnapshotAcquisition(acquisition)
-                self?.completeEventRead(
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.noteCGSnapshotAcquisition(acquisition)
+                self.completeEventRead(
                     pid: pid,
                     request: request,
                     result: result,
@@ -2248,8 +2295,12 @@ final class AppTracker: ObservableObject {
     // MARK: - Reconcile
 
     private func startReconcileTimer() {
+        let generation = work.generation
         reconcileTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.reconcile() }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.reconcile()
+            }
         }
         reconcileTimer?.tolerance = 0.5
     }
@@ -2260,8 +2311,12 @@ final class AppTracker: ObservableObject {
     // app 时整个 tick 直接退出（无人值守测量因此可能整段失活——每臂必须记录并固定前台 app）。
     // 安静 tick 的 CG 全表由 CGSnapshotReuseDecision 门控复用，AX 读照常。
     private func startFrontmostPollTimer() {
+        let generation = work.generation
         frontmostPollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.pollFrontmostApp() }
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.pollFrontmostApp()
+            }
         }
         frontmostPollTimer?.tolerance = 0.05
     }
@@ -2377,6 +2432,7 @@ final class AppTracker: ObservableObject {
     /// 批读在途期间到达的 AX 事件照常并入 trailing（单 pid 单在途不变）；下一 tick 里
     /// 尚未落地的 pid 因 pending 存在被跳过，天然不堆积。
     private func schedulePeriodicBatchRead(cgSnapshot: AppTrackerCGWindowSnapshot, timeout: TimeInterval) {
+        guard work.isActive else { return }
         var batch: [(pid: pid_t, request: PendingEventRead)] = []
         for pid in appOrder {
             guard pendingEventReads[pid] == nil, let app = apps[pid] else { continue }
@@ -2395,10 +2451,12 @@ final class AppTracker: ObservableObject {
         }
         guard !batch.isEmpty else { return }
         let reader = self.reader
+        let pending = batch
 
-        Task.detached { [weak self] in
+        work.launch { [weak self] generation in
             var results: [(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult)] = []
-            for entry in batch {
+            for entry in pending {
+                guard !Task.isCancelled else { return }
                 results.append((
                     entry.pid,
                     entry.request,
@@ -2407,7 +2465,8 @@ final class AppTracker: ObservableObject {
             }
             let landed = results
             await MainActor.run { [weak self] in
-                self?.completePeriodicBatch(landed, cgSnapshot: cgSnapshot)
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.completePeriodicBatch(landed, cgSnapshot: cgSnapshot)
             }
         }
     }
@@ -2481,7 +2540,7 @@ final class AppTracker: ObservableObject {
     /// 复用该捕获做收编；传 nil（启动后的四轮补扫）→ 完全绕过门控与记忆，收编时自拍快照——
     /// 与改造前逐位一致。
     private func scanNonAdmittedApps(cgSnapshot: AppTrackerCGWindowSnapshot? = nil) {
-        guard !isScanningCandidates else { return }
+        guard work.isActive, !isScanningCandidates else { return }
         var slowFullScanDue = false
         if cgSnapshot != nil, scanGateEnabled {
             let uptime = uptimeProvider()
@@ -2532,12 +2591,13 @@ final class AppTracker: ObservableObject {
         isScanningCandidates = true
         let reader = self.reader
 
-        Task.detached { [weak self] in
+        work.launch { [weak self] generation in
             // 后台只做 AX 读（限时 100ms，挂死 App 不拖主线程）。eligible 过滤放主线程：它依赖
             // 实例属性 eligibilityPolicy，且只是对已读字段的纯计算，零 AX 往返。
             let probeStart = DispatchTime.now().uptimeNanoseconds
             var probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
             for candidate in candidates {
+                guard !Task.isCancelled else { return }
                 probed.append((
                     candidate.pid,
                     candidate.identity,
@@ -2548,7 +2608,7 @@ final class AppTracker: ObservableObject {
             let probeElapsed = TimeInterval(DispatchTime.now().uptimeNanoseconds - probeStart) / 1_000_000_000
 
             await MainActor.run { [weak self] in
-                guard let self else { return }
+                guard let self, self.work.isCurrent(generation) else { return }
                 self.isScanningCandidates = false
                 self.admitScannedApps(results, tickSnapshot: cgSnapshot, probeElapsed: probeElapsed)
             }
@@ -2852,15 +2912,18 @@ final class AppTracker: ObservableObject {
     }
 
     #if DEBUG
-    func runAdmissionForTesting(source: String, app: NSRunningApplication = .current) {
+    func runAdmissionForTesting(source: String, app: NSRunningApplication = .current, retryDelays: [TimeInterval] = [0]) {
         admissionAppsForTesting = [app]
+        if !work.isActive { work.restart() }
         switch source {
         case "seed": seedRunningApps()
         case "scan": scanNonAdmittedApps()
-        case "launchRetry": scheduleRetryAdmission(app: app, delays: [0])
+        case "launchRetry": scheduleRetryAdmission(app: app, delays: retryDelays)
         default: preconditionFailure("Unknown admission fixture source")
         }
     }
+
+    var pendingInventoryWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
 
     // MARK: - Deterministic inventory fixtures
 
