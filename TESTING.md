@@ -17,8 +17,9 @@ The suite covers:
 - No hover popup for separate buttons; icon/title lists for combined groups and overflow only.
 - Native AppKit context-menu items and action dispatch, exact-window activation and close actions, Close all windows for a combined group, and Quit as a separate application action.
 - File-drag hover activation, cancelled delays, stale targets, and list disposal.
-- Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture.
-- Hover/active layer transitions, interrupted animations, Reduce Motion, and the ordered Open at Login / Hide Status Bar Icon / Quit menu, native-restored visibility, icon restoration, and independent login/quit actions.
+- Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture. Native mouse-tracking checks may attach views to a panel that is never ordered on screen. Detached image rendering checks control geometry and content; it does not establish WindowServer glass refraction or transparency against the real desktop.
+- Native controls with preserved icon/text alignment, neutral hover/active feedback, lower indicators, animated-state settling, Reduce Motion, transparent native list backgrounds, native table mouse tracking, keyboard scrolling and exact-row close dispatch.
+- The ordered Open at Login / Hide Status Bar Icon / Quit menu, native-restored visibility, icon restoration, and independent login/quit actions.
 - Launch-at-login state, localization, debug-switch registration, stable toolchain selection, release publication, and artifact cleanup.
 
 Coverage reports identify untested paths; a count or percentage alone does not establish correct behavior. Automated tests cannot establish real Accessibility interoperability, native WindowServer animation, or hot-plug behavior on every Mac.
@@ -36,8 +37,8 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Crowding and freeing space | Long buttons shrink to the measured 74-point limit before combining. Short captions keep their content-sized widths. Groups separate again when space permits. |
 | Group dragging and cancellation | The whole group stays inside the 32-point bar even when the pointer leaves it. A wide group swaps with a narrow neighbor when its edge crosses that neighbor's midpoint, regardless of which member or side was grabbed. Its members cannot be reordered independently. Escape or release outside restores the original order. |
 | Separate-window click | Activate/restore the exact window; clicking the active window minimizes it. |
-| Separate-window hover | Smooth hover/active feedback, with immediate state changes under Reduce Motion. No popup, tooltip, thumbnail, or extra title. |
-| Combined-group click/hover | A Windows-style list of icons and window titles; no captured window images. |
+| Separate-window hover | Neutral Apple selection color within the original Windows button shape, with a lower active underline/inactive dot. No solid accent-filled button or nested glass. Smooth transitions; immediate changes under Reduce Motion. No popup, tooltip, thumbnail, or extra title. |
+| Combined-group click/hover | Native Apple rows over public Liquid Glass, with the preserved 216-point width, 40-point rows, icon/title/close placement, and window order. No captured window images. |
 | Overflow | Remaining windows stay reachable through an icon/title list. |
 | Individual context menu | Native macOS menu: Close window, then Quit. Closing a window does not quit the app. |
 | Combined context menu | Native macOS menu: Close all windows, then Quit. Window actions affect the represented display's group. |
