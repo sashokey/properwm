@@ -297,13 +297,16 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertTrue(closed.isEmpty)
     }
 
-    func testStatusMenuPlacesNormalQuitBelowOpenAtLogin() {
+    func testStatusMenuKeepsHideIconBelowLoginAndQuitLast() {
         let login = NSMenuItem(title: "Open at Login", action: nil, keyEquivalent: "")
+        let hide = NSMenuItem(title: "Hide Status Bar Icon", action: nil, keyEquivalent: "")
         var quits = 0
-        let menu = TaskbarNativeMenuFactory.statusMenu(launchAtLogin: login) { quits += 1 }
+        let menu = TaskbarNativeMenuFactory.statusMenu(launchAtLogin: login, hideStatusBarIcon: hide) { quits += 1 }
         XCTAssertTrue(menu.items.first === login)
+        XCTAssertTrue(menu.items[1] === hide)
+        XCTAssertEqual(menu.items.map(\.title), ["Open at Login", "Hide Status Bar Icon", "", "Quit"])
         XCTAssertEqual(menu.items.last?.title, "Quit")
-        XCTAssertTrue(menu.items[1].isSeparatorItem)
+        XCTAssertTrue(menu.items[2].isSeparatorItem)
         XCTAssertNil(menu.items.last?.view)
         menu.performActionForItem(at: menu.numberOfItems - 1)
         XCTAssertEqual(quits, 1)

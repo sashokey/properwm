@@ -179,3 +179,118 @@ private final class ControlledLaunchService: LaunchAtLoginServicing {
 private enum TestError: Error {
     case failed
 }
+
+@MainActor
+final class StatusMenuControllerTests: XCTestCase {
+    private final class StatusItem: StatusItemPresenting {
+        var autosaveName: NSStatusItem.AutosaveName?
+        var menu: NSMenu?
+        var image: NSImage?
+        private var visible: Bool
+        private(set) var visibilityWrites: [Bool] = []
+        private(set) var imageConfigurations = 0
+
+        var isVisible: Bool {
+            get { visible }
+            set { visible = newValue; visibilityWrites.append(newValue) }
+        }
+
+        init(visible: Bool = true) { self.visible = visible }
+
+        func configureAutosaveName(_ name: NSStatusItem.AutosaveName) { autosaveName = name }
+
+        func configureButtonImage(_ image: NSImage?) {
+            self.image = image
+            imageConfigurations += 1
+        }
+    }
+
+    private func makeController(item: StatusItem, launch: LaunchServiceStub,
+                                menuVisibility: @escaping (Bool) -> Void = { _ in },
+                                quit: @escaping @MainActor () -> Void = {}) -> StatusMenuController {
+        let suite = "ProperWM.StatusMenuControllerTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        let coordinator = SettingsCoordinator(store: AppSettingsStore(defaults: defaults), launchAtLoginService: launch)
+        return StatusMenuController(settingsCoordinator: coordinator, onMenuVisibilityChanged: menuVisibility,
+                                    statusItem: item, quit: quit)
+    }
+
+    func testHideActionChangesOnlyStatusItemVisibilityAndMenuRefreshDoesNotRestoreIt() throws {
+        let item = StatusItem()
+        let launch = LaunchServiceStub(state: .off)
+        var quits = 0
+        var menuVisibility: [Bool] = []
+        let controller = makeController(item: item, launch: launch,
+                                        menuVisibility: { menuVisibility.append($0) }, quit: { quits += 1 })
+        let menu = try XCTUnwrap(item.menu)
+        XCTAssertEqual(menu.items.map(\.title), ["Open at Login", "Hide Status Bar Icon", "", "Quit"])
+        menu.performActionForItem(at: 1)
+        XCTAssertFalse(item.isVisible)
+        XCTAssertFalse(menu.items[1].isEnabled)
+        controller.menuWillOpen(menu)
+        controller.menuDidClose(menu)
+        XCTAssertFalse(item.isVisible)
+        XCTAssertEqual(menuVisibility, [true, false])
+        XCTAssertEqual(quits, 0)
+        XCTAssertTrue(launch.requests.isEmpty)
+    }
+
+    func testNativeRestoredVisibilityIsNotOverriddenAtStartup() throws {
+        let item = StatusItem(visible: false)
+        let controller = makeController(item: item, launch: LaunchServiceStub(state: .off))
+        withExtendedLifetime(controller) {
+            XCTAssertEqual(item.autosaveName, "ProperWM.StatusBarIcon")
+            XCTAssertFalse(item.isVisible)
+            XCTAssertTrue(item.visibilityWrites.isEmpty)
+            XCTAssertEqual(item.menu?.items[1].isEnabled, false)
+            XCTAssertEqual(item.image?.isTemplate, true)
+        }
+    }
+
+    func testRestoringTheIconReusesItsMenuAndStablePersistenceIdentity() throws {
+        let item = StatusItem(visible: false)
+        let controller = makeController(item: item, launch: LaunchServiceStub(state: .off))
+        let menu = try XCTUnwrap(item.menu)
+        controller.showStatusBarIcon()
+        controller.showStatusBarIcon()
+        XCTAssertTrue(item.isVisible)
+        XCTAssertTrue(menu.items[1].isEnabled)
+        XCTAssertTrue(item.menu === menu)
+        XCTAssertEqual(item.imageConfigurations, 1)
+        XCTAssertEqual(item.autosaveName, "ProperWM.StatusBarIcon")
+        let restoredItem = StatusItem(visible: false)
+        let restoredController = makeController(item: restoredItem, launch: LaunchServiceStub(state: .off))
+        withExtendedLifetime(restoredController) {
+            XCTAssertEqual(restoredItem.autosaveName, item.autosaveName)
+            XCTAssertFalse(restoredItem.isVisible)
+        }
+    }
+
+    func testQuitRemainsSeparateFromHidingTheIcon() throws {
+        let item = StatusItem()
+        var quits = 0
+        let controller = makeController(item: item, launch: LaunchServiceStub(state: .off), quit: { quits += 1 })
+        let menu = try XCTUnwrap(item.menu)
+        withExtendedLifetime(controller) {
+            menu.performActionForItem(at: 3)
+            XCTAssertEqual(quits, 1)
+            XCTAssertTrue(item.isVisible)
+            XCTAssertTrue(item.visibilityWrites.isEmpty)
+        }
+    }
+
+    func testLaunchAtLoginRemainsIndependentOfIconVisibility() throws {
+        let item = StatusItem()
+        let launch = LaunchServiceStub(state: .off)
+        let controller = makeController(item: item, launch: launch)
+        let menu = try XCTUnwrap(item.menu)
+        menu.performActionForItem(at: 0)
+        XCTAssertEqual(launch.requests, [true])
+        menu.performActionForItem(at: 1)
+        controller.showStatusBarIcon()
+        menu.performActionForItem(at: 0)
+        XCTAssertEqual(launch.requests, [true, false])
+        XCTAssertTrue(item.isVisible)
+    }
+}

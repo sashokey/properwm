@@ -2,33 +2,55 @@ import AppKit
 import Combine
 
 @MainActor
+protocol StatusItemPresenting: AnyObject {
+    var isVisible: Bool { get set }
+    var menu: NSMenu? { get set }
+    func configureAutosaveName(_ name: NSStatusItem.AutosaveName)
+    func configureButtonImage(_ image: NSImage?)
+}
+
+extension NSStatusItem: StatusItemPresenting {
+    func configureAutosaveName(_ name: NSStatusItem.AutosaveName) { autosaveName = name }
+    func configureButtonImage(_ image: NSImage?) { button?.image = image }
+}
+
+@MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private lazy var menu = TaskbarNativeMenuFactory.statusMenu(launchAtLogin: launchAtLoginItem) {
-        NSApp.terminate(nil)
-    }
+    private let statusItem: any StatusItemPresenting
+    private let quit: @MainActor () -> Void
+    private lazy var menu = TaskbarNativeMenuFactory.statusMenu(
+        launchAtLogin: launchAtLoginItem, hideStatusBarIcon: hideStatusBarIconItem, quit: quit
+    )
     private let settingsCoordinator: SettingsCoordinator
     private let onMenuVisibilityChanged: (Bool) -> Void
     private let launchAtLoginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+    private let hideStatusBarIconItem = NSMenuItem(title: String(localized: "Hide Status Bar Icon"), action: #selector(hideStatusBarIcon), keyEquivalent: "")
     private var subscriptions = Set<AnyCancellable>()
     private var refreshTask: Task<Void, Never>?
 
     init(
         settingsCoordinator: SettingsCoordinator,
-        onMenuVisibilityChanged: @escaping (Bool) -> Void
+        onMenuVisibilityChanged: @escaping (Bool) -> Void,
+        statusItem: any StatusItemPresenting = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength),
+        quit: @escaping @MainActor () -> Void = { NSApp.terminate(nil) }
     ) {
         self.settingsCoordinator = settingsCoordinator
         self.onMenuVisibilityChanged = onMenuVisibilityChanged
+        self.statusItem = statusItem
+        self.quit = quit
         super.init()
 
+        statusItem.configureAutosaveName("ProperWM.StatusBarIcon")
         let image = NSImage(systemSymbolName: "rectangle.split.3x1", accessibilityDescription: "ProperWM")
         image?.isTemplate = true
-        statusItem.button?.image = image
+        statusItem.configureButtonImage(image)
         statusItem.menu = menu
         menu.delegate = self
         menu.autoenablesItems = false
 
         launchAtLoginItem.target = self
+        hideStatusBarIconItem.target = self
+        hideStatusBarIconItem.isEnabled = statusItem.isVisible
 
         settingsCoordinator.$launchAtLoginState
             .sink { [weak self] state in self?.updateLaunchAtLogin(state) }
@@ -43,6 +65,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        hideStatusBarIconItem.isEnabled = statusItem.isVisible
         onMenuVisibilityChanged(true)
         refreshSystemState()
     }
@@ -50,6 +73,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) {
         onMenuVisibilityChanged(false)
         refreshSystemState()
+    }
+
+    func showStatusBarIcon() {
+        statusItem.isVisible = true
+        hideStatusBarIconItem.isEnabled = true
+    }
+
+    @objc private func hideStatusBarIcon() {
+        statusItem.isVisible = false
+        hideStatusBarIconItem.isEnabled = false
     }
 
     private func updateLaunchAtLogin(_ state: LaunchAtLoginState) {

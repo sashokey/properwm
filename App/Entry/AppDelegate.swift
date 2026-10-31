@@ -80,6 +80,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.launched(trusted: trusted)
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !installLocation.isTransient else { return true }
+        statusMenuController.showStatusBarIcon()
+        return false
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         permissionCoordinator?.applicationDidBecomeActive()
         if !installLocation.isTransient {

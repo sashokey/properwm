@@ -108,10 +108,11 @@ enum TaskbarNativeMenuFactory {
         return menu
     }
 
-    static func statusMenu(launchAtLogin: NSMenuItem, quit: @escaping @MainActor () -> Void) -> NSMenu {
+    static func statusMenu(launchAtLogin: NSMenuItem, hideStatusBarIcon: NSMenuItem, quit: @escaping @MainActor () -> Void) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.addItem(launchAtLogin)
+        menu.addItem(hideStatusBarIcon)
         menu.addItem(.separator())
         menu.addItem(item(TaskbarMenuEntry(title: String(localized: "Quit"), symbol: "", action: quit)))
         return menu
