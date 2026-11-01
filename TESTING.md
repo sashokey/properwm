@@ -4,13 +4,19 @@ Tests describe the agreed behavior and independently observed reference scenario
 
 ## Automated checks
 
-Run the tooling checks, ordinary `xcodebuild test` with coverage, deployment-availability checks, and an arm64 Release build before publishing. CI also validates the release ZIP, signature, bundle identity, legal notices, architecture, deployment minimum, and checksums. Test and build logs must be retained when a check fails.
+Run the tooling checks, ordinary `xcodebuild test` with coverage, constrained-executor lifecycle checks, deployment-availability checks, and an arm64 Release build before publishing. CI also validates the release ZIP, signature, bundle identity, legal notices, architecture, deployment minimum, and checksums. Test and build logs must be retained when a check fails.
 
 Use the newest stable Xcode and the newest available macOS. Local builds and tests are supported. Keep DerivedData and XCTest runtime data in a location Xcode can access; a background test runner may be denied access to a test bundle inside a protected Documents folder even when compilation succeeds. Do not change system privacy settings to work around this silently.
 
 The suite covers:
 
 - Window identity, inventory admission, minimized/hidden retention, native tabs, activation, focus handoff, and permission recovery.
+- Ordered window-command execution, cancellation between external operations, rapid minimize/activate replacement, independent close requests, and draining in-flight commands across runtime stop/restart. Tests assert external effects as well as published state.
+- Background AX observer creation and registration, windows discovered during registration, stop or window retirement/replacement during a blocked call, subscription cleanup, and rejection of late callbacks from a replaced session.
+- Failed or unverifiable frame restoration stays pending; bounded retries complete confirmed writes and preserve unresolved state. Permission uncertainty cancels and drains restoration without dropping saved geometry; cancellation after a read prevents the next write. Changed process identities and user-moved windows are never overwritten.
+- Unknown fullscreen observations preserve the previous state; periodic checks also run while the bar is visible. Geometry events trigger coalesced checks without input observation.
+- No-screen startup, display disconnect/reconnect, and separate handling of missing display UUIDs. Native panel creation is replaced in lifecycle tests so no window is shown.
+- Bounded process-generation caching and cleanup after process termination.
 - System-only initial permission prompting, continued waiting without a guide or repeated prompt, late grants, grants arriving during startup, and quitting before a grant. Confirmed runtime recovery and transient-install guides remain covered separately.
 - Display attribution, topology changes, state-based fullscreen visibility, and maximized-window clearance.
 - Separate labeled buttons, content-sized short captions including the exact `.` reference, the measured 74-point compressed width for long captions, pixel rounding, combining under crowding, expansion after space returns, and accessible overflow.

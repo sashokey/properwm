@@ -113,6 +113,10 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:ProperWMTests/InventoryLifecycleTests \
             -only-testing:ProperWMTests/AppRuntimeTests \
+            -only-testing:ProperWMTests/WindowCommandLifecycleTests \
+            -only-testing:ProperWMTests/WindowObservationLifecycleTests \
+            -only-testing:ProperWMTests/WindowRestorationTests \
+            -only-testing:ProperWMTests/PanelLifecycleTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/xcodebuild-inventory.log
 
