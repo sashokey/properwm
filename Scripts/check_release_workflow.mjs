@@ -51,7 +51,7 @@ test('new version is accepted only when the tag lookup returns 404', async () =>
     { env: { RELEASE_VERSION: '0.1.0' } }), /already has a tag/);
 });
 
-function fixture({ draft = true, corrupt = false, failUpload = false } = {}) {
+function fixture({ draft = true, corrupt = false, failUpload = false, notes } = {}) {
   const names = ['ProperWM-0.1.0.zip'];
   const files = new Map(names.map((name, i) => ['dist/' + name, Buffer.from('archive-' + i)]));
   const sums = names.map(name => createHash('sha256').update(files.get('dist/' + name)).digest('hex')
@@ -80,7 +80,7 @@ function fixture({ draft = true, corrupt = false, failUpload = false } = {}) {
     } };
   };
   const process = { env: {
-    RELEASE_VERSION: '0.1.0', RELEASE_DRAFT: String(draft), RELEASE_PRERELEASE: 'true'
+    RELEASE_VERSION: '0.1.0', RELEASE_DRAFT: String(draft), RELEASE_PRERELEASE: 'true', RELEASE_NOTES: notes
   } };
   return { calls, run: () => publish(github, context, core, require, process) };
 }
@@ -173,4 +173,25 @@ test('manual release inputs preserve draft and stable-release choices', async ()
   await validate(github, context, { setOutput(key, value) { outputs[key] = value; } }, null,
     { env: { RELEASE_VERSION: '0.2.0', RELEASE_DRAFT: 'true', RELEASE_PRERELEASE: 'false' } });
   assert.deepEqual(outputs, { version: '0.2.0', draft: 'true', prerelease: 'false' });
+});
+
+
+test('committed release notes reach the created release unchanged', async () => {
+  const notes = '## Fixed\n\n- Keep `window` geometry.\n- Literal ${{ text }} and $(text).';
+  const manifest = manifestFixture({ version: '0.1.0', draft: false, prerelease: false, notes });
+  await manifest.run();
+  assert.equal(manifest.outputs.notes, notes);
+  const release = fixture({ notes: manifest.outputs.notes });
+  await release.run();
+  assert.ok(release.calls[0][1].body.startsWith(notes + '\n\n'));
+  assert.ok(release.calls[0][1].body.includes('Apple Silicon'));
+});
+
+test('non-text release notes fail before any tag lookup or publication', async () => {
+  for (const notes of [null, false, 42, ['change'], { change: 'fixed' }]) {
+    const f = manifestFixture({ version: '0.1.0', draft: false, prerelease: false, notes });
+    await assert.rejects(f.run(), /notes must be a string/);
+    assert.equal(f.tag(), null);
+    assert.deepEqual(f.outputs, {});
+  }
 });
