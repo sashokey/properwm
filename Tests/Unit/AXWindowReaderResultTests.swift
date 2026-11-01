@@ -16,6 +16,8 @@ final class ExternalWindowGeometryTests: XCTestCase {
             CGRect(x: 100, y: 100, width: 1e30, height: 600),
             CGRect(x: 100, y: 100, width: 800, height: -CGFloat.infinity),
             CGRect(x: 100, y: 100, width: 0, height: 600),
+            CGRect(x: 100, y: 100, width: -800, height: 600),
+            CGRect(x: 100, y: 100, width: 800, height: -600),
             CGRect(x: CGFloat(Int.max), y: 100, width: 800, height: 600)
         ]
         for frame in frames {

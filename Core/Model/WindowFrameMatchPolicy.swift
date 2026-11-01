@@ -5,8 +5,8 @@ struct WindowFrameMatchPolicy {
     static let tolerance: CGFloat = 24
 
     static func integralComponents(for bounds: CGRect) -> [Int]? {
-        guard bounds.width > 0, bounds.height > 0 else { return nil }
-        let values = [bounds.origin.x, bounds.origin.y, bounds.width, bounds.height]
+        guard bounds.size.width > 0, bounds.size.height > 0 else { return nil }
+        let values = [bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height]
         let components = values.compactMap { $0.isFinite ? Int(exactly: $0.rounded()) : nil }
         guard components.count == values.count,
               bounds.maxX.isFinite, bounds.maxY.isFinite,
