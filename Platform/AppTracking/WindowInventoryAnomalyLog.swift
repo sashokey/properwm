@@ -654,14 +654,11 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
         subsystem: "io.github.sashokey.properwm",
         category: "window-inventory-log"
     )
-    private static let processWriteLock = NSLock()
 
     let sessionID: UUID
     let configuration: WindowInventoryLogConfiguration
 
-    private let queue: DispatchQueue?
-    private let queueKey = DispatchSpecificKey<UInt8>()
-    private let fileManager: FileManager
+    private let queue: BoundedDiagnosticQueue?
     private let failureReporter: @Sendable (String) -> Void
     private var sequence: UInt64 = 0
     private var disabledAfterFailure = false
@@ -673,27 +670,24 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
 
     init(
         configuration: WindowInventoryLogConfiguration = .live(),
-        fileManager: FileManager = .default,
         sessionID: UUID = UUID(),
         failureReporter: (@Sendable (String) -> Void)? = nil
     ) {
         self.configuration = configuration
-        self.fileManager = fileManager
         self.sessionID = sessionID
         self.failureReporter = failureReporter ?? { message in
             Self.systemLogger.error("inventory log disabled after error: \(message, privacy: .public)")
         }
         if configuration.enabled {
-            self.queue = DispatchQueue(label: "io.github.sashokey.properwm.window-inventory-log", qos: .utility)
+            self.queue = BoundedDiagnosticQueue(label: "io.github.sashokey.properwm.window-inventory-log")
         } else {
             self.queue = nil
         }
-        self.queue?.setSpecific(key: queueKey, value: 1)
     }
 
     func record(_ event: WindowInventoryLogEvent, at occurredAt: Date = Date()) {
         guard let queue else { return }
-        queue.async { [self] in
+        queue.submit { [self] in
             guard !disabledAfterFailure else { return }
             do {
                 sequence += 1
@@ -717,10 +711,7 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
     }
 
     func flush() {
-        guard let queue else { return }
-        if DispatchQueue.getSpecific(key: queueKey) == nil {
-            queue.sync {}
-        }
+        queue?.flush()
     }
 
     func archiveURL(_ index: Int) -> URL {
@@ -728,134 +719,15 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
     }
 
     private func append(_ data: Data) throws {
-        Self.processWriteLock.lock()
-        defer { Self.processWriteLock.unlock() }
-
-        try ensureDirectory()
-
-        let lockFD = Darwin.open(lockFileURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
-        guard lockFD >= 0 else { throw posixError("open lock") }
-        defer { Darwin.close(lockFD) }
-        guard Darwin.lockf(lockFD, F_LOCK, 0) == 0 else { throw posixError("lock") }
-        defer { _ = Darwin.lockf(lockFD, F_ULOCK, 0) }
-        guard Darwin.chmod(lockFileURL.path, S_IRUSR | S_IWUSR) == 0 else {
-            throw posixError("chmod lock")
-        }
-
-        var fileFD = try openCurrentFile()
-        var shouldClose = true
-        defer { if shouldClose { Darwin.close(fileFD) } }
-
-        let repairedSize = try repairTrailingPartialLine(fileFD: fileFD)
-        if repairedSize > 0, repairedSize + off_t(data.count) > off_t(configuration.maxFileSize) {
-            Darwin.close(fileFD)
-            shouldClose = false
-            try rotateFiles()
-            fileFD = try openCurrentFile()
-            shouldClose = true
-        }
-
-        try writeAll(data, to: fileFD)
-    }
-
-    private func ensureDirectory() throws {
-        try fileManager.createDirectory(
-            at: configuration.directoryURL,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-        guard Darwin.chmod(configuration.directoryURL.path, S_IRWXU) == 0 else {
-            throw posixError("chmod directory")
-        }
-    }
-
-    private func openCurrentFile() throws -> Int32 {
-        let fd = Darwin.open(currentFileURL.path, O_CREAT | O_RDWR | O_APPEND, S_IRUSR | S_IWUSR)
-        guard fd >= 0 else { throw posixError("open log") }
-        guard Darwin.chmod(currentFileURL.path, S_IRUSR | S_IWUSR) == 0 else {
-            Darwin.close(fd)
-            throw posixError("chmod log")
-        }
-        return fd
-    }
-
-    private func repairTrailingPartialLine(fileFD: Int32) throws -> off_t {
-        let end = Darwin.lseek(fileFD, 0, SEEK_END)
-        guard end >= 0 else { throw posixError("seek log") }
-        guard end > 0 else { return 0 }
-
-        if try readLogBytes(fileFD: fileFD, offset: end - 1, count: 1).first == 0x0A { return end }
-        var cursor = end
-        var length: off_t = 0
-        while cursor > 0 {
-            let size = Int(min(cursor, 4096))
-            cursor -= off_t(size)
-            let bytes = try readLogBytes(fileFD: fileFD, offset: cursor, count: size)
-            if let newline = bytes.lastIndex(of: 0x0A) {
-                length = cursor + off_t(newline + 1)
-                break
-            }
-        }
-        guard Darwin.ftruncate(fileFD, length) == 0 else { throw posixError("truncate log") }
-        return length
-    }
-
-    private func readLogBytes(fileFD: Int32, offset: off_t, count: Int) throws -> [UInt8] {
-        var bytes = [UInt8](repeating: 0, count: count)
-        try bytes.withUnsafeMutableBytes { buffer in
-            var read = 0
-            while read < count {
-                let result = Darwin.pread(fileFD, buffer.baseAddress!.advanced(by: read), count - read, offset + off_t(read))
-                if result < 0, errno == EINTR { continue }
-                guard result > 0 else { throw posixError("read log tail") }
-                read += result
-            }
-        }
-        return bytes
-    }
-
-    private func rotateFiles() throws {
-        let oldest = archiveURL(configuration.archiveCount)
-        if fileManager.fileExists(atPath: oldest.path) {
-            try fileManager.removeItem(at: oldest)
-        }
-        if configuration.archiveCount > 1 {
-            for index in stride(from: configuration.archiveCount - 1, through: 1, by: -1) {
-                let source = archiveURL(index)
-                guard fileManager.fileExists(atPath: source.path) else { continue }
-                try fileManager.moveItem(at: source, to: archiveURL(index + 1))
-            }
-        }
-        if fileManager.fileExists(atPath: currentFileURL.path) {
-            try fileManager.moveItem(at: currentFileURL, to: archiveURL(1))
-        }
-    }
-
-    private func writeAll(_ data: Data, to fileFD: Int32) throws {
-        try data.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress else { return }
-            var written = 0
-            while written < rawBuffer.count {
-                let result = Darwin.write(fileFD, baseAddress.advanced(by: written), rawBuffer.count - written)
-                guard result > 0 else { throw posixError("write log") }
-                written += result
-            }
-        }
+        try PrivateJSONLinesFile(directory: configuration.directoryURL, name: "window-inventory.jsonl",
+            maximumFileBytes: configuration.maxFileSize, archiveCount: configuration.archiveCount).append(data)
     }
 
     private func disable(after error: Error) {
         disabledAfterFailure = true
         guard !didReportFailure else { return }
         didReportFailure = true
-        failureReporter(String(describing: error))
-    }
-
-    private func posixError(_ operation: String) -> NSError {
-        NSError(
-            domain: NSPOSIXErrorDomain,
-            code: Int(errno),
-            userInfo: [NSLocalizedDescriptionKey: "\(operation): \(String(cString: strerror(errno)))"]
-        )
+        failureReporter(DiagnosticErrorSummary.describe(error))
     }
 
     private static func timestampString(from date: Date) -> String {

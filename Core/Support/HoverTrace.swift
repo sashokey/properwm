@@ -2,251 +2,72 @@ import CoreGraphics
 import Foundation
 import QuartzCore
 
-/// 任务条交互的手感诊断。默认关闭，`DOCK_HOVER_TRACE=1` 打开。
-/// （文件名沿用 `hover-trace.jsonl`：它最初只量悬停，2026-08-17 扩到点击 / 最小化那条路径，
-/// 2026-08-18 再扩到拖拽。所有手感诊断共用这一个开关和一个文件——多开一套 I/O 没有意义。）
-///
-/// 悬停部分回答两个问题：
-/// 1. **鼠标匀速划过一排图标时，每个 chip 都收到悬停回调了吗？** 少了就是事件被合并掉了，
-///    问题在主线程占用，不在气泡本身。
-/// 2. **收到之后，把气泡摆到位花了多久？** 长就是渲染/窗口调用慢，那才是气泡自己的问题。
-///
-/// 顺带记主线程的**卡顿**：一个 8ms 的重复计时器，量每次实际触发比预定晚了多少。
-/// 这是「事件被合并」的直接证据——AGENTS《Menus, Panels, And Screens》里那条 100ms 粘滞
-/// 当年就是靠"主线程闲着但事件到得晚"才辨出来的，光看 CPU 占用看不出来。
-///
-/// 落盘在 `~/Library/Logs/io.github.sashokey.properwm/hover-trace.jsonl`。
 enum HoverTrace {
     static let isEnabled = DebugSwitch.hoverTrace.isEnabled(in: ProcessInfo.processInfo.environment)
-    /// 宽度探针（`width` / `relayout` / `action`）单独可开：`DOCK_LABEL_PROBE=1` 不带 hover trace 的
-    /// 8ms 卡顿采样和指针轮询——那两样会让主循环一直醒着，量动画时本身就是干扰。
     static let widthProbesEnabled = isEnabled || DebugSwitch.labelProbe.isEnabled(in: ProcessInfo.processInfo.environment)
+    private static let queue = BoundedDiagnosticQueue(label: "io.github.sashokey.properwm.hovertrace")
+    private static let file = PrivateJSONLinesFile(directory: PrivateJSONLinesFile.liveDirectory, name: "hover-trace.jsonl")
 
-    static func barArrowCursor(surface: String, decision: String) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"barArrowCursor\",\"surface\":\(quote(surface))," +
-            "\"decision\":\(quote(decision))}"
-        )
+    private static func record(_ kind: String, _ fields: @autoclosure () -> [String: DiagnosticValue] = [:], enabled: Bool = isEnabled) {
+        guard enabled else { return }
+        var values = fields()
+        values["kind"] = .text(kind)
+        values["t"] = .number((CACurrentMediaTime() * 10_000).rounded() / 10)
+        guard let data = DiagnosticJSON.line(values) else { return }
+        queue.submit { try? file.append(data) }
     }
 
-    /// chip 报告悬停进入 / 离开。
-    static func hover(chipID: String, entered: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"hover\",\"chip\":\(quote(chipID)),\"in\":\(entered)}")
-    }
-
-    /// 协调器真正把气泡摆好用了多久（含 SwiftUI 重排 + setFrame）。
-    static func present(chipID: String, cold: Bool, elapsed: CFTimeInterval) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"present\",\"chip\":\(quote(chipID))," +
-            "\"cold\":\(cold),\"ms\":\(round(elapsed * 10000) / 10)}"
-        )
-    }
-
-    /// 整条那块跟踪区每收到一次指针位置就记一行，附带算出来的归属。
-    ///
-    /// **这是「悬停到底跟不跟得上」唯一的现场证据。** 2026-08-17 改成整条一块跟踪区时，
-    /// 第一版靠 `NSTrackingArea` 的 `.mouseMoved`，实测每 35 次指针移动只有个位数报上来
-    /// （我们这些面板永远不是 key 窗口）。没有这一行就只能靠猜。
-    static func pointer(x: CGFloat, chip: String?) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"pointer\",\"x\":\(round(x * 10) / 10)," +
-            "\"chip\":\(chip.map(quote) ?? "null")}"
-        )
-    }
-
-    /// 主线程卡顿：预定 8ms 触发，实际晚了 `lateMs`。只记超过 12ms 的，免得自己刷屏。
-    /// 60Hz 下一帧 16.7ms，所以 >16.7 基本等于至少掉一帧。
-    static func mainLoopStall(lateMs: Double) {
-        guard isEnabled, lateMs >= 12 else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"stall\",\"lateMs\":\(round(lateMs * 10) / 10)}")
-    }
-
-    // MARK: - 点击 / 最小化那条路径（owner 2026-08-17 报「点击和最小化之后的动作会卡」）
-
-    /// 任务条 body 求值一次。**用来回答「一次点击让整条重算了几次」**——
-    /// `DockStripView` 订阅的是整个 `AppRuntime`，任何一个 `@Published` 变化都会打翻整条。
-    static func stripBody(items: Int, surface: String) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"stripBody\",\"items\":\(items),\"surface\":\(quote(surface))}"
-        )
-    }
-
-    /// One geometry / hover input of the strip arrived (`onPreferenceChange`, `ScreenRectReader`, the
-    /// hovered-entry write). `changed` separates "the callback fired" from "the value really moved".
-    /// Read next to `stripBody`: it is the only way to tell which input a body evaluation followed —
-    /// but several inputs can fold into one refresh, so the pairing is a correlation, not a cause.
-    static func stripInput(_ name: String, surface: String, changed: @autoclosure () -> Bool) {
-        guard isEnabled else { return }   // the comparison behind `changed` runs only when tracing
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"stripInput\",\"name\":\(quote(name))," +
-            "\"surface\":\(quote(surface)),\"changed\":\(changed())}"
-        )
-    }
-
-    /// How long one named stretch of main-thread work took (`defer`-friendly: pass the start time,
-    /// taken with `HoverTrace.now()` so the clock is not read when tracing is off).
-    /// Only recorded above 1ms so a quiet path never floods the file.
+    private static func point(_ point: CGPoint) -> DiagnosticValue { .list([.number(point.x), .number(point.y)]) }
     static func now() -> CFTimeInterval { isEnabled ? CACurrentMediaTime() : 0 }
+    static func barArrowCursor(surface: String, decision: String) {
+        record("barArrowCursor", ["surface": .text(surface), "decision": .text(decision)])
+    }
+    static func hover(chipID: String, entered: Bool) { record("hover", ["chip": .text(chipID), "in": .flag(entered)]) }
+    static func present(chipID: String, cold: Bool, elapsed: CFTimeInterval) {
+        record("present", ["chip": .text(chipID), "cold": .flag(cold), "ms": .number(elapsed * 1000)])
+    }
+    static func pointer(x: CGFloat, chip: String?) { record("pointer", ["x": .number(x), "chip": chip.map(DiagnosticValue.text) ?? .null]) }
+    static func mainLoopStall(lateMs: Double) {
+        if lateMs >= 12 { record("stall", ["lateMs": .number(lateMs)]) }
+    }
+    static func stripBody(items: Int, surface: String) { record("stripBody", ["items": .number(Double(items)), "surface": .text(surface)]) }
+    static func stripInput(_ name: String, surface: String, changed: @autoclosure () -> Bool) {
+        guard isEnabled else { return }
+        record("stripInput", ["name": .text(name), "surface": .text(surface), "changed": .flag(changed())])
+    }
     static func span(_ name: String, since start: CFTimeInterval) {
         guard isEnabled else { return }
         let ms = (CACurrentMediaTime() - start) * 1000
-        guard ms >= 1 else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"span\",\"name\":\(quote(name)),\"ms\":\(round(ms * 10) / 10)}")
+        if ms >= 1 { record("span", ["name": .text(name), "ms": .number(ms)]) }
     }
-
-    /// `DragController` actually published `landing` (its token changed: a flight began or ended).
-    /// Mid-flight retargets are `landingRetarget`, not this — they rewrite the flight without publishing.
-    static func landingPublish() {
-        guard isEnabled else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"landingPublish\"}")
+    static func landingPublish() { record("landingPublish") }
+    static func relayout(measureMs: CFTimeInterval, width: CGFloat, changed: Bool, animated: Bool, timing: String = "standard") {
+        record("relayout", ["measureMs": .number(measureMs * 1000), "width": .number(width), "changed": .flag(changed),
+                            "animated": .flag(animated), "timing": .text(timing)], enabled: widthProbesEnabled)
     }
-
-    /// 一次 `relayout`：同步量整条宽度花了多久、量出多少、和上次比变没变、是否带动画。
-    ///
-    /// **`changed:false` 且 `animated:true` 就是纯浪费**——宽度没变还要跑一遍窗口尺寸动画，
-    /// 而那动画的每一帧都要重画玻璃底板和描边。这是本轮头号嫌疑。
-    static func relayout(measureMs: CFTimeInterval, width: CGFloat, changed: Bool, animated: Bool,
-                         timing: String = "standard") {
-        guard widthProbesEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"relayout\",\"measureMs\":\(round(measureMs * 10000) / 10)," +
-            "\"width\":\(round(width * 10) / 10),\"changed\":\(changed),\"animated\":\(animated)," +
-            "\"timing\":\(quote(timing))}"
-        )
-    }
-
-    /// 逐帧宽度探针（只在 trace 开着时有输出）：`who` = "panel"（AppKit 窗口 frame 的实时宽）或
-    /// "content"（SwiftUI 条内容的实时布局宽）。两条曲线对着看，就知道内容与底板是不是同曲线同步走。
     static func width(_ who: String, _ width: CGFloat) {
-        guard widthProbesEnabled else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"width\",\"who\":\(quote(who)),\"w\":\(round(width * 10) / 10)}")
+        record("width", ["who": .text(who), "w": .number(width)], enabled: widthProbesEnabled)
     }
-
-    /// 用户动作的时间窗标记。没有它，日志里一堆卡顿不知道该算在谁头上。
     static func action(_ kind: String, phase: String) {
-        guard widthProbesEnabled else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"action\",\"what\":\(quote(kind)),\"phase\":\(quote(phase))}")
+        record("action", ["what": .text(kind), "phase": .text(phase)], enabled: widthProbesEnabled)
     }
-
-    // MARK: - 拖拽（owner 2026-08-18 报「从抽屉拖进任务条不容易挤开别的图标 / 会出现两个影子」）
-
-    /// 起拖那一帧各步花了多久（owner 2026-08-18 报「选中图标拖动的第一帧有卡顿」）。
-    /// `carrierCreated` = 这次是不是现建的载体面板——建面板要连带起一棵 SwiftUI 宿主树，
-    /// 只有整个会话的第一次拖动会付这笔钱，靠它才分得清「每次都卡」还是「只有第一次卡」。
-    /// `prepared` = 按下那一刻就预备好了候选（纹理已上传，起拖当轮放行）；false = 走的是
-    /// 「先压着卡等两个显示帧」那条退路——常规拖动里它应该几乎不出现。
     static func dragStart(totalMs: Double, carrierMs: Double, carrierCreated: Bool, prepared: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"dragStart\",\"ms\":\(round(totalMs * 10) / 10)," +
-            "\"carrierMs\":\(round(carrierMs * 10) / 10),\"created\":\(carrierCreated)," +
-            "\"prepared\":\(prepared)}"
-        )
+        record("dragStart", ["ms": .number(totalMs), "carrierMs": .number(carrierMs), "created": .flag(carrierCreated), "prepared": .flag(prepared)])
     }
-
-    /// 落地精度：载体最终停的位置与卡槽锚点差多少（载体面板内坐标，pt）。
-    ///
-    /// **这是「落位重影」有没有真被治好唯一的量化依据。** 上一版靠肉眼看不出「差 5pt」和
-    /// 「动态模糊」的区别，只能反复猜；这条把它变成日志里能数的事实。只记 > 0.5pt 的。
     static func landingDelta(dx: CGFloat, dy: CGFloat) {
-        guard isEnabled, hypot(dx, dy) > 0.5 else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"landingDelta\",\"dx\":\(r1(dx)),\"dy\":\(r1(dy))}"
-        )
+        if hypot(dx, dy) > 0.5 { record("landingDelta", ["dx": .number(dx), "dy": .number(dy)]) }
     }
-
-    /// 落点锚点被写入（`DragController.setLandingAnchor`）。**松手之后指针不再有事件，
-    /// 这条是唯一能看出「锚点还在动没有、动去了哪」的东西**——而它恰恰是会动的：解冻条宽后
-    /// 整条重新居中，抽屉面板跟着往左滑 0.22s。`owner` 区分是任务条还是抽屉写的。
     static func landingAnchor(owner: String, rect: CGRect?) {
-        guard isEnabled else { return }
-        let r = rect.map { "[\(r1($0.minX)),\(r1($0.minY)),\(r1($0.width)),\(r1($0.height))]" } ?? "null"
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"landingAnchor\",\"owner\":\"\(owner)\",\"rect\":\(r)}"
-        )
+        record("landingAnchor", ["owner": .text(owner), "rect": rect.map { .list([.number($0.minX), .number($0.minY), .number($0.width), .number($0.height)]) } ?? .null])
     }
-
-    /// 飞行途中的**改终点**。落点锚点在飞行期间还会继续更新（卡槽/网格的让位动画没跑完），
-    /// `retargetLandingIfNeeded` 会跟着改终点重发动画。改得太远，用户看到的就是一条折线
-    /// （owner 2026-08-20：「先飘到目标位置偏右，再去到目标位置」）。
-    /// 只有这条能把「飞了几次、每次差多少」变成日志里数得出来的事实——`landing` 只在起飞时记一次。
     static func landingRetarget(from: CGPoint, to: CGPoint, previous: CGPoint) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"landingRetarget\",\"from\":[\(r1(from.x)),\(r1(from.y))],"
-            + "\"to\":[\(r1(to.x)),\(r1(to.y))],\"prev\":[\(r1(previous.x)),\(r1(previous.y))],"
-            + "\"shift\":\(r1(hypot(to.x - previous.x, to.y - previous.y)))}"
-        )
+        record("landingRetarget", ["from": point(from), "to": point(to), "prev": point(previous), "shift": .number(hypot(to.x - previous.x, to.y - previous.y))])
     }
-
-    /// 副作用路径 `reconcileLiveOrder` 这一轮拿到的是不是**新鲜**的 projection。
-    ///
-    /// 这条是 2026-08-18 那个坑的直接证据，值得常驻：老式 `onChange(of:perform:)` 触发时
-    /// 跑的是上一帧装进去的闭包，projection 落后一代——渲染已经有这张卡了、`sync` 手里还没有，
-    /// 于是抽屉转正的落点暂存一次都没被消费。`carried=true` 而 `has=false` 就是它复发了。
     static func orderSync(count: Int, carriedID: String?, hasCarried: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"orderSync\",\"n\":\(count)," +
-            "\"carried\":\(carriedID.map(quote) ?? "null"),\"has\":\(hasCarried)}"
-        )
+        record("orderSync", ["n": .number(Double(count)), "carried": carriedID.map(DiagnosticValue.text) ?? .null, "has": .flag(hasCarried)])
     }
-
-    /// 顺序层真正落子后的可见序（只在拖拽诊断打开时记）。判「缝到底开在哪一格」的最终依据。
-    static func liveOrder(_ ids: [String]) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"liveOrder\",\"ids\":[\(ids.map(quote).joined(separator: ","))]}"
-        )
-    }
-
-    /// 松手后的归位飞行：起点、终点、有没有拿到锚点。
-    /// `to` 为 null = 没有落点锚点，走瞬时收尾（老行为）。
+    static func liveOrder(_ ids: [String]) { record("liveOrder", ["ids": .list(ids.prefix(256).map(DiagnosticValue.text))]) }
     static func landing(from: CGPoint, to: CGPoint?, source: String) {
-        guard isEnabled else { return }
-        let target = to.map { "[\(r1($0.x)),\(r1($0.y))]" } ?? "null"
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"landing\",\"from\":[\(r1(from.x)),\(r1(from.y))]," +
-            "\"to\":\(target),\"src\":\(quote(source))}"
-        )
-    }
-
-    private static func r1(_ value: CGFloat) -> Double { (Double(value) * 10).rounded() / 10 }
-
-    private static func stamp() -> Double { round(CACurrentMediaTime() * 10000) / 10 }
-
-    private static func quote(_ value: String) -> String {
-        "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\""
-    }
-
-    private final class Writer: @unchecked Sendable {
-        static let shared = Writer()
-        private let queue = DispatchQueue(label: "io.github.sashokey.properwm.hovertrace")
-
-        func append(_ line: String) {
-            queue.async { [self] in
-                guard let fileURL, let data = (line + "\n").data(using: .utf8) else { return }
-                if let handle = try? FileHandle(forWritingTo: fileURL) {
-                    defer { try? handle.close() }
-                    _ = try? handle.seekToEnd()
-                    try? handle.write(contentsOf: data)
-                } else {
-                    try? data.write(to: fileURL)
-                }
-            }
-        }
-
-        private lazy var fileURL: URL? = {
-            let fm = FileManager.default
-            guard let base = fm.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
-            let dir = base.appendingPathComponent("Logs/io.github.sashokey.properwm", isDirectory: true)
-            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            return dir.appendingPathComponent("hover-trace.jsonl")
-        }()
+        record("landing", ["from": point(from), "to": to.map(point) ?? .null, "src": .text(source)])
     }
 }

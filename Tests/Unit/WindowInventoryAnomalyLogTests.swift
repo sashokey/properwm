@@ -12,6 +12,57 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         super.tearDown()
     }
 
+    func testDiagnosticJSONEscapesControlsAndRejectsOversizedRecords() throws {
+        let value = "quote\" slash\\ newline\n tab\t null\0"
+        let bytes = try XCTUnwrap(DiagnosticJSON.line(["value": .text(value), "nonfinite": .number(.infinity)]))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        XCTAssertEqual(object["value"] as? String, value)
+        XCTAssertTrue(object["nonfinite"] is NSNull)
+        XCTAssertEqual(bytes.filter { $0 == 0x0A }.count, 1)
+        let large = Dictionary(uniqueKeysWithValues: (0..<100).map { ("key-\($0)", DiagnosticValue.text(String(repeating: "x", count: 4096))) })
+        XCTAssertNil(DiagnosticJSON.line(large))
+    }
+
+    func testSymlinkedParentDirectoryCannotRedirectLogWrites() throws {
+        let root = makeRoot()
+        let actual = root.appendingPathComponent("actual")
+        try FileManager.default.createDirectory(at: actual, withIntermediateDirectories: true)
+        let alias = root.appendingPathComponent("alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: actual)
+        let log = makeLogger(directory: alias.appendingPathComponent("logs"))
+        log.record(.sessionStart(sessionPayload()))
+        log.flush()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: actual.appendingPathComponent("logs").path))
+    }
+
+    func testSymlinkedLogDoesNotModifyTargetOrItsPermissions() throws {
+        let root = makeRoot()
+        let directory = root.appendingPathComponent("logs")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let target = root.appendingPathComponent("target")
+        try Data("unchanged".utf8).write(to: target)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: target.path)
+        let log = makeLogger(directory: directory)
+        try FileManager.default.createSymbolicLink(at: log.currentFileURL, withDestinationURL: target)
+        log.record(.sessionStart(sessionPayload()))
+        log.flush()
+        XCTAssertEqual(try Data(contentsOf: target), Data("unchanged".utf8))
+        XCTAssertEqual(try posixPermissions(target) & 0o777, 0o644)
+    }
+
+    func testHardLinkedLogDoesNotModifyTarget() throws {
+        let root = makeRoot()
+        let directory = root.appendingPathComponent("logs")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let target = root.appendingPathComponent("target")
+        try Data("unchanged".utf8).write(to: target)
+        let log = makeLogger(directory: directory)
+        try FileManager.default.linkItem(at: target, to: log.currentFileURL)
+        log.record(.sessionStart(sessionPayload()))
+        log.flush()
+        XCTAssertEqual(try Data(contentsOf: target), Data("unchanged".utf8))
+    }
+
     func testEnablementDefaultsOffAndEnvironmentOverridesDefaults() {
         let suite = "WindowInventoryAnomalyLogTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

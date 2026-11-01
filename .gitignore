@@ -44,3 +44,14 @@ Docs/Plans/
 
 # Local-only demo helper; not part of the app.
 Scripts/demo_mode.sh
+
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.pfx
+*.key
+*.pem
+credentials.json
+secrets.json

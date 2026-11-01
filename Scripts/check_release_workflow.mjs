@@ -51,7 +51,7 @@ test('new version is accepted only when the tag lookup returns 404', async () =>
     { env: { RELEASE_VERSION: '0.1.0' } }), /already has a tag/);
 });
 
-function fixture({ draft = true, corrupt = false, failUpload = false, notes } = {}) {
+function fixture({ draft = true, corrupt = false, failUpload = false, notes, conflictingTag = false, moveAfterUpload = false } = {}) {
   const names = ['ProperWM-0.1.0.zip'];
   const files = new Map(names.map((name, i) => ['dist/' + name, Buffer.from('archive-' + i)]));
   const sums = names.map(name => createHash('sha256').update(files.get('dist/' + name)).digest('hex')
@@ -59,13 +59,27 @@ function fixture({ draft = true, corrupt = false, failUpload = false, notes } = 
   files.set('dist/SHA256SUMS.txt', Buffer.from(sums));
   if (corrupt) files.set('dist/' + names[0], Buffer.from('changed'));
   const calls = [];
-  const github = { rest: { repos: {
+  let tagExists = false;
+  let uploaded = 0;
+  const github = { rest: { git: {
+    getRef: async () => {
+      if (!tagExists && !conflictingTag) throw Object.assign(new Error('missing'), { status: 404 });
+      return { data: { object: { type: 'commit', sha: conflictingTag || (moveAfterUpload && uploaded > 0) ? 'b'.repeat(40) : context.sha } } };
+    },
+    createRef: async request => {
+      assert.equal(request.sha, context.sha);
+      assert.equal(request.ref, 'refs/tags/v0.1.0');
+      tagExists = true;
+      return { data: { object: { type: 'commit', sha: context.sha } } };
+    }
+  }, repos: {
     createRelease: async request => {
       calls.push(['create', request]);
       return { data: { id: 7, html_url: 'https://example.test/release' } };
     },
     uploadReleaseAsset: async request => {
       calls.push(['upload', request]);
+      uploaded++;
       if (failUpload && request.name === 'SHA256SUMS.txt') throw new Error('upload failed');
     },
     updateRelease: async request => { calls.push(['publish', request]); }
@@ -194,4 +208,18 @@ test('non-text release notes fail before any tag lookup or publication', async (
     assert.equal(f.tag(), null);
     assert.deepEqual(f.outputs, {});
   }
+});
+
+
+test('a concurrently created tag for another commit blocks release creation', async () => {
+  const f = fixture({ draft: false, conflictingTag: true });
+  await assert.rejects(f.run(), /tag.*commit/i);
+  assert.deepEqual(f.calls, []);
+});
+
+test('a tag moved during uploads keeps the release unpublished', async () => {
+  const f = fixture({ draft: false, moveAfterUpload: true });
+  await assert.rejects(f.run(), /tag.*commit/i);
+  assert.ok(f.calls.some(call => call[0] === 'create'));
+  assert.ok(f.calls.every(call => call[0] !== 'publish'));
 });

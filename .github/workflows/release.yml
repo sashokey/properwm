@@ -119,6 +119,24 @@ jobs:
                 throw new Error('Checksum mismatch: ' + name);
               }
             }
+            const tagRef = 'tags/v' + version;
+            async function requireExpectedTag() {
+              const { data } = await github.rest.git.getRef({ ...context.repo, ref: tagRef });
+              if (data.object.type !== 'commit' || data.object.sha !== context.sha) {
+                throw new Error('Release tag points to a different commit');
+              }
+            }
+            try {
+              await requireExpectedTag();
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              try {
+                await github.rest.git.createRef({ ...context.repo, ref: 'refs/' + tagRef, sha: context.sha });
+              } catch (creationError) {
+                if (creationError.status !== 422) throw creationError;
+              }
+              await requireExpectedTag();
+            }
             const { data: release } = await github.rest.repos.createRelease({
               ...context.repo,
               tag_name: 'v' + version,
@@ -143,6 +161,7 @@ jobs:
                 data: await fs.readFile('dist/' + name)
               });
             }
+            await requireExpectedTag();
             if (process.env.RELEASE_DRAFT !== 'true') {
               await github.rest.repos.updateRelease({
                 ...context.repo, release_id: release.id, draft: false
