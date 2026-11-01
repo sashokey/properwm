@@ -147,6 +147,28 @@ struct AppTrackerWindowEligibility {
         let appName: String
         let activationPolicy: NSApplication.ActivationPolicy
         let executablePath: String?
+        let bundleURL: URL?
+
+        init(bundleIdentifier: String?, appName: String, activationPolicy: NSApplication.ActivationPolicy,
+             executablePath: String?, bundleURL: URL? = nil) {
+            self.bundleIdentifier = bundleIdentifier
+            self.appName = appName
+            self.activationPolicy = activationPolicy
+            self.executablePath = executablePath
+            self.bundleURL = bundleURL
+        }
+
+        var canOwnTaskbarWindows: Bool {
+            guard bundleIdentifier != DockWindowEligibilityPolicy.selfBundleIdentifier else { return false }
+            switch activationPolicy {
+            case .regular: return true
+            case .accessory:
+                guard let bundleURL, bundleURL.pathExtension.lowercased() == "app" else { return false }
+                return !bundleURL.deletingLastPathComponent().pathComponents.contains("Contents")
+            case .prohibited: return false
+            @unknown default: return false
+            }
+        }
     }
 
     private let policy = DockWindowEligibilityPolicy()

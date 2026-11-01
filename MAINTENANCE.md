@@ -63,4 +63,10 @@ Keep explanations for confirmed problems: a transient/read-only installation, su
 
 ## Deferred Steam ownership investigation
 
-A read-only check found Steam's visible main window owned by `com.valvesoftware.steam.helper`, an accessory process, while `com.valvesoftware.steam` was the regular application. The inventory intentionally admits regular applications, so that helper window is currently absent. Admitting every helper window would also admit menus and utility surfaces. A fix needs explicit helper-to-parent ownership, window filtering, and separate routing of window actions and application Quit. That broader change is deferred; do not add privacy permissions or indiscriminately admit accessory processes as a shortcut.
+A read-only check found Steam's visible main window owned by `com.valvesoftware.steam.helper`, an accessory process, while `com.valvesoftware.steam` was the regular application. The inventory admits regular applications and standalone accessory application bundles, such as Stats. Embedded accessory helpers inside another bundle's Contents remain excluded, so that helper window is currently absent. Admitting every helper window would also admit menus and utility surfaces. A fix needs explicit helper-to-parent ownership, window filtering, and separate routing of window actions and application Quit. That broader change is deferred; do not add privacy permissions or indiscriminately admit accessory processes as a shortcut.
+
+## Menu-bar application windows
+
+A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Keep embedded helpers excluded until ownership and Quit routing are implemented.
+
+Keep an admitted application's AX observer after its last window closes, just as for regular applications. The open-window projection hides the empty application; an AX window-created event must detect its next window without waiting for periodic admission. Process termination and tracker shutdown still release the observer. Do not restore the former non-regular eviction retries, which implemented obsolete Dock-style app-card behavior.

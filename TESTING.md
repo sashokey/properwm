@@ -77,3 +77,7 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Native Dock | Its preferences and process remain untouched. |
 
 macOS 26 remains the deployment minimum without a dedicated compatibility matrix. Automated testing uses the newest hosted macOS available in GitHub Actions; physical Mac acceptance uses the newest installed macOS. Record OS, scale, display arrangement, version, source commit, steps, and observed results for failures.
+
+## Accessory application admission
+
+Run the inventory lifecycle tests with injected application metadata; fixtures must pass through the production activation-policy gate. A Stats-shaped standalone accessory bundle with a standard Dashboard window must be admitted through seed, scan, and launch retry. Reject ProperWM itself, prohibited processes, unknown accessory bundle ownership, and embedded helper bundles, including Steam's recorded nested helper layout. Preserve per-window filtering for empty, untitled, undersized, and floating utility surfaces. Closing and reopening a tracked accessory window must work through the window event read without periodic admission or an app-only taskbar button. No live permissions or desktop windows are required for these tests.

@@ -40,6 +40,103 @@ private final class LifecycleProcess: AppTrackerProcessProviding, Sendable {
 
 @MainActor
 final class InventoryLifecycleTests: XCTestCase {
+    func testAccessoryDashboardIsAdmittedBySeedScanAndLaunchRetry() async {
+        for source in ["seed", "scan", "launchRetry"] {
+            let reader = AdmissionWindowReader()
+            let tracker = admissionTracker(reader: reader)
+            defer { tracker.stop() }
+            tracker.runAdmissionForTesting(source: source, application: .init(
+                bundleIdentifier: "eu.exelban.Stats", appName: "Stats", activationPolicy: .accessory,
+                executablePath: "/Applications/Stats.app/Contents/MacOS/Stats",
+                bundleURL: URL(fileURLWithPath: "/Applications/Stats.app")))
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            let windows = StripItem.openWindows(from: tracker.snapshot)
+            XCTAssertEqual(windows.map(\.title), ["Dashboard"], source)
+            XCTAssertEqual(windows.map(\.bundleIdentifier), ["eu.exelban.Stats"], source)
+            XCTAssertFalse(reader.state.withLock { $0.usedMainThread }, source)
+        }
+    }
+
+    func testAccessoryWindowFiltersStillRejectUtilityAndInvisibleSurfaces() async {
+        for source in ["seed", "scan", "launchRetry"] {
+            for kind in AdmissionWindowReader.RejectedKind.allCases {
+                let reader = AdmissionWindowReader(rejected: kind)
+                let tracker = admissionTracker(reader: reader)
+                defer { tracker.stop() }
+                tracker.runAdmissionForTesting(source: source, application: .init(
+                    bundleIdentifier: "test.menubar", appName: "MenuBar", activationPolicy: .accessory,
+                    executablePath: nil, bundleURL: URL(fileURLWithPath: "/Applications/MenuBar.app")))
+                for task in tracker.pendingInventoryWorkForTesting { await task.value }
+                XCTAssertTrue(StripItem.openWindows(from: tracker.snapshot).isEmpty, "\(source): \(kind)")
+                XCTAssertTrue(tracker.diagnosticApps().isEmpty, "\(source): \(kind)")
+            }
+        }
+    }
+
+    func testAccessoryWindowCanReopenFromAnEventWithoutPeriodicAdmission() async {
+        let reader = AdmissionWindowReader()
+        let tracker = admissionTracker(reader: reader)
+        defer { tracker.stop() }
+        tracker.runAdmissionForTesting(source: "seed", application: .init(
+            bundleIdentifier: "eu.exelban.Stats", appName: "Stats", activationPolicy: .accessory,
+            executablePath: nil, bundleURL: URL(fileURLWithPath: "/Applications/Stats.app")))
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        let pid = NSRunningApplication.current.processIdentifier
+        XCTAssertEqual(StripItem.openWindows(from: tracker.snapshot).count, 1)
+        reader.state.withLock { $0.windowID = nil }
+        tracker.destroyForTesting(pid: pid, cgWindowID: 77)
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        XCTAssertTrue(StripItem.openWindows(from: tracker.snapshot).isEmpty)
+        XCTAssertNotNil(tracker.fixtureAppForTesting(pid: pid))
+        reader.state.withLock { $0.windowID = 78 }
+        tracker.scheduleEventReadForTesting(pid: pid, source: .windowCreated)
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        XCTAssertEqual(StripItem.openWindows(from: tracker.snapshot).map(\.title), ["Dashboard"])
+        XCTAssertEqual(tracker.snapshot.windows.values.compactMap(\.cgWindowID), [78])
+    }
+
+    func testProhibitedSelfAndEmbeddedHelpersCannotBeAdmitted() async {
+        let applications: [AppTrackerWindowEligibility.Application] = [
+            .init(bundleIdentifier: "test.background", appName: "Background", activationPolicy: .prohibited,
+                  executablePath: nil),
+            .init(bundleIdentifier: DockWindowEligibilityPolicy.selfBundleIdentifier, appName: "ProperWM",
+                  activationPolicy: .accessory, executablePath: nil,
+                  bundleURL: URL(fileURLWithPath: "/Applications/ProperWM.app")),
+            .init(bundleIdentifier: "com.valvesoftware.steam.helper", appName: "Steam Helper",
+                  activationPolicy: .accessory, executablePath: nil, bundleURL: URL(fileURLWithPath:
+                    "/Application Support/Steam/Steam.AppBundle/Steam/Contents/Frameworks/Steam Helper.app")),
+            .init(bundleIdentifier: "test.helper", appName: "Helper", activationPolicy: .accessory,
+                  executablePath: nil, bundleURL: URL(fileURLWithPath: "/Applications/Host.app/Contents/Helpers/Helper.app")),
+            .init(bundleIdentifier: "test.unbundled", appName: "Unbundled", activationPolicy: .accessory,
+                  executablePath: nil)
+        ]
+        for source in ["seed", "scan", "launchRetry"] {
+            for application in applications {
+                let reader = AdmissionWindowReader()
+                let tracker = admissionTracker(reader: reader)
+                defer { tracker.stop() }
+                tracker.runAdmissionForTesting(source: source, application: application)
+                for task in tracker.pendingInventoryWorkForTesting { await task.value }
+                XCTAssertTrue(StripItem.openWindows(from: tracker.snapshot).isEmpty, source)
+                XCTAssertTrue(tracker.diagnosticApps().isEmpty, source)
+            }
+        }
+    }
+
+    private func admissionTracker(reader: AdmissionWindowReader) -> AppTracker {
+        let pid = NSRunningApplication.current.processIdentifier
+        let log = WindowInventoryAnomalyLog(configuration: .init(enabled: false,
+            directoryURL: URL(fileURLWithPath: "/unused"), maxFileSize: 1024, archiveCount: 0))
+        return AppTracker(inventoryLog: log, reader: reader, processProvider: LifecycleProcess(),
+                          cgSnapshotProvider: {
+                              let ids = Set(reader.state.withLock { $0.windowID.map { [$0] } ?? [] })
+                              return .init(allWindowIDs: ids, onScreenWindowIDs: ids, windowIDsByPID: [pid: ids],
+                                           alphaByWindowID: Dictionary(uniqueKeysWithValues: ids.map { ($0, 1) }))
+                          }, onScreenWindowIDsProvider: {
+                              Set(reader.state.withLock { $0.windowID.map { [$0] } ?? [] })
+                          })
+    }
+
     private func tracker(reader: LifecycleReader, process: LifecycleProcess = LifecycleProcess()) -> AppTracker {
         let pid = NSRunningApplication.current.processIdentifier
         let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [77], onScreenWindowIDs: [77],
@@ -139,5 +236,38 @@ final class InventoryLifecycleTests: XCTestCase {
         for task in pending { await task.value }
         XCTAssertEqual(reader.state.withLock { $0.count }, 0)
         XCTAssertTrue(tracker.lastAdmissionVerdictByPID.isEmpty)
+    }
+}
+
+private final class AdmissionWindowReader: AppTrackerWindowReading, Sendable {
+    enum RejectedKind: CaseIterable {
+        case empty, untitled, tiny, utility
+    }
+    struct State {
+        var usedMainThread = false
+        var windowID: CGWindowID? = 77
+    }
+    let state = Mutex(State())
+    let rejected: RejectedKind?
+
+    init(rejected: RejectedKind? = nil) { self.rejected = rejected }
+
+    func windows(forPID pid: pid_t) -> [AXWindowSnapshot] { read(pid).windowsOrEmpty }
+    func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult { read(pid) }
+    func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult { read(pid) }
+
+    private func read(_ pid: pid_t) -> AXWindowReadResult {
+        let windowID = state.withLock {
+            $0.usedMainThread = $0.usedMainThread || Thread.isMainThread
+            return $0.windowID
+        }
+        guard rejected != .empty, let windowID else { return .success([]) }
+        return .success([AXWindowSnapshot(pid: pid, cgWindowID: windowID,
+            titleRead: rejected == .untitled ? .empty : .value("Dashboard"),
+            bounds: rejected == .tiny ? CGRect(x: 0, y: 0, width: 10, height: 10)
+                : CGRect(x: 40, y: 40, width: 850, height: 780),
+            role: kAXWindowRole as String,
+            subrole: rejected == .utility ? kAXFloatingWindowSubrole as String : kAXStandardWindowSubrole as String,
+            isMinimized: false, isFocusedWindow: false, element: AXUIElementCreateApplication(pid))])
     }
 }

@@ -351,7 +351,7 @@ enum InventoryAdmissionProbeVerdict: String, Codable {
     case admitFinderPersistent
     case skipUnread
     case skipNoEligible
-    case skipNotRegular
+    case skipUnsupportedApplication
     case skipTerminated
     case skipAlreadyTracked
     case skipIdentityMismatch

@@ -24,7 +24,7 @@ final class ScanAdmissionDecisionTests: XCTestCase {
         _ prepared: ScanAdmissionDecision.Prepared<FakeWindow>,
         probed: ScanAdmissionDecision.ProcessIdentity? = nil,
         current: ScanAdmissionDecision.ProcessIdentity? = nil,
-        isRegularNonSelf: Bool = true,
+        isWindowApplication: Bool = true,
         isTerminated: Bool = false,
         alreadyTracked: Bool = false
     ) -> ScanAdmissionDecision.Verdict {
@@ -32,7 +32,7 @@ final class ScanAdmissionDecisionTests: XCTestCase {
             prepared,
             probedIdentity: probed ?? identityA,
             currentIdentity: current ?? identityA,
-            isRegularNonSelf: isRegularNonSelf,
+            isWindowApplication: isWindowApplication,
             isTerminated: isTerminated,
             alreadyTracked: alreadyTracked
         )
@@ -149,7 +149,7 @@ final class ScanAdmissionDecisionTests: XCTestCase {
         XCTAssertEqual(verdict(eligiblePrepared(), isTerminated: true), .skipTerminated)
     }
 
-    func testNonRegularIsRejectedEvenWithEligibleWindows() {
-        XCTAssertEqual(verdict(eligiblePrepared(), isRegularNonSelf: false), .skipNotRegular)
+    func testUnsupportedApplicationIsRejectedEvenWithEligibleWindows() {
+        XCTAssertEqual(verdict(eligiblePrepared(), isWindowApplication: false), .skipUnsupportedApplication)
     }
 }

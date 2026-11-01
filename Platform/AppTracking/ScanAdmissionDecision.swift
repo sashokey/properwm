@@ -53,7 +53,7 @@ enum ScanAdmissionDecision {
 
     enum Verdict: Equatable {
         case admit
-        case skipNotRegular
+        case skipUnsupportedApplication
         case skipTerminated
         case skipAlreadyTracked
         case skipIdentityMismatch
@@ -83,11 +83,11 @@ enum ScanAdmissionDecision {
         _ prepared: Prepared<Window>,
         probedIdentity: ProcessIdentity,
         currentIdentity: ProcessIdentity,
-        isRegularNonSelf: Bool,
+        isWindowApplication: Bool,
         isTerminated: Bool,
         alreadyTracked: Bool
     ) -> Verdict {
-        if !isRegularNonSelf { return .skipNotRegular }
+        if !isWindowApplication { return .skipUnsupportedApplication }
         if isTerminated { return .skipTerminated }
         if alreadyTracked { return .skipAlreadyTracked }
         if !ProcessIdentity.matches(probed: probedIdentity, current: currentIdentity) {
