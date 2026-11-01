@@ -133,4 +133,152 @@ final class TaskbarSpaceStoreTests: XCTestCase {
         XCTAssertEqual(store.snapshot.memberships.keys.map(\.itemID), ["window-2"])
         store.stop()
     }
+
+    private func flushSnapshotDelivery() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+
+    private var twoDisplayLayouts: [String: SpaceLayoutSnapshot] {
+        ["left": SpaceLayoutSnapshot(orderedSpaceIDs: [1, 2], fullscreenSpaceIDs: [], currentSpaceID: 1),
+         "right": SpaceLayoutSnapshot(orderedSpaceIDs: [10, 11], fullscreenSpaceIDs: [], currentSpaceID: 10)]
+    }
+
+    func testDisplayTransferUpdatesBothPresentersWithoutPollingOrSpaceNotifications() async {
+        let original = inventory()
+        let fixture = SpaceInventory(original)
+        let runtime = AppRuntime(tracker: fixture, isAccessibilityTrusted: { true })
+        let currentMembership = Mutex<Set<Int>>([1])
+        let calls = Mutex(0)
+        let layouts = twoDisplayLayouts
+        let store = TaskbarSpaceStore(read: { requests in
+            calls.withLock { $0 += 1 }
+            let movedSpace = currentMembership.withLock { $0 }
+            return WindowSpaceSnapshot(layouts: layouts, memberships: Dictionary(uniqueKeysWithValues:
+                requests.map { ($0.identity, $0.identity.windowID == 1 ? movedSpace : Set([1])) }))
+        }, notifications: NotificationCenter(), pollInterval: 0)
+        let domain = "ProperWM.DisplayTransferTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let ordering = StripOrderStore(defaults: defaults)
+        let topology = DisplayTopologyStore(initialSnapshot: ScreenTopologySnapshot(
+            physicalDisplayCount: 2, identifiedDisplayUUIDs: ["left", "right"],
+            attributionTable: WindowDisplayAttribution.Table(displays: [
+                .init(uuid: "left", cgFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080)),
+                .init(uuid: "right", cgFrame: CGRect(x: 1920, y: 0, width: 1920, height: 1080))
+            ], primaryUUID: "left")
+        ))
+        let left = TaskbarView(frame: CGRect(x: 0, y: 0, width: 800, height: 32))
+        let right = TaskbarView(frame: CGRect(x: 0, y: 0, width: 800, height: 32))
+        let presenters = [("left", left), ("right", right)].map { display, view in
+            TaskbarPresenter(view: view, runtime: runtime, ordering: ordering,
+                topology: topology, spaces: store, displayUUID: display,
+                backgroundMenu: { _, _ in }, popupPresented: { _ in }, contextMenuVisibilityChanged: { _ in })
+        }
+        func ids(_ view: TaskbarView) -> [String] { view.taskbarContent.groups.flatMap(\.windows).map(\.id) }
+        runtime.start()
+        defer { store.stop(); runtime.stop(); withExtendedLifetime(presenters) {} }
+        await waitUntil { runtime.snapshot.windows.count == 2 }
+        store.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
+        await waitUntil { store.snapshot.memberships.count == 2 && ids(left) == ["window-1", "window-2"] }
+        XCTAssertTrue(ids(right).isEmpty)
+        ordering.reorderGroup("test.space.2", relativeTo: "test.space.1", after: false, current: ["window-1", "window-2"])
+        await waitUntil { ids(left) == ["window-2", "window-1"] }
+        var moved = original
+        moved.windows[WindowID(rawValue: "window-1")]?.displayUUID = "right"
+        currentMembership.withLock { $0 = [10] }
+        fixture.values.send(moved)
+        await waitUntil { ids(left) == ["window-2"] && ids(right) == ["window-1"] }
+        XCTAssertEqual(calls.withLock { $0 }, 2)
+        XCTAssertEqual(ordering.liveOrder, ["window-2", "window-1"])
+        currentMembership.withLock { $0 = [1] }
+        fixture.values.send(original)
+        await waitUntil { ids(left) == ["window-2", "window-1"] && ids(right).isEmpty }
+        XCTAssertEqual(calls.withLock { $0 }, 3)
+        XCTAssertEqual(runtime.snapshot.windows.count, 2)
+        XCTAssertNil(left.window)
+        XCTAssertNil(right.window)
+    }
+
+    func testDisplayChangesDuringAReadCoalesceAndRejectOldMembership() async {
+        let original = inventory()
+        let source = CurrentValueSubject<DockSnapshot, Never>(original)
+        let calls = Mutex(0)
+        let membership = Mutex<Set<Int>>([1])
+        let firstGate = DispatchSemaphore(value: 0)
+        let secondGate = DispatchSemaphore(value: 0)
+        let layouts = twoDisplayLayouts
+        let store = TaskbarSpaceStore(read: { requests in
+            let call = calls.withLock { $0 += 1; return $0 }
+            let spaces = membership.withLock { $0 }
+            if call == 1 { _ = firstGate.wait(timeout: .now() + 3) }
+            if call == 2 { _ = secondGate.wait(timeout: .now() + 3) }
+            return WindowSpaceSnapshot(layouts: layouts,
+                memberships: Dictionary(uniqueKeysWithValues: requests.map { ($0.identity, spaces) }))
+        }, notifications: NotificationCenter(), pollInterval: 0)
+        store.start(snapshots: source.eraseToAnyPublisher())
+        defer { firstGate.signal(); secondGate.signal(); store.stop() }
+        await waitUntil { calls.withLock { $0 } == 1 }
+        for display in ["right", "left", "right"] {
+            var moved = original
+            moved.windows[WindowID(rawValue: "window-1")]?.displayUUID = display
+            source.send(moved)
+        }
+        membership.withLock { $0 = [10] }
+        await flushSnapshotDelivery()
+        firstGate.signal()
+        await waitUntil { calls.withLock { $0 } == 2 }
+        XCTAssertTrue(store.snapshot.memberships.isEmpty)
+        secondGate.signal()
+        await waitUntil { store.snapshot.memberships.values.allSatisfy { $0 == [10] } && store.snapshot.memberships.count == 2 }
+        XCTAssertEqual(calls.withLock { $0 }, 2)
+    }
+
+    func testSameDisplayGeometryTitleAndFocusChangesDoNotRefreshSpaces() async {
+        let source = CurrentValueSubject<DockSnapshot, Never>(inventory())
+        let calls = Mutex(0)
+        let layouts = twoDisplayLayouts
+        let store = TaskbarSpaceStore(read: { requests in
+            calls.withLock { $0 += 1 }
+            return WindowSpaceSnapshot(layouts: layouts,
+                memberships: Dictionary(uniqueKeysWithValues: requests.map { ($0.identity, Set([1])) }))
+        }, notifications: NotificationCenter(), pollInterval: 0)
+        store.start(snapshots: source.eraseToAnyPublisher())
+        defer { store.stop() }
+        await waitUntil { store.snapshot.memberships.count == 2 }
+        for index in 0..<20 {
+            var changed = source.value
+            let key = WindowID(rawValue: "window-1")
+            changed.windows[key]?.bounds = CGRect(x: 10 + index, y: 100, width: 900, height: 600)
+            changed.windows[key]?.title = "Updated \(index)"
+            changed.windows[key]?.status = index.isMultiple(of: 2) ? .active : .inactive
+            source.send(changed)
+        }
+        await flushSnapshotDelivery()
+        for task in store.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(calls.withLock { $0 }, 1)
+    }
+
+    func testResolvingAnUnknownDisplayRefreshesMembership() async {
+        var original = inventory()
+        let key = WindowID(rawValue: "window-1")
+        original.windows[key]?.displayUUID = nil
+        let source = CurrentValueSubject<DockSnapshot, Never>(original)
+        let calls = Mutex(0)
+        let layouts = twoDisplayLayouts
+        let store = TaskbarSpaceStore(read: { requests in
+            let call = calls.withLock { $0 += 1; return $0 }
+            return WindowSpaceSnapshot(layouts: layouts,
+                memberships: Dictionary(uniqueKeysWithValues: requests.map { ($0.identity, Set([call == 1 ? 1 : 10])) }))
+        }, notifications: NotificationCenter(), pollInterval: 0)
+        store.start(snapshots: source.eraseToAnyPublisher())
+        defer { store.stop() }
+        await waitUntil { store.snapshot.memberships.count == 2 }
+        var resolved = original
+        resolved.windows[key]?.displayUUID = "right"
+        source.send(resolved)
+        await waitUntil { calls.withLock { $0 } == 2 && store.snapshot.memberships.values.allSatisfy { $0 == [10] } }
+    }
+
 }

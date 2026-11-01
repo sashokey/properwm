@@ -17,6 +17,14 @@ struct WindowSpaceRequest: Equatable, Sendable {
     let identity: WindowSpaceIdentity
     let isParked: Bool
     let isOnDesktop: Bool
+    let displayUUID: String?
+
+    init(identity: WindowSpaceIdentity, isParked: Bool, isOnDesktop: Bool, displayUUID: String? = nil) {
+        self.identity = identity
+        self.isParked = isParked
+        self.isOnDesktop = isOnDesktop
+        self.displayUUID = displayUUID
+    }
 }
 
 struct WindowSpaceSnapshot: Equatable, Sendable {

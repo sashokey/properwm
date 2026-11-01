@@ -76,7 +76,7 @@ final class TaskbarSpaceStore: ObservableObject {
             guard let identity = item.spaceIdentity else { return nil }
             return WindowSpaceRequest(identity: identity,
                 isParked: item.status == WindowStatus.minimized.rawValue || item.status == WindowStatus.hidden.rawValue,
-                isOnDesktop: item.isOnDesktop)
+                isOnDesktop: item.isOnDesktop, displayUUID: item.displayUUID)
         }
         guard !receivedInventory || next != requests else { return }
         receivedInventory = true
