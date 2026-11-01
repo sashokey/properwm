@@ -118,8 +118,8 @@ extension PanelCoordinator {
             fullscreen = true
             source = request.source
         case .windowed:
-            fullscreen = false
-            source = request.source
+            fullscreen = Self.slsVerdictEnabled && fullscreenVerdictFromSpaceLayout() == true
+            source = fullscreen ? request.source + "-sls" : request.source
         case .notOnThisScreen:
             guard Self.slsVerdictEnabled else {
                 return
@@ -374,6 +374,7 @@ extension PanelCoordinator {
     }
 
     private func fullscreenVerdictFromSpaceLayout() -> Bool? {
+        if let fullscreenSpaceProvider { return fullscreenSpaceProvider() }
         guard let panel = dockPanel,
               let screen = panelCurrentScreen(panel: panel),
               let uuid = DisplayIdentity.uuidString(for: screen),

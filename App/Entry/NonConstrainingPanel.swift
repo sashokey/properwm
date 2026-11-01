@@ -29,7 +29,7 @@ final class ManualPanelHost {
 
 enum PanelCollectionBehavior {
     static let standard: NSWindow.CollectionBehavior =
-        [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
 }
 
 /// 关闭 AppKit 的窗口自动约束。系统默认会把靠近/跨越屏幕边缘的窗口挪回"当前屏"可用区内（避开菜单栏）。

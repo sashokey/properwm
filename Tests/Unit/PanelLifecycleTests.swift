@@ -46,6 +46,33 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertTrue(coordinator.visibilityState.isVisible)
     }
 
+    func testSystemFocusCannotRevealThePanelWhileItsDisplayRemainsInAFullscreenSpace() {
+        let coordinator = coordinator()
+        coordinator.fullscreenProbeGeneration = 1
+        coordinator.fullscreenSpaceProvider = { true }
+        let request = FullscreenProbeRequest(pid: 42, screenFrame: .zero, generation: 1, spaceGeneration: nil,
+                                             finalConfirmation: true, source: "system-focus")
+        coordinator.receiveFullscreenProbe(FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil), request: request)
+        XCTAssertFalse(coordinator.visibilityState.isVisible)
+        coordinator.fullscreenSpaceProvider = { false }
+        coordinator.receiveFullscreenProbe(FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil), request: request)
+        XCTAssertTrue(coordinator.visibilityState.isVisible)
+        coordinator.tearDown()
+    }
+
+    func testResidentPanelUsesNativeMissionControlHidingWithoutDesktopPresentation() {
+        let coordinator = coordinator()
+        let panel = NonConstrainingPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        coordinator.configurePanel(panel, backgroundColor: .clear, appliesLevelOverride: true)
+        XCTAssertTrue(panel.collectionBehavior.contains(.transient))
+        XCTAssertFalse(panel.collectionBehavior.contains(.stationary))
+        XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertTrue(panel.collectionBehavior.contains(.ignoresCycle))
+        XCTAssertFalse(panel.isVisible)
+        coordinator.tearDown()
+    }
+
     func testFullscreenWorkerCoalescesBurstAndDoesNotPublishAfterStop() async {
         let calls = Mutex(0)
         let gate = DispatchSemaphore(value: 0)
@@ -106,6 +133,7 @@ final class PanelLifecycleTests: XCTestCase {
         let orchestrator = TaskbarScreenOrchestrator(runtime: AppRuntime(tracker: PanelInventory()),
             stripOrderStore: StripOrderStore(),
             displayTopologyStore: DisplayTopologyStore(initialSnapshot: snapshot),
+            spaceStore: TaskbarSpaceStore(read: { _ in nil }, notifications: NotificationCenter(), pollInterval: 0),
             topologySnapshotProvider: { snapshot }, startCoordinator: { _ in starts += 1; return true })
         orchestrator.start()
         XCTAssertTrue(orchestrator.units.isEmpty)

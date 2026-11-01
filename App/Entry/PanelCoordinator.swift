@@ -20,6 +20,7 @@ final class PanelCoordinator: NSObject {
     var fullscreenReconcileTimer: Timer?
     var fullscreenProbeWorker: FullscreenProbeWorker?
     var fullscreenFrameProvider: (() -> CGRect?)?
+    var fullscreenSpaceProvider: (() -> Bool?)?
     var workspaceObserverTokens: [NSObjectProtocol] = []
     var fullscreenProbeGeneration: UInt64 = 0
     var fullscreenSpaceHoldGeneration: UInt64 = 0
