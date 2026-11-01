@@ -241,7 +241,7 @@ final class TaskbarRendererTests: XCTestCase {
         _ = NSApplication.shared
         let panel = RecordingPopupPanel(contentRect: CGRect(x: 0, y: 0, width: 216, height: 120),
                                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        let controller = TaskbarPopupController(makePanel: { _ in panel }, monitorsOutsideEvents: false)
+        let controller = TaskbarPopupController(makePanel: { _ in panel })
         defer { controller.dismiss() }
         var activated: [String] = []
         let list = TaskbarWindowListView(windows: groups()[0].windows, availableHeight: 120, icon: { _ in nil },
@@ -275,6 +275,79 @@ final class TaskbarRendererTests: XCTestCase {
         await clock.advance()
         XCTAssertEqual(activated, ["window-1"])
         XCTAssertEqual(popup.presentations, 0)
+    }
+
+    func testPopupClosesOnItsOwnFocusLossAndIgnoresOtherWindows() {
+        let first = RecordingPopupPanel(contentRect: CGRect(x: 0, y: 0, width: 216, height: 120),
+                                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let second = RecordingPopupPanel(contentRect: first.frame,
+                                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        var panels = [first, second]
+        let controller = TaskbarPopupController(makePanel: { _ in panels.removeFirst() })
+        defer { controller.dismiss() }
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 216, height: 120))
+        controller.present(content: content, frame: content.bounds, anchorWindow: nil)
+        controller.focusForKeyboard()
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: second)
+        XCTAssertTrue(controller.isPresented)
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: first)
+        XCTAssertFalse(controller.isPresented)
+        controller.present(content: content, frame: content.bounds, anchorWindow: nil)
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: first)
+        XCTAssertTrue(controller.isPresented)
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: second)
+        XCTAssertFalse(controller.isPresented)
+        XCTAssertFalse(first.isVisible)
+        XCTAssertFalse(second.isVisible)
+    }
+
+    func testPopupOwnPointerStateKeepsTheListOpenAcrossTheButtonGap() async throws {
+        let clock = Clock()
+        let popup = Popup()
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 200, height: 32), popup: popup,
+                                         delay: { await clock.sleep($0) })
+        content.update(groups: groups())
+        let button = try XCTUnwrap(content.buttonViews["group:test.editor"])
+        button.performClick(nil)
+        let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+        let enter = try XCTUnwrap(NSEvent.enterExitEvent(with: .mouseEntered, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0,
+            trackingNumber: 0, userData: nil))
+        list.mouseEntered(with: enter)
+        XCTAssertTrue(list.isPointerInside)
+        button.onHover?(false)
+        await clock.advance()
+        XCTAssertTrue(popup.isPresented)
+        let exit = try XCTUnwrap(NSEvent.enterExitEvent(with: .mouseExited, location: .zero,
+            modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0,
+            trackingNumber: 0, userData: nil))
+        list.mouseExited(with: exit)
+        XCTAssertFalse(list.isPointerInside)
+        await clock.advance()
+        XCTAssertFalse(popup.isPresented)
+    }
+
+    func testPopupOwnFileDragPresencePreventsDismissalUntilTheDragLeaves() async throws {
+        let clock = Clock()
+        let popup = Popup()
+        let drag = FileDrag()
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 200, height: 32), popup: popup,
+                                         delay: { await clock.sleep($0) })
+        content.update(groups: groups())
+        let button = try XCTUnwrap(content.buttonViews["group:test.editor"])
+        button.performClick(nil)
+        let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+        let row = try XCTUnwrap(list.cells.first)
+        XCTAssertEqual(row.draggingEntered(drag), .generic)
+        XCTAssertTrue(list.isPointerInside)
+        button.onHover?(false)
+        await clock.advance()
+        XCTAssertTrue(popup.isPresented)
+        row.draggingExited(drag)
+        XCTAssertFalse(list.isPointerInside)
+        await clock.advance()
+        XCTAssertFalse(popup.isPresented)
     }
 
     func testClosingAFileHoverTargetPreventsDelayedActivation() async {

@@ -55,7 +55,6 @@ final class TaskbarContentView: NSView {
     private var dragPointer = CGPoint.zero
     private var animateNextLayout = false
     private var localDragMonitor: Any?
-    private var globalDragMonitor: Any?
     private var groupDrag = TaskbarGroupDrag()
     private var suppressClick = false
 
@@ -93,7 +92,6 @@ final class TaskbarContentView: NSView {
         dismissTask?.cancel()
         fileHover.cancel()
         if let localDragMonitor { NSEvent.removeMonitor(localDragMonitor) }
-        if let globalDragMonitor { NSEvent.removeMonitor(globalDragMonitor) }
     }
 
     func update(groups: [TaskbarGroupPresentation]) {
@@ -230,7 +228,7 @@ final class TaskbarContentView: NSView {
         dismissTask = Task { @MainActor [weak self] in
             await delay(.milliseconds(250))
             guard !Task.isCancelled, let self else { return }
-            if let panel = self.popup.panel, panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation) { return }
+            if self.windowList?.isPointerInside == true { return }
             self.dismissPopups()
         }
     }
@@ -374,9 +372,7 @@ final class TaskbarContentView: NSView {
         groupDrag.cancel()
         suppressClick = false
         if let localDragMonitor { NSEvent.removeMonitor(localDragMonitor) }
-        if let globalDragMonitor { NSEvent.removeMonitor(globalDragMonitor) }
         localDragMonitor = nil
-        globalDragMonitor = nil
         animateNextLayout = true
         needsLayout = true
     }
@@ -386,10 +382,6 @@ final class TaskbarContentView: NSView {
             guard event.keyCode == 53 else { return event }
             MainActor.assumeIsolated { self?.endGroupDrag(event: nil, cancelled: true) }
             return nil
-        }
-        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return }
-            MainActor.assumeIsolated { self?.endGroupDrag(event: nil, cancelled: true) }
         }
     }
 

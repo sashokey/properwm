@@ -27,18 +27,15 @@ protocol TaskbarPopupPresenting: AnyObject {
 final class TaskbarPopupController: TaskbarPopupPresenting {
     private(set) var panel: NSPanel?
     var isPresented: Bool { panel != nil }
-    private var localMonitor: Any?
-    private var globalMonitor: Any?
+    private var resignKeyObserver: NSObjectProtocol?
     private let makePanel: (CGRect) -> NSPanel
-    private let monitorsOutsideEvents: Bool
     var onPresent: ((NSPanel) -> Void)?
     var onDismiss: (() -> Void)?
 
-    init(makePanel: ((CGRect) -> NSPanel)? = nil, monitorsOutsideEvents: Bool = true) {
+    init(makePanel: ((CGRect) -> NSPanel)? = nil) {
         self.makePanel = makePanel ?? {
             TaskbarPopupPanel(contentRect: $0, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         }
-        self.monitorsOutsideEvents = monitorsOutsideEvents
     }
 
     func present(content: NSView, frame: CGRect, anchorWindow: NSWindow?) {
@@ -60,20 +57,11 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
         self.panel = panel
         panel.orderFrontRegardless()
         onPresent?(panel)
-        guard monitorsOutsideEvents else { return }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
-            let consumed = MainActor.assumeIsolated {
-                guard let self else { return false }
-                if event.type == .keyDown, event.keyCode == 53 { self.dismiss(); return true }
-                if event.type != .keyDown, event.window !== self.panel,
-                   !frame.contains(NSEvent.mouseLocation) { self.dismiss() }
-                return false
-            }
-            return consumed ? nil : event
-        }
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let self, let panel = self.panel, !panel.frame.contains(NSEvent.mouseLocation) else { return }
+                guard let self, let panel, self.panel === panel else { return }
                 self.dismiss()
             }
         }
@@ -86,10 +74,8 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
     }
 
     func dismiss() {
-        if let localMonitor { NSEvent.removeMonitor(localMonitor) }
-        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
-        localMonitor = nil
-        globalMonitor = nil
+        if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver) }
+        resignKeyObserver = nil
         if let panel {
             (panel.contentView as? TaskbarWindowListView)?.cancelPendingActions()
             panel.orderOut(nil)
@@ -101,8 +87,7 @@ final class TaskbarPopupController: TaskbarPopupPresenting {
     }
 
     isolated deinit {
-        if let localMonitor { NSEvent.removeMonitor(localMonitor) }
-        if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
+        if let resignKeyObserver { NotificationCenter.default.removeObserver(resignKeyObserver) }
         panel?.orderOut(nil)
     }
 }
@@ -189,6 +174,7 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
     let tableView: NSTableView = TaskbarWindowTable()
     let scrollView = NSScrollView()
     var onHover: ((Bool) -> Void)?
+    private(set) var isPointerInside = false
     var onCancel: (() -> Void)?
     private var tracking: NSTrackingArea?
     override var acceptsFirstResponder: Bool { true }
@@ -243,7 +229,7 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
             let cell = TaskbarWindowListRow(window: item, icon: icon(item), delay: delay,
                                           activate: { activate(item) }, close: { close(item) },
                                           fileHover: { fileHover(item) })
-            cell.onDragPresence = { [weak self] inside in self?.onHover?(inside) }
+            cell.onDragPresence = { [weak self] inside in self?.setPointerPresence(inside) }
             cell.onHighlightChanged = { [weak self] selected in
                 self?.tableView.rowView(atRow: index, makeIfNecessary: false)?.isSelected = selected
             }
@@ -321,8 +307,13 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
         super.updateTrackingAreas()
     }
 
-    override func mouseEntered(with event: NSEvent) { onHover?(true) }
-    override func mouseExited(with event: NSEvent) { onHover?(false) }
+    private func setPointerPresence(_ inside: Bool) {
+        isPointerInside = inside
+        onHover?(inside)
+    }
+
+    override func mouseEntered(with event: NSEvent) { setPointerPresence(true) }
+    override func mouseExited(with event: NSEvent) { setPointerPresence(false) }
 }
 
 @MainActor

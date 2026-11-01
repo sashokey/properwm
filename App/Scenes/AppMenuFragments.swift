@@ -19,7 +19,12 @@ final class MenuHostNSView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard super.hitTest(point) != nil, let e = NSApp.currentEvent else { return nil }
-        if let shouldClaim, !shouldClaim(NSEvent.mouseLocation) { return nil }
+        if let shouldClaim {
+            guard let window else { return nil }
+            let local = convert(point, from: superview)
+            let screenPoint = window.convertPoint(toScreen: convert(local, to: nil))
+            guard shouldClaim(screenPoint) else { return nil }
+        }
         switch e.type {
         case .rightMouseDown, .rightMouseUp, .rightMouseDragged:
             return self
