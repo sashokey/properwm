@@ -217,7 +217,7 @@ final class AppRuntime: ObservableObject {
     private func reconcileTitleSettle(with newSnapshot: DockSnapshot) {
         guard titleSettleEnabled else { return }
         var rawTitles: [String: String] = [:]
-        for item in StripItem.items(from: newSnapshot) where !item.isAppLevelFallback {
+        for item in StripItem.openWindows(from: newSnapshot) {
             rawTitles[item.id] = item.title
         }
         let now = ProcessInfo.processInfo.systemUptime

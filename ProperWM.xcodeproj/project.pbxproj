@@ -25,9 +25,6 @@
 		E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0000000000000000000E0 /* OverlaySpaceHost.swift */; };
-		C30000000000000000000001 /* AppFallbackChipDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* AppFallbackChipDecision.swift */; };
-		C30000000000000000000002 /* AppFallbackChipDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* AppFallbackChipDecision.swift */; };
-		C30000000000000000000003 /* AppFallbackChipDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */; };
 		D20000000000000000000003 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
 		D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000006 /* AccessoryWindowPresentation.swift */; };
 		D20000000000000000000013 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
@@ -102,8 +99,6 @@
 		A00000000000000000001036 /* WindowFrameMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* WindowFrameMatchPolicy.swift */; };
 		A00000000000000000001037 /* AXWindowMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000064 /* AXWindowMatchPolicy.swift */; };
 		A00000000000000000001038 /* AXWindowMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000064 /* AXWindowMatchPolicy.swift */; };
-		A0000000000000000000103A /* AppFallbackRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */; };
-		A0000000000000000000103B /* AppFallbackRetentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */; };
 		A0000000000000000000103C /* IdentityRuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000050 /* IdentityRuleEngine.swift */; };
 		A0000000000000000000101B /* FinderWindowRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000055 /* FinderWindowRules.swift */; };
 		A00000000000000000001013 /* PermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PermissionService.swift */; };
@@ -305,8 +300,6 @@
 		E90000000000000000000006 /* DockSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSnapshot.swift; sourceTree = "<group>"; };
 		E90000000000000000000003 /* FullscreenWindowClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenWindowClassifier.swift; sourceTree = "<group>"; };
 		F1D0000000000000000000E0 /* OverlaySpaceHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySpaceHost.swift; sourceTree = "<group>"; };
-		C30000000000000000000010 /* AppFallbackChipDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackChipDecision.swift; sourceTree = "<group>"; };
-		C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackChipDecisionTests.swift; sourceTree = "<group>"; };
 		D10000000000000000000003 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
 		D10000000000000000000006 /* AccessoryWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessoryWindowPresentation.swift; sourceTree = "<group>"; };
 		D10000000000000000000007 /* SettingsCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -391,7 +384,6 @@
 		A00000000000000000000062 /* ObservationAdmissionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationAdmissionGate.swift; sourceTree = "<group>"; };
 		A00000000000000000000063 /* WindowFrameMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowFrameMatchPolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000064 /* AXWindowMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowMatchPolicy.swift; sourceTree = "<group>"; };
-		A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackRetentionPolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000055 /* FinderWindowRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWindowRules.swift; sourceTree = "<group>"; };
 		A00000000000000000000012 /* FinderSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderSource.swift; sourceTree = "<group>"; };
 		A00000000000000000000013 /* PermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionService.swift; sourceTree = "<group>"; };
@@ -611,7 +603,6 @@
 				C19365428DE0331342EB949D /* WindowSpaceVisibility.swift */,
 				11972B007D9B6A534BBF091D /* WindowActionQueue.swift */,
 				E90000000000000000000007 /* DebugSwitch.swift */,
-				C30000000000000000000010 /* AppFallbackChipDecision.swift */,
 				B1000000000000000000010D /* MinimizeHandoffTarget.swift */,
 				B10000000000000000000117 /* TaskbarScreenPlacement.swift */,
 				B1000000000000000000011C /* TaskbarDisplaySet.swift */,
@@ -681,7 +672,6 @@
 			isa = PBXGroup;
 				children = (
 					A0000000000000000000000D /* LifecycleTransitionEngine.swift */,
-					A00000000000000000000065 /* AppFallbackRetentionPolicy.swift */,
 				);
 			path = Transitions;
 			sourceTree = "<group>";
@@ -854,7 +844,6 @@
 				9BFA278A88FB042FB54DFD43 /* WindowRestorationTests.swift */,
 				8CBB0AC11DD52E99C8910062 /* WindowCommandLifecycleTests.swift */,
 				E90000000000000000000008 /* DebugSwitchTests.swift */,
-				C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */,
 				A00000000000000000000058 /* FinderP0Tests.swift */,
 				A0000000000000000000B060 /* PermissionOnboardingTests.swift */,
 				A00000000000000000008040 /* AppSettingsStoreTests.swift */,
@@ -1069,7 +1058,6 @@
 				E90000000000000000001006 /* DockSnapshot.swift in Sources */,
 				E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */,
 					F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */,
-					C30000000000000000000001 /* AppFallbackChipDecision.swift in Sources */,
 					A00000000000000000001001 /* ProperWMApp.swift in Sources */,
 					A00000000000000000001040 /* AppDelegate.swift in Sources */,
 					D20000000000000000000003 /* SettingsCoordinator.swift in Sources */,
@@ -1162,7 +1150,6 @@
 					A0000000000000000000100A /* DockState.swift in Sources */,
 					A0000000000000000000101C /* ObservationKindMergeRule.swift in Sources */,
 					A00000000000000000001004 /* ObservationPipeline.swift in Sources */,
-					A0000000000000000000103A /* AppFallbackRetentionPolicy.swift in Sources */,
 					A00000000000000000001018 /* PendingCloseTracker.swift in Sources */,
 					A0000000000000000000101D /* AXWindowReader.swift in Sources */,
 					A00000000000000000001038 /* AXWindowMatchPolicy.swift in Sources */,
@@ -1232,8 +1219,6 @@
 				E90000000000000000002007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000002006 /* DockSnapshot.swift in Sources */,
 				E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */,
-				C30000000000000000000002 /* AppFallbackChipDecision.swift in Sources */,
-				C30000000000000000000003 /* AppFallbackChipDecisionTests.swift in Sources */,
 				A0000000000000000000101F /* FinderP0Tests.swift in Sources */,
 				A0000000000000000000B012 /* AccessibilityPermissionDecision.swift in Sources */,
 				A0000000000000000000B022 /* PermissionRecoveryMachine.swift in Sources */,
@@ -1328,7 +1313,6 @@
 					A0000000000000000000ACC1 /* NonConstrainingPanelTests.swift in Sources */,
 					A00000000000000000001031 /* DockWindowEligibilityPolicy.swift in Sources */,
 					A00000000000000000001033 /* ObservationAdmissionGate.swift in Sources */,
-					A0000000000000000000103B /* AppFallbackRetentionPolicy.swift in Sources */,
 					A0000000000000000000103D /* StripItem.swift in Sources */,
 				);
 			runOnlyForDeploymentPostprocessing = 0;

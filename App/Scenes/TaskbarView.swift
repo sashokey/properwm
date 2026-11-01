@@ -436,7 +436,7 @@ final class TaskbarContentView: NSView {
     }
 
     private func closeIfLive(_ id: String) {
-        guard groups.flatMap(\.windows).contains(where: { $0.item.actionWindowID == id && $0.item.canClose }) else { return }
+        guard groups.flatMap(\.windows).contains(where: { $0.item.actionWindowID == id }) else { return }
         actions.close(id)
     }
 

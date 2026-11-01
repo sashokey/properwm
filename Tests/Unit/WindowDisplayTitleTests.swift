@@ -43,18 +43,6 @@ final class WindowDisplayTitleTests: XCTestCase {
 final class OpenWindowStripItemsTests: XCTestCase {
     func testEmptySnapshotAndAppsWithoutWindowsHaveNoElements() {
         XCTAssertTrue(StripItem.openWindows(from: .empty).isEmpty)
-        let fallback = record("app-com.example")
-        XCTAssertTrue(StripItem.openWindows(from: snapshot([fallback])).isEmpty)
-    }
-
-    func testFallbackDoesNotChangeTheRealWindowCountOrTitleStyle() {
-        let items = StripItem.openWindows(from: snapshot([
-            record("app-com.example"),
-            record("window-1")
-        ]))
-        XCTAssertEqual(items.map(\.id), ["window-1"])
-        XCTAssertEqual(items.first?.sameAppCardCount, 1)
-        XCTAssertEqual(items.first?.showsTitle, false)
     }
 
     func testSeparateWindowsKeepTheirOrderAndTitles() {
@@ -63,8 +51,6 @@ final class OpenWindowStripItemsTests: XCTestCase {
             record("first")
         ]))
         XCTAssertEqual(items.map(\.id), ["second", "first"])
-        XCTAssertTrue(items.allSatisfy(\.showsTitle))
-        XCTAssertTrue(items.allSatisfy { $0.sameAppCardCount == 2 })
     }
 
     func testMinimizedAndHiddenWindowsRemainWithoutACurrentCGIdentifier() {
@@ -74,7 +60,6 @@ final class OpenWindowStripItemsTests: XCTestCase {
         ]))
         XCTAssertEqual(items.map(\.id), ["minimized", "hidden"])
         XCTAssertEqual(items.map(\.status), ["minimized", "hidden"])
-        XCTAssertTrue(items.allSatisfy { $0.canMinimize && $0.canClose })
     }
 
     func testDisappearedWindowIsExcludedBeforeCountingCards() {
@@ -83,7 +68,6 @@ final class OpenWindowStripItemsTests: XCTestCase {
             record("remaining")
         ]))
         XCTAssertEqual(items.map(\.id), ["remaining"])
-        XCTAssertEqual(items.first?.showsTitle, false)
     }
 
     func testNativeTabsKeepOneStableElementAndTheActiveActionTarget() {
@@ -93,8 +77,6 @@ final class OpenWindowStripItemsTests: XCTestCase {
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items.first?.id, "window-group")
         XCTAssertEqual(items.first?.actionWindowID, "tab-2")
-        XCTAssertEqual(items.first?.memberWindowIDs, ["tab-1", "tab-2"])
-        XCTAssertEqual(items.first?.showsTitle, false)
     }
 
     func testMissingOrderedRecordDoesNotCreateAPlaceholder() {

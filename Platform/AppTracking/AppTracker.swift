@@ -20,10 +20,7 @@ struct AppEntry {
     /// Pass B 折叠判定第二级用它兜住「成员历史被 dock 重启清零」的缺口；每轮从活信号重建，
     /// 不依赖持久化。判定用上一轮的池（最小化爆发瞬间所有标签涌进 AX，本轮现算会是空的）。
     var shadowTabCgIDs: Set<CGWindowID> = []
-    /// 这个 app 的窗口最后在哪块屏（display UUID）。窗口全关后「在运行但没窗口」的兜底卡落在这儿
-    ///（多屏 ④：有圆点的图标只在一条上，owner 2026-09-02）；把那张卡拖到另一块屏的条上也写这里
-    ///（`noteNoWindowHome`）。会话内记忆，不持久化；nil → 投影层落主屏。
-    var lastWindowDisplayUUID: String? = nil
+
 }
 
 /// 一个**物理窗口座位**（单座位模型）。`cgWindowID` 是它**当前**的可见标签（= 动作落点），会随
@@ -1471,15 +1468,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             if let stalePID = appOrder.first(where: {
                 FinderWindowRules.isFinder(bundleIdentifier: apps[$0]?.bundleIdentifier)
             }), stalePID != app.processIdentifier {
-                observers[stalePID]?.stop()
-                observers.removeValue(forKey: stalePID)
-                apps.removeValue(forKey: stalePID)
-                appOrder.removeAll { $0 == stalePID }
-                clearInventoryDiagnostics(pid: stalePID)
-                gateStates.removeValue(forKey: stalePID)
-                cancelAbsenceProbeTimer(pid: stalePID)
-                invalidateEventReads(pid: stalePID)
-                elementCache.removeAll(pid: stalePID)
+                removeTrackedProcess(pid: stalePID)
             }
             addApp(app, enumerateImmediately: true)
             rebuildSnapshot()
@@ -1500,32 +1489,30 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func handleAppTerminated(pid: pid_t) {
+        removeTrackedProcess(pid: pid)
+        rebuildSnapshot()
+    }
+
+    private func removeTrackedProcess(pid: pid_t) {
         cgEventGeneration &+= 1
-        invalidateEventReads(pid: pid)
-        observers[pid]?.stop()
-        observers.removeValue(forKey: pid)
+        observers.removeValue(forKey: pid)?.stop()
         if let app = apps[pid] { recordProcessGoneSeats(app: app) }
+        apps.removeValue(forKey: pid)
+        appOrder.removeAll { $0 == pid }
+        pendingEventReads.removeValue(forKey: pid)
+        trailingEventSources.removeValue(forKey: pid)
+        mutationGenerations.removeValue(forKey: pid)
         clearInventoryDiagnostics(pid: pid)
         gateStates.removeValue(forKey: pid)
         cancelAbsenceProbeTimer(pid: pid)
         scanMemos.removeValue(forKey: pid)
         scanDirtyPIDs.remove(pid)
         scanCandidateCache = nil
-
-        // Finder relaunches immediately via launchd. Keep the entry (no windows) so the chip
-        // stays visible during the gap. handleAppLaunched will replace this stale entry with
-        // the new pid when Finder comes back up.
-        if FinderWindowRules.isFinder(bundleIdentifier: apps[pid]?.bundleIdentifier) {
-            apps[pid]?.windowsByID = [:]
-            apps[pid]?.windowOrder = []
-            rebuildSnapshot()
-            return
-        }
-
-        apps.removeValue(forKey: pid)
-        appOrder.removeAll { $0 == pid }
         elementCache.removeAll(pid: pid)
-        rebuildSnapshot()
+        #if DEBUG
+        observerActiveOverridesForTesting.removeValue(forKey: pid)
+        subscribedElementOverridesForTesting.removeValue(forKey: pid)
+        #endif
     }
 
     private func handleAppHidden(pid: pid_t) {
@@ -1827,6 +1814,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func invalidateEventReads(pid: pid_t) {
+        guard apps[pid] != nil else { return }
         mutationGenerations[pid, default: 0] &+= 1
         // The in-flight read now lands as `.skipped`, so whatever it was fetching must be fetched
         // again. Dropping it lost a destroy's follow-up read whenever a minimize of another window
@@ -2156,27 +2144,12 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var deadPIDs: [pid_t] = []
         for pid in appOrder {
             if !processProvider.isAlive(pid: pid) {
-                // Finder's entry is intentionally kept alive across quit/relaunch cycles
-                // (handleAppTerminated clears windows but preserves the slot).
-                if FinderWindowRules.isFinder(bundleIdentifier: apps[pid]?.bundleIdentifier) { continue }
                 deadPIDs.append(pid)
                 logger.info("reconcile: pid=\(pid) no longer exists (POSIX kill(0) == ESRCH), removing stale entry")
             }
         }
         for pid in deadPIDs {
-            // 批量删除 AppEntry 前，按 windowOrder 为每个 seat 写一条 seatReleased(.processGone)。
-            // 该路径没有本轮 AX/CG 采样，也没有 InventoryReconcileContext——只有内存中已有的座位状态，
-            // 绝不伪造未采样字段为 0/false。日志身份用稳定的 pid + seatToken。
-            if let app = apps[pid] { recordProcessGoneSeats(app: app) }
-            observers[pid]?.stop()
-            observers.removeValue(forKey: pid)
-            apps.removeValue(forKey: pid)
-            appOrder.removeAll { $0 == pid }
-            clearInventoryDiagnostics(pid: pid)
-            gateStates.removeValue(forKey: pid)
-            cancelAbsenceProbeTimer(pid: pid)
-            invalidateEventReads(pid: pid)
-            elementCache.removeAll(pid: pid)
+            removeTrackedProcess(pid: pid)
             changed = true
         }
 
@@ -2562,78 +2535,26 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     // MARK: - Snapshot Building
 
     private func rebuildSnapshot(onScreenCGIDs: Set<CGWindowID>? = nil) {
-        // Read frontmost PID once; passed to windowStatus to determine active highlight
         let frontmostPID = currentFrontmostPID()
         lastOnScreenCGIDs = onScreenCGIDs ?? onScreenWindowIDsProvider()
-
         var windows: [WindowID: WindowRecord] = [:]
         var orderedWindowIDs: [WindowID] = []
-        let fallbackByPID = Dictionary(uniqueKeysWithValues: AppFallbackChipDecision.fallbacks(
-            for: appOrder.compactMap { pid in
-                apps[pid].map { app in
-                    AppFallbackChipDecision.Process(
-                        pid: pid,
-                        bundleID: app.bundleIdentifier,
-                        appName: app.appName,
-                        hasSeats: !app.windowOrder.isEmpty,
-                        isFrontmost: pid == frontmostPID
-                    )
-                }
-            }
-        ).map { ($0.pid, $0) })
-
-        // 记住每个 app 的窗口最后在哪块屏：有座位时跟着第一个有归属键的座位走，没座位时保留。
-        for pid in appOrder {
-            guard let app = apps[pid],
-                  let home = app.windowOrder.compactMap({ app.windowsByID[$0]?.displayUUID }).first,
-                  home != app.lastWindowDisplayUUID else { continue }
-            apps[pid]?.lastWindowDisplayUUID = home
-        }
-
         for pid in appOrder {
             guard let app = apps[pid] else { continue }
-
-            if app.windowOrder.isEmpty {
-                guard let fallback = fallbackByPID[pid] else { continue }
-                let id = WindowID(rawValue: fallback.windowID)
+            for cgID in app.windowOrder {
+                guard let seat = app.windowsByID[cgID] else { continue }
+                let id = WindowID(rawValue: "cgw-\(cgID)")
                 windows[id] = WindowRecord(
-                    id: id,
-                    appID: AppID(rawValue: app.bundleIdentifier ?? app.appName),
-                    pid: pid,
-                    bundleIdentifier: app.bundleIdentifier,
-                    title: app.appName,
-                    bounds: nil,
-                    status: app.isHidden ? .hidden : .inactive,
-                    isOnDesktop: pid == frontmostPID,
-                    groupID: id.rawValue,   // 兜底卡自成一组，永不并入别人
-                    displayUUID: app.lastWindowDisplayUUID
+                    id: id, appID: AppID(rawValue: app.bundleIdentifier ?? app.appName), pid: pid,
+                    bundleIdentifier: app.bundleIdentifier, title: seat.title, bounds: seat.bounds,
+                    status: windowStatus(isHidden: app.isHidden, isMinimized: seat.isMinimized,
+                                         isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID),
+                    cgWindowID: cgID, isOnDesktop: !seat.isMinimized && !app.isHidden,
+                    groupID: seat.token, displayUUID: seat.displayUUID
                 )
                 orderedWindowIDs.append(id)
-            } else {
-                // 单座位模型：一个座位 = 一个物理窗口 = 一张卡。卡片稳定身份 = 座位 token（不随
-                // 当前标签 cgID 变）；动作落点 = 当前 activeCgID。可见性直接用座位状态（当前标签
-                // 离开 AX 即被新标签顶替，不会留陈旧 min；真最小化座位标 isMinimized）。
-                for cgID in app.windowOrder {
-                    guard let seat = app.windowsByID[cgID] else { continue }
-                    let id = WindowID(rawValue: "cgw-\(cgID)")
-                    windows[id] = WindowRecord(
-                        id: id,
-                        appID: AppID(rawValue: app.bundleIdentifier ?? app.appName),
-                        pid: pid,
-                        bundleIdentifier: app.bundleIdentifier,
-                        title: seat.title,
-                        bounds: seat.bounds,
-                        status: windowStatus(isHidden: app.isHidden, isMinimized: seat.isMinimized, isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID),
-                        cgWindowID: cgID,
-                        isOnDesktop: !seat.isMinimized && !app.isHidden,
-                        groupID: seat.token,
-                        displayUUID: seat.displayUUID
-                    )
-                    orderedWindowIDs.append(id)
-                }
             }
         }
-
         let next = DockSnapshot(windows: windows, orderedWindowIDs: orderedWindowIDs)
         guard next != snapshot else { return }
         snapshot = next
@@ -2683,6 +2604,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         default: preconditionFailure("Unknown admission fixture source")
         }
     }
+
+    func terminateForTesting(pid: pid_t) { handleAppTerminated(pid: pid) }
+    var mutationGenerationCountForTesting: Int { mutationGenerations.count }
 
     var pendingInventoryWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
 

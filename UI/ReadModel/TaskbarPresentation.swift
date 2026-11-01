@@ -59,7 +59,7 @@ enum TaskbarContextAction: Equatable {
 
 enum TaskbarContextMenuModel {
     static func actions(button: TaskbarButtonLayout, group: TaskbarGroupPresentation) -> [TaskbarContextAction] {
-        let windows = group.windows.filter { button.windowIDs.contains($0.id) && $0.item.canClose }
+        let windows = group.windows.filter { button.windowIDs.contains($0.id) }
         let ids = TaskbarPresentation.actionWindowIDs(windows)
         guard let first = ids.first else { return [.quitApplication] }
         return [button.isCombined ? .closeWindows(ids) : .closeWindow(first), .quitApplication]

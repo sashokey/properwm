@@ -195,7 +195,7 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
         XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
     }
 
-    func testFallbackCardRemembersLastWindowDisplay() {
+    func testClosingLastWindowLeavesNoCardAndRetainsProcessObservation() {
         let tracker = makeTracker()
         tracker.installFixtureForTesting(makeApp(bounds: frameOnB, displayUUID: "B"))
         tracker.rebuildSnapshotForTesting()
@@ -206,8 +206,9 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
             pid: pid, cgSnapshot: empty, now: Date(), eligible: [], readOutcome: .success(count: 0)
         ))
         tracker.rebuildSnapshotForTesting()
-        let fallbackID = WindowID(rawValue: "app-com.example.fixture")
-        XCTAssertEqual(tracker.snapshot.windows[fallbackID]?.displayUUID, "B")
+        XCTAssertTrue(tracker.snapshot.windows.isEmpty)
+        XCTAssertTrue(tracker.snapshot.orderedWindowIDs.isEmpty)
+        XCTAssertNotNil(tracker.fixtureAppForTesting(pid: pid))
 
 
     }

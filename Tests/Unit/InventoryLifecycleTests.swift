@@ -40,6 +40,56 @@ private final class LifecycleProcess: AppTrackerProcessProviding, Sendable {
 
 @MainActor
 final class InventoryLifecycleTests: XCTestCase {
+    func testProcessChurnReleasesGenerationsIncludingUntrackedAndFinderProcesses() {
+        let tracker = tracker(reader: LifecycleReader())
+        defer { tracker.stop() }
+        tracker.setFrontmostPIDForTesting(-1)
+        for pid in Int32(40_000)..<41_000 {
+            tracker.installFixtureForTesting(.init(pid: pid, bundleIdentifier: "test.app", appName: "App",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            tracker.terminateForTesting(pid: pid)
+            tracker.terminateForTesting(pid: pid + 10_000)
+        }
+        tracker.installFixtureForTesting(.init(pid: 42, bundleIdentifier: "com.apple.finder", appName: "Finder",
+            activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+        tracker.terminateForTesting(pid: 42)
+        XCTAssertEqual(tracker.mutationGenerationCountForTesting, 0)
+        XCTAssertTrue(tracker.diagnosticApps().isEmpty)
+        XCTAssertTrue(tracker.snapshot.windows.isEmpty)
+    }
+
+    func testTerminatedProcessReadCannotConsumeReplacementProcessRead() async {
+        let reader = LifecycleReader()
+        let process = LifecycleProcess()
+        let tracker = tracker(reader: reader, process: process)
+        defer { tracker.stop() }
+        let pid = NSRunningApplication.current.processIdentifier
+        func entry(_ title: String) -> AppEntry {
+            .init(pid: pid, bundleIdentifier: "test.app", appName: "App", activationPolicy: .regular,
+                executablePath: nil, windowsByID: [77: .init(cgWindowID: 77, token: title, title: title,
+                    bounds: CGRect(x: 40, y: 40, width: 640, height: 480), isMinimized: false, isFocused: false)],
+                windowOrder: [77], isHidden: false)
+        }
+        tracker.installFixtureForTesting(entry("Original"))
+        tracker.scheduleEventReadForTesting(pid: pid, source: .titleChanged)
+        await waitForRead(reader)
+        let old = tracker.pendingInventoryWorkForTesting
+        tracker.terminateForTesting(pid: pid)
+        XCTAssertEqual(tracker.mutationGenerationCountForTesting, 0)
+        process.generation.withLock { $0 += 1 }
+        tracker.installFixtureForTesting(entry("Replacement"))
+        tracker.scheduleEventReadForTesting(pid: pid, source: .windowCreated)
+        await waitForRead(reader, count: 2)
+        reader.gates[0].signal()
+        for task in old { await task.value }
+        XCTAssertTrue(tracker.hasPendingEventReadForTesting(pid: pid))
+        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[77]?.title, "Replacement")
+        reader.gates[1].signal()
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        XCTAssertEqual(tracker.snapshot.windows.values.map(\.title), ["Read 1"])
+        XCTAssertEqual(tracker.mutationGenerationCountForTesting, 1)
+    }
+
     func testAccessoryDashboardIsAdmittedBySeedScanAndLaunchRetry() async {
         for source in ["seed", "scan", "launchRetry"] {
             let reader = AdmissionWindowReader()

@@ -831,31 +831,6 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(decision.reason, "plausible-round")
     }
 
-    func testFeishuFallbackRetentionKeepsRunningAppLevelItem() {
-        let record = WindowRecord(
-            id: WindowID(rawValue: "app-com.electron.lark"),
-            appID: AppID(rawValue: "com.electron.lark"),
-            pid: 5001,
-            bundleIdentifier: "com.electron.lark",
-            title: "飞书",
-            bounds: nil,
-            status: .inactive
-        )
-
-        XCTAssertTrue(
-            AppFallbackRetentionPolicy.shouldRetainMissingFallback(
-                record: record,
-                isProcessAlive: true
-            )
-        )
-        XCTAssertFalse(
-            AppFallbackRetentionPolicy.shouldRetainMissingFallback(
-                record: record,
-                isProcessAlive: false
-            )
-        )
-    }
-
     func testWindowEligibilityFiltersTransparentWindows() {
         let policy = DockWindowEligibilityPolicy()
 
@@ -1544,96 +1519,6 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    func testStripItemsHideTitleForSingleAppCard() {
-        let record = windowRecord(
-            id: WindowID(rawValue: "cg-chrome-1"),
-            pid: 101,
-            bundleIdentifier: "com.google.Chrome",
-            title: "Chrome",
-            bounds: CGRect(x: 0, y: 0, width: 800, height: 600),
-            status: .inactive
-        )
-
-        let items = StripItem.items(from: retainedSnapshot(record))
-
-        XCTAssertEqual(items.count, 1)
-        XCTAssertFalse(items[0].showsTitle)
-        XCTAssertEqual(items[0].sameAppCardCount, 1)
-    }
-
-    func testStripItemsShowTitlesForMultipleCardsFromSameApp() {
-        let first = windowRecord(
-            id: WindowID(rawValue: "cg-chrome-1"),
-            pid: 101,
-            bundleIdentifier: "com.google.Chrome",
-            title: "First",
-            bounds: CGRect(x: 0, y: 0, width: 800, height: 600),
-            status: .inactive
-        )
-        let second = windowRecord(
-            id: WindowID(rawValue: "cg-chrome-2"),
-            pid: 101,
-            bundleIdentifier: "com.google.Chrome",
-            title: "Second",
-            bounds: CGRect(x: 20, y: 20, width: 800, height: 600),
-            status: .active
-        )
-
-        let items = StripItem.items(from: retainedSnapshot(first, second))
-
-        XCTAssertEqual(items.map(\.showsTitle), [true, true])
-        XCTAssertEqual(items.map(\.sameAppCardCount), [2, 2])
-    }
-
-    func testStripItemsGroupFallbacksByAppIDWhenBundleIsMissing() {
-        let first = WindowRecord(
-            id: WindowID(rawValue: "fallback-1"),
-            appID: AppID(rawValue: "fallback-app"),
-            pid: 201,
-            bundleIdentifier: nil,
-            title: "First",
-            bounds: nil,
-            status: .inactive
-        )
-        let second = WindowRecord(
-            id: WindowID(rawValue: "fallback-2"),
-            appID: AppID(rawValue: "fallback-app"),
-            pid: 202,
-            bundleIdentifier: nil,
-            title: "Second",
-            bounds: nil,
-            status: .inactive
-        )
-
-        let items = StripItem.items(from: retainedSnapshot(first, second))
-
-        XCTAssertEqual(items.map(\.showsTitle), [true, true])
-        XCTAssertEqual(items.map(\.sameAppCardCount), [2, 2])
-    }
-
-    func testStripItemsHideTitlesForDifferentSingleAppCards() {
-        let chrome = windowRecord(
-            id: WindowID(rawValue: "cg-chrome-1"),
-            pid: 101,
-            bundleIdentifier: "com.google.Chrome",
-            title: "Chrome",
-            bounds: CGRect(x: 0, y: 0, width: 800, height: 600),
-            status: .inactive
-        )
-        let terminal = windowRecord(
-            id: WindowID(rawValue: "cg-terminal-1"),
-            pid: 102,
-            bundleIdentifier: "com.apple.Terminal",
-            title: "Terminal",
-            bounds: CGRect(x: 20, y: 20, width: 800, height: 600),
-            status: .inactive
-        )
-
-        let items = StripItem.items(from: retainedSnapshot(chrome, terminal))
-
-        XCTAssertEqual(items.map(\.showsTitle), [false, false])
-    }
-
     func testStripItemsMergeNativeTabGroupWithIdenticalFrame() {
         let frame = CGRect(x: 172, y: 87, width: 1191, height: 831)
         let tabA = WindowRecord(
@@ -1659,13 +1544,10 @@ final class FinderP0Tests: XCTestCase {
             groupID: "tabgrp-30201-s1"
         )
 
-        let items = StripItem.items(from: retainedSnapshot(tabA, tabB))
+        let items = StripItem.openWindows(from: retainedSnapshot(tabA, tabB))
 
         XCTAssertEqual(items.count, 1)
         let chip = items[0]
-        XCTAssertEqual(Set(chip.memberWindowIDs), ["cgw-240522", "cgw-249469"])
-        XCTAssertFalse(chip.showsTitle)
-        XCTAssertEqual(chip.sameAppCardCount, 1)
         XCTAssertEqual(chip.id, "tabgrp-30201-s1")
         XCTAssertEqual(chip.actionWindowID, "cgw-249469")
         XCTAssertEqual(chip.title, "程序坞-规划")
@@ -1707,7 +1589,7 @@ final class FinderP0Tests: XCTestCase {
             groupID: "tabgrp-30201-s1"
         )
 
-        let items = StripItem.items(from: retainedSnapshot(bgLow, visible, bgHigh))
+        let items = StripItem.openWindows(from: retainedSnapshot(bgLow, visible, bgHigh))
 
         XCTAssertEqual(items.count, 1)
         let chip = items[0]
@@ -1738,10 +1620,9 @@ final class FinderP0Tests: XCTestCase {
             cgWindowID: 2
         )
 
-        let items = StripItem.items(from: retainedSnapshot(a, b))
+        let items = StripItem.openWindows(from: retainedSnapshot(a, b))
 
         XCTAssertEqual(items.count, 2)
-        XCTAssertEqual(items.map(\.memberWindowIDs.count), [1, 1])
     }
 
     func testStripItemsDoNotMergeAcrossDifferentApps() {
@@ -1767,7 +1648,7 @@ final class FinderP0Tests: XCTestCase {
             cgWindowID: 11
         )
 
-        let items = StripItem.items(from: retainedSnapshot(ai, ps))
+        let items = StripItem.openWindows(from: retainedSnapshot(ai, ps))
 
         XCTAssertEqual(items.count, 2)
     }

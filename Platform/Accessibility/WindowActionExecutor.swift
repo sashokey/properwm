@@ -512,8 +512,6 @@ struct PlatformActionExecutor: WindowActionExecuting {
         }
         let effectiveKnownMinimized = forcedMinimizedPrior || record.status == .minimized
 
-        guard !record.id.rawValue.hasPrefix("app-") else { return false }
-
         let isFinderWindow = FinderWindowRules.isFinder(bundleIdentifier: record.bundleIdentifier)
 
         if request.kind == .activateWindow,

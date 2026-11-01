@@ -17,24 +17,18 @@ struct StripItem: Hashable {
     let status: String
     let appID: String
     let bundleIdentifier: String?
-    let sameAppCardCount: Int
-    let showsTitle: Bool
-    let isAppLevelFallback: Bool
-    let canMinimize: Bool
-    let canClose: Bool
     let isOnDesktop: Bool
     let cgWindowID: CGWindowID?
     let bounds: CGRect?
     let pid: Int32
     let displayUUID: String?
     let actionWindowID: String
-    let memberWindowIDs: [String]
 
     var spaceIdentity: WindowSpaceIdentity? {
         cgWindowID.map { WindowSpaceIdentity(itemID: id, pid: pid, windowID: $0) }
     }
 
-    init(members: [WindowRecord], sameAppCardCount: Int = 1) {
+    init(members: [WindowRecord]) {
         let anchor = members.min { ($0.cgWindowID ?? .max) < ($1.cgWindowID ?? .max) } ?? members[0]
         let token = members[0].groupID
         let representative = members.first { $0.status == .active }
@@ -43,16 +37,10 @@ struct StripItem: Hashable {
 
         self.id = token
         self.actionWindowID = representative.id.rawValue
-        self.memberWindowIDs = members.map(\.id.rawValue)
         self.title = representative.title
         self.status = representative.status.rawValue
         self.appID = representative.appID.rawValue
         self.bundleIdentifier = representative.bundleIdentifier
-        self.sameAppCardCount = sameAppCardCount
-        self.showsTitle = sameAppCardCount >= 2
-        self.isAppLevelFallback = token.hasPrefix("app-")
-        self.canMinimize = self.isAppLevelFallback == false
-        self.canClose = self.isAppLevelFallback == false
         self.isOnDesktop = representative.isOnDesktop
         self.cgWindowID = representative.cgWindowID
         self.bounds = representative.bounds
@@ -60,17 +48,13 @@ struct StripItem: Hashable {
         self.displayUUID = representative.displayUUID
     }
 
-    init(record: WindowRecord, sameAppCardCount: Int = 1) {
-        self.init(members: [record], sameAppCardCount: sameAppCardCount)
-    }
-
-    static func items(from snapshot: DockSnapshot) -> [StripItem] {
-        makeItems(records: snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] })
+    init(record: WindowRecord) {
+        self.init(members: [record])
     }
 
     static func openWindows(from snapshot: DockSnapshot) -> [StripItem] {
         let records = snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] }.filter {
-            !$0.groupID.hasPrefix("app-") && $0.status != .disappeared
+            $0.status != .disappeared
         }
         return makeItems(records: records)
     }
@@ -89,16 +73,7 @@ struct StripItem: Hashable {
             }
         }
 
-        let countByApp = Dictionary(grouping: slots) { appGroupingKey(for: $0[0]) }
-            .mapValues(\.count)
-
-        return slots.map { members in
-            StripItem(members: members, sameAppCardCount: countByApp[appGroupingKey(for: members[0])] ?? 1)
-        }
-    }
-
-    private static func appGroupingKey(for record: WindowRecord) -> String {
-        record.bundleIdentifier ?? record.appID.rawValue
+        return slots.map { StripItem(members: $0) }
     }
 
     private static func tabGroupKey(for record: WindowRecord) -> String? {
