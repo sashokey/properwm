@@ -79,6 +79,37 @@ final class TaskbarDrawingTests: XCTestCase {
         }
     }
 
+    func testExtendingTheHitTargetLeavesEveryVisiblePixelUnchanged() throws {
+        for dark in [false, true] {
+            for scale: CGFloat in [1, 2] {
+                for state in 0..<3 {
+                    let reference = button(dark: dark)
+                    let extended = button(dark: dark)
+                    extended.frame.size.height = 30
+                    for view in [reference, extended] {
+                        view.title = "ProperWM"
+                        view.image = NSImage(systemSymbolName: "doc.text.fill", accessibilityDescription: nil)
+                        view.isActiveWindow = state == 2
+                        if state == 1 {
+                            view.mouseEntered(with: try XCTUnwrap(NSEvent.enterExitEvent(with: .mouseEntered,
+                                location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                eventNumber: 0, trackingNumber: 0, userData: nil)))
+                        }
+                    }
+                    let original = try render(reference, scale: scale)
+                    let enlarged = try render(extended, scale: scale)
+                    XCTAssertTrue(changedPixels(original, enlarged, region: reference.bounds, scale: scale).isEmpty,
+                                  "Visible geometry changed for dark=\(dark), scale=\(scale), state=\(state)")
+                    let empty = NSView(frame: extended.bounds)
+                    empty.wantsLayer = true
+                    let background = try render(empty, scale: scale)
+                    XCTAssertTrue(changedPixels(background, enlarged,
+                        region: CGRect(x: 0, y: 28, width: 140, height: 2), scale: scale).isEmpty)
+                }
+            }
+        }
+    }
+
     func testPopupRowsDrawTheirIconTitleAndCloseControl() throws {
         let record = WindowRecord(id: WindowID(rawValue: "first"), appID: AppID(rawValue: "test"), pid: 42,
                                   bundleIdentifier: "test.drawing", title: "First window", bounds: nil, status: .inactive)

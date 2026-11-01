@@ -21,6 +21,7 @@ The suite covers:
 - Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture. Native mouse-tracking checks may attach views to a panel that is never ordered on screen. Detached image rendering checks control geometry and content; it does not establish WindowServer glass refraction or transparency against the real desktop.
 - Native controls with preserved icon/text alignment, neutral hover/active feedback, lower indicators, animated-state settling, Reduce Motion, transparent native list backgrounds, native table mouse tracking, keyboard scrolling and exact-row close dispatch.
 - The manually observed Windows state hierarchy, applied to both AppKit appearances: similar hover/active body fill, stronger active edge, stronger fill on active hover, and darker held presses. The active underline is 11 by 2 points with a one-point bottom gap, centered beneath the icon and aligned at 1x and 2x backing scales.
+- Bottom-edge hit testing and hover tracking at 1x and 2x, exact-window clicks, combined/overflow lists, file-hover activation, preserved horizontal gaps, and cancelled clicks outside the bar. Raster comparisons verify that larger hit targets do not change the 28-point visible buttons.
 - The ordered Open at Login / Hide Status Bar Icon / Quit menu, checked visibility toggling in both directions, native-restored visibility, icon restoration, and independent login/quit actions.
 - Launch-at-login state, localization, debug-switch registration, stable toolchain selection, release publication, and artifact cleanup.
 
@@ -50,6 +51,7 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Finder file drag over a separate button | Delayed restoration/activation; leaving early cancels it. ProperWM does not accept or open the file. |
 | Finder file drag over a combined button | Open the icon/title list; hovering a row restores that exact window so the file can be dropped into it. |
 | Fixed bar geometry | Full display width, attached to the bottom, 32 points high; first button starts 10 points from the left. |
+| Pointer at the bottom display edge | Buttons still highlight and respond to clicks, context menus, and file hover at the last screen pixel, including combined and overflow buttons. Visible button geometry stays at y=2, height=28; the extra two points are only an interaction area. Horizontal gaps and empty taskbar space remain background targets. |
 | Retina, light/dark, accessibility display options | Geometry follows scale; system font and public Liquid Glass remain legible. |
 | Background/menu-bar menu | Open at Login, Hide Status Bar Icon, separator, then Quit, which exits ProperWM normally. No size setting or native Dock controls. |
 | Hide status icon and restart | The icon disappears while taskbar operation continues; the choice survives application restart and login/reboot. |

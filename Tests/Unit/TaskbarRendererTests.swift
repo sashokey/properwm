@@ -36,6 +36,35 @@ final class TaskbarRendererTests: XCTestCase {
         func dismiss() { menu = nil }
     }
 
+    @MainActor
+    private final class FileDrag: NSObject, NSDraggingInfo {
+        var draggingDestinationWindow: NSWindow? { nil }
+        var draggingSourceOperationMask: NSDragOperation { .copy }
+        var draggingLocation = CGPoint.zero
+        var draggedImageLocation: NSPoint { draggingLocation }
+        nonisolated var draggedImage: NSImage? { nil }
+        let draggingPasteboard = NSPasteboard.withUniqueName()
+        var draggingSource: Any? { nil }
+        var draggingSequenceNumber: Int { 1 }
+        var draggingFormation: NSDraggingFormation = .none
+        var animatesToDestination = false
+        var numberOfValidItemsForDrop = 0
+        var springLoadingHighlight: NSSpringLoadingHighlight { .none }
+
+        init(location: NSPoint = .zero) {
+            draggingLocation = location
+            super.init()
+            draggingPasteboard.declareTypes([.fileURL], owner: nil)
+        }
+
+        func slideDraggedImage(to screenPoint: NSPoint) {}
+        nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
+        func resetSpringLoading() {}
+        func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
+                                    classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
+                                    using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
+    }
+
     private final class RecordingPopupPanel: NSPanel {
         var frontRequests = 0
         var keyRequests = 0
@@ -394,6 +423,121 @@ final class TaskbarRendererTests: XCTestCase {
                            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
     }
 
+    func testBottomScreenPixelRoutesHoverAndClickToTheExactWindowAtBothScales() throws {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 1600, height: 64),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        defer { panel.close() }
+        let container = NSView(frame: CGRect(x: 0, y: 0, width: 1600, height: 64))
+        panel.contentView = container
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        container.addSubview(content)
+        var toggles: [String] = []
+        content.actions.toggle = { toggles.append($0) }
+        content.update(groups: groups())
+        let button = try XCTUnwrap(content.buttonViews["window:window-1"])
+        button.reduceMotion = { true }
+        for scale: CGFloat in [1, 2] {
+            container.bounds.size = CGSize(width: 1600 * panel.backingScaleFactor / scale,
+                                           height: 64 * panel.backingScaleFactor / scale)
+            content.layoutSubtreeIfNeeded()
+            button.updateTrackingAreas()
+            let point = CGPoint(x: button.frame.midX, y: 32 - 0.5 / scale)
+            let hit = try XCTUnwrap(content.hitTest(content.convert(point, to: container)))
+            XCTAssertTrue(hit === button)
+            let local = button.convert(point, from: content)
+            let area = try XCTUnwrap(button.trackingAreas.first { $0.options.contains(.mouseEnteredAndExited) })
+            let trackingRect = area.options.contains(.inVisibleRect) ? button.visibleRect : area.rect
+            XCTAssertTrue(trackingRect.contains(local))
+            XCTAssertFalse(trackingRect.contains(button.convert(CGPoint(x: button.frame.maxX + 1, y: point.y), from: content)))
+            XCTAssertFalse(trackingRect.contains(button.convert(CGPoint(x: point.x, y: 32.25), from: content)))
+            XCTAssertTrue(area.options.contains(.activeAlways))
+            let entered = try XCTUnwrap(NSEvent.enterExitEvent(with: .mouseEntered,
+                location: content.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+                windowNumber: panel.windowNumber, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil))
+            (area.owner as? NSResponder)?.mouseEntered(with: entered)
+            XCTAssertGreaterThan(button.selectionView.alphaValue, 0)
+            hit.mouseDown(with: mouseEvent(.leftMouseDown, point: point, in: content))
+            hit.mouseUp(with: mouseEvent(.leftMouseUp, point: point, in: content))
+            XCTAssertEqual(toggles.last, "window-1")
+            XCTAssertEqual(button.selectionView.frame.height, 28)
+            XCTAssertEqual(button.convert(button.selectionView.frame, to: content).minY, 2)
+            XCTAssertEqual(button.iconView.frame, CGRect(x: 6, y: 6, width: 16, height: 16))
+        }
+        XCTAssertEqual(toggles, ["window-1", "window-1"])
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testBottomEdgeClickOpensCombinedAndOverflowLists() throws {
+        for width: CGFloat in [200, 60] {
+            let popup = Popup()
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup)
+            var toggles = 0
+            content.actions.toggle = { _ in toggles += 1 }
+            content.update(groups: groups())
+            let button = try XCTUnwrap(width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"])
+            let point = CGPoint(x: button.frame.midX, y: 31.75)
+            let hit = try XCTUnwrap(content.hitTest(content.convert(point, to: nil)))
+            XCTAssertTrue(hit === button)
+            hit.mouseDown(with: mouseEvent(.leftMouseDown, point: point, in: content))
+            hit.mouseUp(with: mouseEvent(.leftMouseUp, point: point, in: content))
+            XCTAssertEqual((popup.content as? TaskbarWindowListView)?.cells.map(\.item.id), groups()[0].windows.map(\.id))
+            XCTAssertEqual(popup.keyboardFocusRequests, 1)
+            XCTAssertEqual(toggles, 0)
+        }
+    }
+
+    func testBottomTargetsPreserveGapsAndCancelMouseUpOutside() throws {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        content.update(groups: groups())
+        let first = try XCTUnwrap(content.buttonViews["window:window-0"])
+        let second = try XCTUnwrap(content.buttonViews["window:window-1"])
+        for point in [CGPoint(x: 5, y: 31.75),
+                      CGPoint(x: (first.frame.maxX + second.frame.minX) / 2, y: 31.75),
+                      CGPoint(x: 790, y: 31.75), CGPoint(x: first.frame.midX, y: 1)] {
+            XCTAssertTrue(content.hitTest(content.convert(point, to: nil)) === content)
+        }
+        var toggles = 0
+        content.actions.toggle = { _ in toggles += 1 }
+        let inside = CGPoint(x: first.frame.midX, y: 31.75)
+        let outside = CGPoint(x: first.frame.midX, y: 32.25)
+        XCTAssertNil(content.hitTest(content.convert(outside, to: nil)))
+        first.mouseDown(with: mouseEvent(.leftMouseDown, point: inside, in: content))
+        first.mouseUp(with: mouseEvent(.leftMouseUp, point: outside, in: content))
+        XCTAssertEqual(toggles, 0)
+        first.isHidden = true
+        XCTAssertTrue(content.hitTest(content.convert(inside, to: nil)) === content)
+    }
+
+    func testFileHoverAtTheBottomEdgeUsesTheSameWindowGroupAndOverflowTargets() async throws {
+        let drag = FileDrag()
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        for width: CGFloat in [800, 200, 60] {
+            let popup = Popup()
+            let clock = Clock()
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup,
+                                             delay: { await clock.sleep($0) })
+            var activated: [String] = []
+            content.actions.activate = { activated.append($0) }
+            content.update(groups: groups())
+            let button = try XCTUnwrap(width == 60 ? content.overflowButton : content.buttonViews[width == 200 ? "group:test.editor" : "window:window-1"])
+            drag.draggingLocation = content.convert(CGPoint(x: button.frame.midX, y: 31.75), to: nil)
+            XCTAssertEqual(content.draggingEntered(drag), .generic)
+            await clock.advance()
+            if width == 800 {
+                XCTAssertEqual(activated, ["window-1"])
+                XCTAssertFalse(popup.isPresented)
+            } else {
+                XCTAssertTrue(activated.isEmpty)
+                XCTAssertEqual((popup.content as? TaskbarWindowListView)?.cells.map(\.item.id), groups()[0].windows.map(\.id))
+                XCTAssertEqual(popup.keyboardFocusRequests, 0)
+            }
+            XCTAssertFalse(content.performDragOperation(drag))
+            drag.draggingLocation = content.convert(CGPoint(x: button.frame.midX, y: 32.25), to: nil)
+            XCTAssertEqual(content.draggingUpdated(drag), [])
+            content.prepareForHiding()
+        }
+    }
+
     func testDraggingOutsideCannotLiftAnyGroupButtonOutOfTheBarOrActivateAWindow() {
         let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
         var toggles = 0
@@ -408,7 +552,9 @@ final class TaskbarRendererTests: XCTestCase {
             button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: point, in: content))
             for view in content.buttonViews.values {
                 XCTAssertEqual(view.frame.minY, 2)
-                XCTAssertEqual(view.frame.height, 28)
+                XCTAssertEqual(view.frame.maxY, content.bounds.maxY)
+                view.layoutSubtreeIfNeeded()
+                XCTAssertEqual(view.selectionView.frame.height, 28)
                 XCTAssertGreaterThanOrEqual(view.frame.minX, 0)
                 XCTAssertLessThanOrEqual(view.frame.maxX, content.bounds.width)
             }
@@ -569,9 +715,16 @@ final class TaskbarRendererTests: XCTestCase {
     }
 
     func testNativeButtonsPreserveGeometryInEveryInteractionState() throws {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 400, height: 64),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        defer { panel.close() }
+        let container = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 64))
+        panel.contentView = container
         for title in [".", "Windows", "A very long window title that must truncate"] {
             let width = TaskbarMetrics.buttonWidth(textWidth: (title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width)
             let button = TaskbarButtonView(frame: CGRect(x: 10, y: 2, width: width, height: 28))
+            container.addSubview(button)
+            defer { button.removeFromSuperview() }
             button.title = title
             button.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)
             let native: NSButton = button
@@ -582,17 +735,23 @@ final class TaskbarRendererTests: XCTestCase {
             XCTAssertEqual(button.selectionView.cornerRadius, 4)
             button.reduceMotion = { true }
             XCTAssertEqual(native.title, title)
-            for active in [false, true, false] {
-                button.isActiveWindow = active
-                button.layoutSubtreeIfNeeded()
-                XCTAssertEqual(native.state, active ? .on : .off)
-                XCTAssertEqual(native.frame, CGRect(x: 10, y: 2, width: width, height: 28))
-                XCTAssertEqual(button.iconView.frame, CGRect(x: 6, y: 6, width: 16, height: 16))
-                let textRect = button.titleLabel.alignmentRect(forFrame: button.titleLabel.frame)
-                XCTAssertEqual(textRect.minX, 28)
-                XCTAssertEqual(textRect.maxX, width - 8)
-                XCTAssertEqual(button.selectionView.frame, button.bounds)
-                XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 9 : 12, y: 25, width: active ? 11 : 4, height: 2))
+            for scale: CGFloat in [1, 2] {
+                container.bounds.size = CGSize(width: 400 * panel.backingScaleFactor / scale,
+                                               height: 64 * panel.backingScaleFactor / scale)
+                for active in [false, true, false] {
+                    button.isActiveWindow = active
+                    button.needsLayout = true
+                    button.layoutSubtreeIfNeeded()
+                    XCTAssertEqual(native.state, active ? .on : .off)
+                    XCTAssertEqual(native.frame, CGRect(x: 10, y: 2, width: width, height: 28))
+                    XCTAssertEqual(button.iconView.frame, CGRect(x: 6, y: 6, width: 16, height: 16))
+                    let textRect = button.titleLabel.alignmentRect(forFrame: button.titleLabel.frame)
+                    XCTAssertEqual(textRect.minX, 28)
+                    XCTAssertEqual(textRect.maxX, width - 8)
+                    XCTAssertEqual(button.selectionView.frame, button.bounds)
+                    XCTAssertEqual(button.indicator.frame, CGRect(x: active ? (scale == 1 ? 9 : 8.5) : 12,
+                                                                 y: 25, width: active ? 11 : 4, height: 2))
+                }
             }
         }
     }

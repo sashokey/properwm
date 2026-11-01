@@ -49,6 +49,7 @@ final class TaskbarButtonView: NSButton {
         tintProminence = .none
         target = self
         action = #selector(activateButton)
+        clipsToBounds = true
         wantsLayer = true
         selectionView.wantsLayer = true
         selectionView.boxType = .custom
@@ -89,12 +90,14 @@ final class TaskbarButtonView: NSButton {
 
     override func layout() {
         super.layout()
-        selectionView.frame = bounds
+        let contentBounds = CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                   height: min(bounds.height, TaskbarMetrics.buttonHeight))
+        selectionView.frame = contentBounds
         let iconX = isOverflow ? floor((bounds.width - TaskbarMetrics.iconSize) / 2) : TaskbarMetrics.iconInset
         iconView.frame = CGRect(x: iconX, y: 6, width: TaskbarMetrics.iconSize, height: TaskbarMetrics.iconSize)
         let font = titleLabel.font ?? NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
         let height = ceil((title as NSString).size(withAttributes: [.font: font]).height)
-        let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((bounds.height - height) / 2),
+        let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((contentBounds.height - height) / 2),
                                width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset), height: height)
         titleLabel.frame = titleLabel.frame(forAlignmentRect: titleRect)
         if indicator.frame != indicatorFrame { indicator.frame = indicatorFrame }

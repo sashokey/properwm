@@ -142,10 +142,11 @@ final class TaskbarContentView: NSView {
         for layout in result.buttons {
             guard let group = groupLookup[layout.groupID],
                   let item = group.windows.first(where: { layout.windowIDs.contains($0.id) }) else { continue }
+            let frame = interactionFrame(for: layout.frame)
             let view: TaskbarButtonView
             if let existing = buttonViews[layout.id] { view = existing }
             else {
-                view = TaskbarButtonView(frame: layout.frame)
+                view = TaskbarButtonView(frame: frame)
                 buttonViews[layout.id] = view
                 addSubview(view)
             }
@@ -164,17 +165,18 @@ final class TaskbarContentView: NSView {
             view.layer?.zPosition = draggedGroupID == layout.groupID ? 1 : 0
             if draggedGroupID == layout.groupID, let dragFrames {
                 view.layer?.removeAllAnimations()
-                view.frame = layout.frame.offsetBy(dx: dragFrames.displayed.minX - dragFrames.slot.minX, dy: 0)
+                view.frame = frame.offsetBy(dx: dragFrames.displayed.minX - dragFrames.slot.minX, dy: 0)
             } else if animateLayout && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = TaskbarMotion.reorderTransition
                     context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    view.animator().setFrameSize(layout.frame.size)
-                    view.animator().setFrameOrigin(layout.frame.origin)
+                    view.animator().setFrameSize(frame.size)
+                    view.animator().setFrameOrigin(frame.origin)
                 }
-            } else { view.frame = layout.frame }
+            } else { view.frame = frame }
         }
-        if let frame = result.overflowFrame {
+        if let overflowFrame = result.overflowFrame {
+            let frame = interactionFrame(for: overflowFrame)
             let view = overflowButton ?? TaskbarButtonView(frame: frame)
             if overflowButton == nil { addSubview(view); overflowButton = view }
             view.frame = frame
@@ -182,6 +184,11 @@ final class TaskbarContentView: NSView {
             view.title = String(localized: "More windows")
             view.onClick = { [weak self] in self?.showOverflow(focusForKeyboard: true) }
         } else { overflowButton?.removeFromSuperview(); overflowButton = nil }
+    }
+
+    private func interactionFrame(for visualFrame: CGRect) -> CGRect {
+        CGRect(x: visualFrame.minX, y: visualFrame.minY, width: visualFrame.width,
+               height: max(0, bounds.maxY - visualFrame.minY))
     }
 
     private func click(_ id: String) {
@@ -391,12 +398,12 @@ final class TaskbarContentView: NSView {
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
         let point = convert(sender.draggingLocation, from: nil)
         if sender.draggingPasteboard.availableType(from: [.fileURL]) != nil,
-           let frame = layoutResult.overflowFrame, frame.contains(point) {
+           let frame = overflowButton?.frame, frame.contains(point) {
             fileHover.schedule(target: "overflow", after: .milliseconds(600)) { [weak self] in self?.showOverflow() }
             return .generic
         }
         guard sender.draggingPasteboard.availableType(from: [.fileURL]) != nil,
-              let button = layoutResult.buttons.first(where: { $0.frame.contains(point) }),
+              let button = layoutResult.buttons.first(where: { buttonViews[$0.id]?.frame.contains(point) == true }),
               groups.contains(where: { $0.id == button.groupID }) else {
             cancelFileHover()
             return []
