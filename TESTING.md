@@ -2,6 +2,10 @@
 
 Tests describe the agreed behavior and independently observed reference scenarios. A failing assertion is a reason to investigate the implementation, not to weaken the expectation. Change an expectation only when the requirement or verified reference behavior changes, and explain why in the commit.
 
+Use RED → GREEN → REFACTOR for behavior changes: first run a regression test and confirm that it fails for the reported defect, then implement the smallest correction and run the complete suite. A compilation error is not evidence that the test detects the defect. Refactor only while the behavior tests remain green.
+
+Keep fixture setup and test-only helper methods in test sources. Replace external AX, WindowServer, and application lookup operations at their boundaries; exercise the production controllers and assert their resulting state, requested operations, or rendered content. Derive expected values independently of the implementation.
+
 ## Automated checks
 
 Run the tooling checks, ordinary `xcodebuild test` with coverage, constrained-executor lifecycle checks, deployment-availability checks, and an arm64 Release build before publishing. CI also validates the release ZIP, signature, bundle identity, legal notices, architecture, deployment minimum, and checksums. Test and build logs must be retained when a check fails.

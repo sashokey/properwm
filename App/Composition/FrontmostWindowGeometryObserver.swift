@@ -68,7 +68,7 @@ final class FrontmostWindowGeometryObserver {
     private let makeSession: Factory
     private let readFocused: @Sendable (pid_t) -> FocusedWindowRead
     private let queue = DispatchQueue(label: "io.github.sashokey.properwm.focused-geometry", qos: .utility)
-    private let work = AsyncWorkScope()
+    let work = AsyncWorkScope()
     private var binding: FocusedGeometryBinding?
     private var activePID: pid_t?
     private var focusedWindow: AXElementKey?
@@ -246,10 +246,6 @@ final class FrontmostWindowGeometryObserver {
         return .window(AXElementKey(e: value as! AXUIElement))
     }
 
-    #if DEBUG
-    var pendingWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
-    var isObservingForTesting: Bool { binding != nil }
-    #endif
 
     isolated deinit {
         bindingCancellation?.cancel()

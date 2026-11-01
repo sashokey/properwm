@@ -155,7 +155,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private var nextEventReadToken: UInt64 = 0
     private var pendingEventReads: [pid_t: PendingEventRead] = [:]
     private var trailingEventSources: [pid_t: InventoryReconcileSource] = [:]
-    private var mutationGenerations: [pid_t: UInt64] = [:]
+    var mutationGenerations: [pid_t: UInt64] = [:]
 
     private let reader: any AppTrackerWindowReading
     private let processProvider: any AppTrackerProcessProviding
@@ -1488,7 +1488,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         rebuildSnapshot()
     }
 
-    private func handleAppTerminated(pid: pid_t) {
+    func handleAppTerminated(pid: pid_t) {
         removeTrackedProcess(pid: pid)
         rebuildSnapshot()
     }
@@ -2358,10 +2358,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         }
     }
 
-    /// 补扫收编。三条硬规则（都在 `ScanAdmissionDecision` 里被单测锁住）：
-    /// 准入看 **eligible 过滤后**的集合（原始 AX 列表非空 ≠ 有可上任务栏的窗口，误收会留下永久
-    /// `app-*` 卡）；探测结果**必须复用**（禁止再来一次无超时 AX 读，那正是 100ms 限时探测要
-    /// 避开的主线程阻塞）；进程态与进程代际在主线程回调里**重查**（pid 可能已被复用）。
     private func admitScannedApps(
         _ probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)],
         tickSnapshot: AppTrackerCGWindowSnapshot? = nil,
@@ -2604,9 +2600,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         default: preconditionFailure("Unknown admission fixture source")
         }
     }
-
-    func terminateForTesting(pid: pid_t) { handleAppTerminated(pid: pid) }
-    var mutationGenerationCountForTesting: Int { mutationGenerations.count }
 
     var pendingInventoryWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
 

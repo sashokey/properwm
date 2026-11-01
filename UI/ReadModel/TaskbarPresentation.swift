@@ -27,7 +27,7 @@ enum TaskbarPresentation {
         var members: [String: [TaskbarWindowPresentation]] = [:]
         var names: [String: String] = [:]
         for id in order {
-            guard let item = lookup[id], filter.shows(.window(displayUUID: item.displayUUID)) else { continue }
+            guard let item = lookup[id], filter.shows(displayUUID: item.displayUUID) else { continue }
             guard spaces.shows(item.spaceIdentity, on: filter.scope ?? filter.resolvedWindowDisplayUUID(item.displayUUID)) else { continue }
             let key = item.bundleIdentifier ?? item.appID
             let name = appName(item)

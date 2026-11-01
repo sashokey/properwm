@@ -1,20 +1,5 @@
 import Foundation
 
-/// 补扫（`AppTracker.scanNonAdmittedApps`）的准入纯决策层。
-///
-/// 补扫负责捡起 seed 时没答上话的 App。它必须遵守两条与 seed 相同的规则，历史上都栽过：
-///
-/// 1. **准入看的是 eligible 过滤后的集合，不是原始 AX 列表**。原始列表非空 ≠ 有可上任务栏的
-///    窗口——透明面板、扩展、系统内部窗口都在 AX 里。误收的代价是永久的：`reconcile()` 只清
-///    死进程，**活着但零座位的 `AppEntry` 永不删除**，`rebuildSnapshot` 于是一直投影它的
-///    `app-*` 兜底记录，任务栏上留下一张擦不掉的 App 级卡。
-/// 2. **过滤动作发生在这里，过滤结果原样交给调用方消费**。如果本类型只收一个
-///    `eligibleCount: Int`，那么"生产代码误传 `snaps.count`"这个正是本 bug 的失败模式，单测
-///    照样全绿。所以 `prepare` 亲自跑过滤并把 `eligible` 数组带出去，`AppTracker` 直接把它喂给
-///    `reconcileSeats(preloadedEligible:)`——顺带也就不会再触发第二次无超时 AX 读。
-///
-/// 窗口类型走泛型：`AXWindowSnapshot` 含非可选 `AXUIElement`，单测无法凭空构造；泛型让测试用
-/// 假窗口类型即可覆盖过滤接线，纯决策层也就不必依赖 ApplicationServices。
 enum ScanAdmissionDecision {
 
     /// 进程代际身份。pid 会被复用：后台探测拿到的 AX element 属于探测那一刻的进程实例，

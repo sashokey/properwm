@@ -321,3 +321,8 @@ private final class AdmissionWindowReader: AppTrackerWindowReading, Sendable {
             isMinimized: false, isFocusedWindow: false, element: AXUIElementCreateApplication(pid))])
     }
 }
+
+extension AppTracker {
+    func terminateForTesting(pid: pid_t) { handleAppTerminated(pid: pid) }
+    var mutationGenerationCountForTesting: Int { mutationGenerations.count }
+}

@@ -352,3 +352,40 @@ final class WindowLiftContextLifecycleTests: XCTestCase {
         XCTAssertTrue(predicate())
     }
 }
+
+extension WindowLiftAvoidanceController {
+    func installSessionForTesting(key: WindowLiftAvoidance.WindowKey, context: WindowLiftAvoidanceContext,
+                                  frames: WindowRestorationFrames, state: WindowLiftAvoidance.SessionState,
+                                  writer: Task<Void, Never>? = nil) {
+        states[key] = state
+        managedFrames[key] = frames
+        sessionContexts[key] = context
+        writeTasks[key] = writer
+    }
+    func reconcileContextsForTesting(_ contexts: [WindowLiftAvoidanceContext]) { reconcileContexts(contexts) }
+    func enableMonitoringForTesting() {
+        isEnabled = true
+        refreshCadenceForTesting()
+    }
+    func refreshCadenceForTesting() {
+        updatePollTimerLifecycle()
+        updateTrackedProbeLifecycle()
+    }
+    func pollForTesting() { poll() }
+    func probeTrackedFramesForTesting() { probeTrackedFrames() }
+    func geometryEventForTesting() { requestEventPoll() }
+    func sessionForTesting(_ key: WindowLiftAvoidance.WindowKey) -> WindowLiftAvoidance.SessionState? { states[key] }
+    var pollIntervalForTesting: TimeInterval? { pollTimerInterval }
+    var trackedIntervalForTesting: TimeInterval? { trackedProbeTimer?.timeInterval }
+    var pendingWorkForTesting: [Task<Void, Never>] { [scanTask, trackedProbeTask, restoreTask].compactMap { $0 } }
+
+    func clearSessionForTesting(_ key: WindowLiftAvoidance.WindowKey) {
+        clearManagedSession(for: key, cancelWriter: true, reason: "test")
+    }
+    var retainedWriterCountForTesting: Int { writeDrainTasks.values.reduce(0) { $0 + $1.count } }
+
+    func enqueueRestorationForTesting(key: WindowLiftAvoidance.WindowKey, frames: WindowRestorationFrames) {
+        pendingRestorations[key] = frames
+    }
+    var pendingRestorationCountForTesting: Int { pendingRestorations.count }
+}

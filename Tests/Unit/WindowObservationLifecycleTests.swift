@@ -27,13 +27,13 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
                 return true
             }
             if failed { return .cannotComplete }
-            registered.withLock { $0[element, default: []].insert(notification) }
+            _ = registered.withLock { $0[element, default: []].insert(notification) }
         }
         return .success
     }
     func remove(_ notification: String, element: AXElementKey) {
         calls.withLock { $0.append(Thread.isMainThread) }
-        registered.withLock { $0[element]?.remove(notification) }
+        _ = registered.withLock { $0[element]?.remove(notification) }
         removals.withLock { $0 += 1 }
     }
     @MainActor func attach() { attachments += 1 }
@@ -132,7 +132,7 @@ final class WindowObservationLifecycleTests: XCTestCase {
         await waitUntil { pids.withLock { !$0.isEmpty } }
         for pid in Int32(43)...62 { observer.activate(pid: pid) }
         gate.signal()
-        await waitUntil { observer.isObservingForTesting }
+        await waitUntil { session.attachments == 1 }
         XCTAssertEqual(pids.withLock { $0 }, [42, 62])
         XCTAssertEqual(session.attachments, 1)
         XCTAssertEqual(session.calls.withLock { $0.count }, 2)
@@ -155,7 +155,6 @@ final class WindowObservationLifecycleTests: XCTestCase {
         gate.signal()
         for task in pending { await task.value }
         XCTAssertEqual(session.windowCalls.withLock { $0 }, 0)
-        XCTAssertFalse(observer.isObservingForTesting)
         XCTAssertEqual(session.detachments, 1)
     }
 
@@ -304,4 +303,8 @@ final class WindowObservationLifecycleTests: XCTestCase {
         observer.stop()
     }
 
+}
+
+extension FrontmostWindowGeometryObserver {
+    var pendingWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
 }
