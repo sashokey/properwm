@@ -225,9 +225,11 @@ final class StatusMenuControllerTests: XCTestCase {
                                         menuVisibility: { menuVisibility.append($0) }, quit: { quits += 1 })
         let menu = try XCTUnwrap(item.menu)
         XCTAssertEqual(menu.items.map(\.title), ["Open at Login", "Hide Status Bar Icon", "", "Quit"])
+        XCTAssertEqual(menu.items[1].state, .off)
         menu.performActionForItem(at: 1)
         XCTAssertFalse(item.isVisible)
-        XCTAssertFalse(menu.items[1].isEnabled)
+        XCTAssertTrue(menu.items[1].isEnabled)
+        XCTAssertEqual(menu.items[1].state, .on)
         controller.menuWillOpen(menu)
         controller.menuDidClose(menu)
         XCTAssertFalse(item.isVisible)
@@ -243,7 +245,8 @@ final class StatusMenuControllerTests: XCTestCase {
             XCTAssertEqual(item.autosaveName, "ProperWM.StatusBarIcon")
             XCTAssertFalse(item.isVisible)
             XCTAssertTrue(item.visibilityWrites.isEmpty)
-            XCTAssertEqual(item.menu?.items[1].isEnabled, false)
+            XCTAssertEqual(item.menu?.items[1].isEnabled, true)
+            XCTAssertEqual(item.menu?.items[1].state, .on)
             XCTAssertEqual(item.image?.isTemplate, true)
         }
     }
@@ -256,6 +259,7 @@ final class StatusMenuControllerTests: XCTestCase {
         controller.showStatusBarIcon()
         XCTAssertTrue(item.isVisible)
         XCTAssertTrue(menu.items[1].isEnabled)
+        XCTAssertEqual(menu.items[1].state, .off)
         XCTAssertTrue(item.menu === menu)
         XCTAssertEqual(item.imageConfigurations, 1)
         XCTAssertEqual(item.autosaveName, "ProperWM.StatusBarIcon")
@@ -264,6 +268,44 @@ final class StatusMenuControllerTests: XCTestCase {
         withExtendedLifetime(restoredController) {
             XCTAssertEqual(restoredItem.autosaveName, item.autosaveName)
             XCTAssertFalse(restoredItem.isVisible)
+        }
+    }
+
+    func testHideMenuItemTogglesBothWaysFromEitherRestoredState() throws {
+        for initiallyVisible in [false, true] {
+            let item = StatusItem(visible: initiallyVisible)
+            let launch = LaunchServiceStub(state: .off)
+            let controller = makeController(item: item, launch: launch)
+            let menu = try XCTUnwrap(item.menu)
+            XCTAssertTrue(item.visibilityWrites.isEmpty)
+            for expectedVisibility in [!initiallyVisible, initiallyVisible, !initiallyVisible] {
+                controller.menuWillOpen(menu)
+                XCTAssertTrue(menu.items[1].isEnabled)
+                XCTAssertEqual(menu.items[1].state, item.isVisible ? .off : .on)
+                menu.performActionForItem(at: 1)
+                controller.menuDidClose(menu)
+                XCTAssertEqual(item.isVisible, expectedVisibility)
+                XCTAssertEqual(menu.items[1].state, expectedVisibility ? .off : .on)
+                XCTAssertTrue(menu.items[1].isEnabled)
+            }
+            XCTAssertEqual(item.visibilityWrites, [!initiallyVisible, initiallyVisible, !initiallyVisible])
+            XCTAssertTrue(launch.requests.isEmpty)
+            XCTAssertTrue(item.menu === menu)
+        }
+    }
+
+    func testOpeningTheSharedMenuReflectsExternalVisibilityChangesWithoutWritingThem() throws {
+        let item = StatusItem()
+        let controller = makeController(item: item, launch: LaunchServiceStub(state: .off))
+        let menu = try XCTUnwrap(item.menu)
+        for visible in [false, true] {
+            item.isVisible = visible
+            let writes = item.visibilityWrites
+            controller.menuWillOpen(menu)
+            XCTAssertEqual(menu.items[1].state, visible ? .off : .on)
+            XCTAssertTrue(menu.items[1].isEnabled)
+            controller.menuDidClose(menu)
+            XCTAssertEqual(item.visibilityWrites, writes)
         }
     }
 

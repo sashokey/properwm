@@ -21,7 +21,7 @@ The suite covers:
 - Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture. Native mouse-tracking checks may attach views to a panel that is never ordered on screen. Detached image rendering checks control geometry and content; it does not establish WindowServer glass refraction or transparency against the real desktop.
 - Native controls with preserved icon/text alignment, neutral hover/active feedback, lower indicators, animated-state settling, Reduce Motion, transparent native list backgrounds, native table mouse tracking, keyboard scrolling and exact-row close dispatch.
 - The manually observed Windows state hierarchy, applied to both AppKit appearances: similar hover/active body fill, stronger active edge, stronger fill on active hover, and darker held presses. The active underline is 11 by 2 points with a one-point bottom gap, centered beneath the icon and aligned at 1x and 2x backing scales.
-- The ordered Open at Login / Hide Status Bar Icon / Quit menu, native-restored visibility, icon restoration, and independent login/quit actions.
+- The ordered Open at Login / Hide Status Bar Icon / Quit menu, checked visibility toggling in both directions, native-restored visibility, icon restoration, and independent login/quit actions.
 - Launch-at-login state, localization, debug-switch registration, stable toolchain selection, release publication, and artifact cleanup.
 
 Coverage reports identify untested paths; a count or percentage alone does not establish correct behavior. Automated tests cannot establish real Accessibility interoperability, native WindowServer animation, or hot-plug behavior on every Mac.
@@ -54,7 +54,7 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Background/menu-bar menu | Open at Login, Hide Status Bar Icon, separator, then Quit, which exits ProperWM normally. No size setting or native Dock controls. |
 | Hide status icon and restart | The icon disappears while taskbar operation continues; the choice survives application restart and login/reboot. |
 | Reopen the running app from Applications | The same status item reappears; its visible state is saved. No second taskbar instance or new document window appears. |
-| Open the taskbar menu while the icon is hidden | Open at Login and Quit remain available; the already-completed Hide action is disabled and menu refresh does not reveal the icon. |
+| Open the taskbar menu while the icon is hidden | Hide Status Bar Icon stays enabled and checked. Selecting it restores the icon and clears the checkmark; selecting it again hides the icon. Opening or refreshing the menu alone does not change visibility. Open at Login and Quit remain independent. |
 | Maximize, restore, manual move/resize | Maximized windows avoid the 32-point bar; manual geometry remains respected. |
 | Two displays and moving windows | Each bar shows windows on that display; combining is calculated separately for its available width. |
 | Disconnect/reconnect, sleep/wake | No stale panels, duplicate buttons, or inaccessible windows after attribution settles. |

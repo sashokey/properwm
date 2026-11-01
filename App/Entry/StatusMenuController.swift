@@ -24,7 +24,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let settingsCoordinator: SettingsCoordinator
     private let onMenuVisibilityChanged: (Bool) -> Void
     private let launchAtLoginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-    private let hideStatusBarIconItem = NSMenuItem(title: String(localized: "Hide Status Bar Icon"), action: #selector(hideStatusBarIcon), keyEquivalent: "")
+    private let hideStatusBarIconItem = NSMenuItem(title: String(localized: "Hide Status Bar Icon"), action: #selector(toggleStatusBarIcon), keyEquivalent: "")
     private var subscriptions = Set<AnyCancellable>()
     private var refreshTask: Task<Void, Never>?
 
@@ -50,7 +50,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         launchAtLoginItem.target = self
         hideStatusBarIconItem.target = self
-        hideStatusBarIconItem.isEnabled = statusItem.isVisible
+        updateStatusBarIconState()
 
         settingsCoordinator.$launchAtLoginState
             .sink { [weak self] state in self?.updateLaunchAtLogin(state) }
@@ -65,7 +65,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        hideStatusBarIconItem.isEnabled = statusItem.isVisible
+        updateStatusBarIconState()
         onMenuVisibilityChanged(true)
         refreshSystemState()
     }
@@ -77,12 +77,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func showStatusBarIcon() {
         statusItem.isVisible = true
-        hideStatusBarIconItem.isEnabled = true
+        updateStatusBarIconState()
     }
 
-    @objc private func hideStatusBarIcon() {
-        statusItem.isVisible = false
-        hideStatusBarIconItem.isEnabled = false
+    @objc private func toggleStatusBarIcon() {
+        statusItem.isVisible.toggle()
+        updateStatusBarIconState()
+    }
+
+    private func updateStatusBarIconState() {
+        hideStatusBarIconItem.state = statusItem.isVisible ? .off : .on
     }
 
     private func updateLaunchAtLogin(_ state: LaunchAtLoginState) {
