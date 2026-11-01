@@ -12,7 +12,7 @@ on:
         type: string
       prerelease:
         description: 'Mark as a pre-release'
-        default: true
+        default: false
         type: boolean
       draft:
         description: 'Keep as a draft'
