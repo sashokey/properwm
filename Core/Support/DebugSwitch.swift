@@ -12,7 +12,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case absentSeatRelease = "DOCK_ABSENT_SEAT_RELEASE"
     case skylightFocus = "DOCK_SKYLIGHT_FOCUS"
     case fastWindowHandle = "DOCK_FAST_WINDOW_HANDLE"
-    case minimizeSettleGate = "DOCK_MINIMIZE_SETTLE_GATE"
     case handoffActiveGrace = "DOCK_HANDOFF_ACTIVE_GRACE"
     case handoffActivePrediction = "DOCK_HANDOFF_ACTIVE_PREDICTION"
     case staleActiveGuard = "DOCK_STALE_ACTIVE_GUARD"
@@ -38,7 +37,7 @@ enum DebugSwitch: String, CaseIterable, Sendable {
 
     var kind: Kind {
         switch self {
-        case .eventAxAsync, .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .minimizeSettleGate, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
+        case .eventAxAsync, .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
             return .killSwitch
         case .displayTrace, .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .windowLiftTrace, .simulateNoDestroy:
             return .trace

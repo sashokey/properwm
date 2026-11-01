@@ -10,5 +10,6 @@ protocol WindowInventoryTracking: AnyObject {
 protocol WindowActionExecuting: Sendable {
     func execute(_ request: PlatformActionRequest, snapshot: DockSnapshot,
                  forcedMinimizedPrior: Bool,
+                 cancellation: OperationCancellation,
                  onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?) -> Bool
 }

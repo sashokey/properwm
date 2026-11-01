@@ -1,6 +1,14 @@
 import Foundation
 import Synchronization
 
+final class OperationCancellation: Sendable {
+    private let cancelled = Mutex(false)
+
+    var isCancelled: Bool { cancelled.withLock { $0 } }
+
+    func cancel() { cancelled.withLock { $0 = true } }
+}
+
 @MainActor
 final class AsyncWorkScope {
     private(set) var generation: UInt64 = 0
@@ -24,12 +32,13 @@ final class AsyncWorkScope {
         isActive && self.generation == generation
     }
 
+    @discardableResult
     func launch(after delay: TimeInterval = 0, priority: TaskPriority? = nil,
-                operation: @escaping @Sendable (UInt64) async -> Void) {
-        guard isActive else { return }
+                operation: @escaping @Sendable (UInt64) async -> Void) -> Task<Void, Never>? {
+        guard isActive else { return nil }
         let id = UUID()
         let generation = generation
-        tasks[id] = Task.detached(priority: priority) { [weak self] in
+        let task = Task.detached(priority: priority) { [weak self] in
             if delay > 0 {
                 do { try await Task.sleep(for: .seconds(delay)) }
                 catch { await self?.finish(id); return }
@@ -37,6 +46,8 @@ final class AsyncWorkScope {
             if !Task.isCancelled { await operation(generation) }
             await self?.finish(id)
         }
+        tasks[id] = task
+        return task
     }
 
     #if DEBUG
@@ -47,13 +58,13 @@ final class AsyncWorkScope {
 
     nonisolated static func performBlocking<Value>(
         on queue: DispatchQueue = .global(qos: .userInitiated),
+        cancellation: OperationCancellation = OperationCancellation(),
         operation: @escaping @Sendable () -> sending Value
     ) async -> sending Value? {
-        let cancelled = Mutex(false)
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 queue.async {
-                    guard !cancelled.withLock({ $0 }) else {
+                    guard !cancellation.isCancelled else {
                         continuation.resume(returning: nil)
                         return
                     }
@@ -61,7 +72,7 @@ final class AsyncWorkScope {
                 }
             }
         } onCancel: {
-            cancelled.withLock { $0 = true }
+            cancellation.cancel()
         }
     }
 

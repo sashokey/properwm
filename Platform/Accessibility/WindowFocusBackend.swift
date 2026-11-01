@@ -88,11 +88,15 @@ struct SkyLightWindowFocus: WindowFocusRequesting {
 enum WindowActivationAttempt {
     static func run(requestPrivateFocus: () -> Bool, raise: () -> Void,
                     activateApplication: () -> Void, confirm: (TimeInterval) -> Bool,
-                    timeout: TimeInterval) -> Bool {
+                    timeout: TimeInterval, isCancelled: () -> Bool = { false }) -> Bool {
+        guard !isCancelled() else { return false }
         let accepted = requestPrivateFocus()
+        guard !isCancelled() else { return false }
         raise()
         if confirm(accepted ? min(0.1, timeout) : 0) { return true }
+        guard !isCancelled() else { return false }
         activateApplication()
+        guard !isCancelled() else { return false }
         raise()
         return confirm(timeout)
     }

@@ -31,7 +31,7 @@ final class AppRuntime: ObservableObject {
     private var titleSettleTimer: Timer?
     private let titleSettleEnabled = DebugSwitch.titleSettle.isEnabled(in: ProcessInfo.processInfo.environment)
     private let tracker: any WindowInventoryTracking
-    private let work = AsyncWorkScope()
+    private let work = WindowActionQueue()
     private var actionTokens: [String: UUID] = [:]
     private let intentPipeline = IntentPipeline(actionPlanning: LifecycleActionPlanner())
     private let actionExecutor: any WindowActionExecuting
@@ -42,7 +42,6 @@ final class AppRuntime: ObservableObject {
 
     private let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
     private static let chipProbeEnabled = DebugSwitch.chipProbe.isEnabled(in: ProcessInfo.processInfo.environment)
-    private static let settleGateEnabled = DebugSwitch.minimizeSettleGate.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let handoffActiveGraceEnabled = DebugSwitch.handoffActiveGrace.isEnabled(in: ProcessInfo.processInfo.environment)
     private static let handoffActivePredictionEnabled = DebugSwitch.handoffActivePrediction.isEnabled(in: ProcessInfo.processInfo.environment)
 
@@ -90,9 +89,6 @@ final class AppRuntime: ObservableObject {
         feedbackTimer = nil
         titleSettleTimer?.invalidate()
         titleSettleTimer = nil
-        for held in heldActionsByWindowID.values { held.workItem.cancel() }
-        heldActionsByWindowID.removeAll()
-        recentMinimizeDispatchAtByWindowID.removeAll()
         optimisticStatesByWindowID.removeAll()
         heldLabelTitlesByChipID.removeAll()
         titleSettle = WindowTitleSettle()
@@ -114,7 +110,6 @@ final class AppRuntime: ObservableObject {
         guard isRunning else { return }
         HoverTrace.action("\(intent.action)", phase: "begin")
         defer { HoverTrace.action("\(intent.action)", phase: "dispatched") }
-        cancelHeldAction(for: intent)
         switch intent.action {
         case .close:
             guard intentPipeline.canBegin(intent: intent) else { return }
@@ -155,139 +150,15 @@ final class AppRuntime: ObservableObject {
         publishFeedbackEntries()
         updateFeedbackTimer()
 
-        routeThroughSettleGate(intent: intent, request: request)
+        dispatchToExecutor(intent: intent, request: request, forcedMinimizedPrior: effectiveStatusAtPlan == .minimized)
     }
 
-    private struct HeldAction {
-        let intent: UserIntent
-        let request: PlatformActionRequest
-        let anchor: Date
-        let generation: UInt64
-        var workItem: DispatchWorkItem
-    }
-
-    private var recentMinimizeDispatchAtByWindowID: [String: Date] = [:]
-    private var heldActionsByWindowID: [String: HeldAction] = [:]
-    private var settleGateGeneration: UInt64 = 0
-
-    private func routeThroughSettleGate(intent: UserIntent, request: PlatformActionRequest) {
-        guard Self.settleGateEnabled, let windowID = request.windowID?.rawValue else {
-            dispatchToExecutor(intent: intent, request: request)
-            return
-        }
-        if request.kind == .minimizeWindow {
-            if !windowID.hasPrefix("app-") {
-                recentMinimizeDispatchAtByWindowID[windowID] = Date()
-            }
-            dispatchToExecutor(intent: intent, request: request)
-            return
-        }
-        let verdict = MinimizeSettleGate.verdict(
-            requestKind: request.kind,
-            minimizeDispatchedAt: recentMinimizeDispatchAtByWindowID[windowID],
-            snapshotConfirmsMinimized: snapshot.windows[WindowID(rawValue: windowID)]?.status == .minimized,
-            now: Date()
-        )
-        switch verdict {
-        case .dispatchNow:
-            dispatchToExecutor(intent: intent, request: request)
-        case .hold(let until):
-            ClickLatencyTrace.mark(windowID: windowID, "settleGate", detail: "hold")
-            holdAction(intent: intent, request: request, windowID: windowID, until: until)
-        }
-    }
-
-    private func holdAction(intent: UserIntent, request: PlatformActionRequest, windowID: String, until: Date) {
-        guard let anchor = recentMinimizeDispatchAtByWindowID[windowID] else {
-            dispatchToExecutor(intent: intent, request: request)
-            return
-        }
-        settleGateGeneration &+= 1
-        let generation = settleGateGeneration
-        let workItem = makeFlushWorkItem(windowID: windowID, generation: generation)
-        heldActionsByWindowID[windowID] = HeldAction(
-            intent: intent, request: request, anchor: anchor, generation: generation, workItem: workItem
-        )
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, until.timeIntervalSinceNow), execute: workItem)
-    }
-
-    private func makeFlushWorkItem(windowID: String, generation: UInt64) -> DispatchWorkItem {
-        DispatchWorkItem { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.flushHeldAction(windowID: windowID, generation: generation)
-            }
-        }
-    }
-
-    private func flushHeldAction(windowID: String, generation: UInt64) {
-        guard isRunning,
-              let held = heldActionsByWindowID[windowID],
-              held.generation == generation else { return }
-        let verdict = MinimizeSettleGate.verdict(
-            requestKind: held.request.kind,
-            minimizeDispatchedAt: held.anchor,
-            snapshotConfirmsMinimized: snapshot.windows[WindowID(rawValue: windowID)]?.status == .minimized,
-            now: Date()
-        )
-        switch verdict {
-        case .dispatchNow:
-            heldActionsByWindowID.removeValue(forKey: windowID)
-            let confirmed = snapshot.windows[WindowID(rawValue: windowID)]?.status == .minimized
-            ClickLatencyTrace.mark(windowID: windowID, "settleGateFlush", detail: confirmed ? "confirmed" : "cap")
-            dispatchToExecutor(intent: held.intent, request: held.request)
-        case .hold(let until):
-            held.workItem.cancel()
-            let workItem = makeFlushWorkItem(windowID: windowID, generation: generation)
-            heldActionsByWindowID[windowID]?.workItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + max(0, until.timeIntervalSinceNow), execute: workItem)
-        }
-    }
-
-    private func reevaluateHeldActions(now: Date = Date()) {
-        if !recentMinimizeDispatchAtByWindowID.isEmpty {
-            recentMinimizeDispatchAtByWindowID = recentMinimizeDispatchAtByWindowID.filter {
-                now.timeIntervalSince($0.value) < MinimizeSettleGate.priorWindow
-            }
-        }
-        guard !heldActionsByWindowID.isEmpty else { return }
-        for (windowID, held) in heldActionsByWindowID {
-            let verdict = MinimizeSettleGate.verdict(
-                requestKind: held.request.kind,
-                minimizeDispatchedAt: held.anchor,
-                snapshotConfirmsMinimized: snapshot.windows[WindowID(rawValue: windowID)]?.status == .minimized,
-                now: now
-            )
-            guard case .dispatchNow = verdict else { continue }
-            held.workItem.cancel()
-            heldActionsByWindowID.removeValue(forKey: windowID)
-            let confirmed = snapshot.windows[WindowID(rawValue: windowID)]?.status == .minimized
-            ClickLatencyTrace.mark(windowID: windowID, "settleGateFlush", detail: confirmed ? "confirmed" : "cap")
-            dispatchToExecutor(intent: held.intent, request: held.request)
-        }
-    }
-
-    private func cancelHeldAction(for intent: UserIntent) {
-        guard let held = heldActionsByWindowID.removeValue(forKey: intent.windowID.rawValue) else { return }
-        held.workItem.cancel()
-        switch intent.action {
-        case .close:
-            intentPipeline.registerExecutionResult(intent: held.intent, request: held.request, success: false)
-        default:
-            break
-        }
-    }
-
-    private func dispatchToExecutor(intent: UserIntent, request: PlatformActionRequest) {
+    private func dispatchToExecutor(intent: UserIntent, request: PlatformActionRequest, forcedMinimizedPrior: Bool) {
         let executor = actionExecutor
         let capturedSnapshot = snapshot
         let generation = work.generation
         let key = intent.windowID.rawValue
         guard let token = actionTokens[key] else { return }
-        let forcedMinimizedPrior = request.kind == .activateWindow
-            && MinimizeSettleGate.dispatchPrior(
-                minimizeDispatchedAt: request.windowID.flatMap { recentMinimizeDispatchAtByWindowID[$0.rawValue] },
-                now: Date()
-            )
         let onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?
         if (request.kind == .minimizeWindow || request.kind == .closeWindow) && Self.handoffActivePredictionEnabled {
             onHandoffActivePrediction = { @Sendable [weak self] (windowID: WindowID) in
@@ -305,11 +176,12 @@ final class AppRuntime: ObservableObject {
         } else {
             onHandoffActivePrediction = nil
         }
-        work.launch(priority: .userInitiated) { [weak self] generation in
+        work.submit(key: key) { [weak self] generation, cancellation in
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "execStart")
-            let result = await AsyncWorkScope.performBlocking {
+            let result = await AsyncWorkScope.performBlocking(cancellation: cancellation) {
                 executor.execute(request, snapshot: capturedSnapshot,
                                  forcedMinimizedPrior: forcedMinimizedPrior,
+                                 cancellation: cancellation,
                                  onHandoffActivePrediction: onHandoffActivePrediction)
             }
             ClickLatencyTrace.end(windowID: request.windowID?.rawValue, success: result == true)
@@ -334,7 +206,6 @@ final class AppRuntime: ObservableObject {
         intentPipeline.reconcile(with: newSnapshot)
         publishFeedbackEntries()
         reconcileOptimisticStates()
-        reevaluateHeldActions()
         updateFeedbackTimer()
         if let startedAt {
             let ms = Int(Date().timeIntervalSince(startedAt) * 1000)
@@ -370,7 +241,6 @@ final class AppRuntime: ObservableObject {
         intentPipeline.reconcile(with: snapshot)
         publishFeedbackEntries()
         reconcileOptimisticStates()
-        reevaluateHeldActions()
         updateFeedbackTimer()
     }
 

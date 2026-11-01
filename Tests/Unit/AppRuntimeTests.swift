@@ -27,7 +27,7 @@ private final class RuntimeExecutor: WindowActionExecuting {
     }
 
     func execute(_ request: PlatformActionRequest, snapshot: DockSnapshot,
-                 forcedMinimizedPrior: Bool,
+                 forcedMinimizedPrior: Bool, cancellation: OperationCancellation,
                  onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?) -> Bool {
         let index = calls.withLock { value in
             defer { value += 1 }
@@ -95,6 +95,7 @@ final class AppRuntimeTests: XCTestCase {
         await waitUntil { executor.calls.withLock { $0 } == 1 }
         let older = runtime.pendingActionsForTesting
         runtime.activate(windowID: "window-1")
+        executor.gates[0].signal()
         await waitUntil { executor.calls.withLock { $0 } == 2 }
         executor.gates[1].signal()
         await waitUntil { runtime.debugState.feedbackEntriesByWindowID["window-1"]?.phase == .success }

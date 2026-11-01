@@ -7,13 +7,26 @@ struct AccessibilityWindowActionExecutor: Sendable {
     private let reader: AXWindowReader
     private let chipProbeEnabled: Bool
     private let focusBackend: any WindowFocusRequesting
+    private let cancellation: OperationCancellation
     private static let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
 
     init(reader: AXWindowReader = AXWindowReader(), chipProbeEnabled: Bool = false,
-         focusBackend: any WindowFocusRequesting = SkyLightWindowFocus()) {
+         focusBackend: any WindowFocusRequesting = SkyLightWindowFocus(),
+         cancellation: OperationCancellation = OperationCancellation()) {
         self.reader = reader
         self.chipProbeEnabled = chipProbeEnabled
         self.focusBackend = focusBackend
+        self.cancellation = cancellation
+    }
+
+    func withCancellation(_ cancellation: OperationCancellation) -> Self {
+        Self(reader: reader, chipProbeEnabled: chipProbeEnabled, focusBackend: focusBackend, cancellation: cancellation)
+    }
+
+    @discardableResult
+    func activateApplication(pid: pid_t) -> Bool {
+        guard !cancellation.isCancelled else { return false }
+        return NSRunningApplication(processIdentifier: pid)?.activate(options: []) ?? false
     }
 
     struct ActionExecution {
@@ -92,9 +105,9 @@ struct AccessibilityWindowActionExecutor: Sendable {
         }
         let visibleWindows = liveWindows.filter { !$0.isMinimized }
 
-        if !visibleWindows.isEmpty {
+        if !visibleWindows.isEmpty, !cancellation.isCancelled {
             _ = AXUIElementPerformAction(visibleWindows[0].element, kAXRaiseAction as CFString)
-            return runningApp?.activate(options: []) ?? false
+            return activateApplication(pid: pid)
         }
 
         return false
@@ -161,7 +174,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             )
         }
 
-        guard AXUIElementPerformAction(button, kAXPressAction as CFString) == .success else {
+        guard !cancellation.isCancelled, AXUIElementPerformAction(button, kAXPressAction as CFString) == .success else {
             return ActionExecution(
                 success: false,
                 mechanism: "press-minimize-button-failed",
@@ -177,45 +190,6 @@ struct AccessibilityWindowActionExecutor: Sendable {
         )
     }
 
-    func restore(_ handle: WindowHandle) -> ActionExecution {
-        if setMinimized(false, for: handle) {
-            _ = AXUIElementPerformAction(handle.element, kAXRaiseAction as CFString)
-            let verified = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element)
-            return ActionExecution(
-                success: verified == false,
-                mechanism: "clear-minimized-attribute",
-                verifiedMinimized: verified
-            )
-        }
-
-        guard let rebound = recapture(from: handle) else {
-            return ActionExecution(
-                success: false,
-                mechanism: "recapture-for-restore-failed",
-                verifiedMinimized: nil
-            )
-        }
-        guard setMinimized(false, for: rebound) else {
-            return ActionExecution(
-                success: false,
-                mechanism: "clear-minimized-after-recapture-failed",
-                verifiedMinimized: reader.boolAttribute(kAXMinimizedAttribute as CFString, from: rebound.element)
-            )
-        }
-        _ = AXUIElementPerformAction(rebound.element, kAXRaiseAction as CFString)
-        let verified = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: rebound.element)
-        return ActionExecution(
-            success: verified == false,
-            mechanism: "clear-minimized-after-recapture",
-            verifiedMinimized: verified
-        )
-    }
-
-    private func recapture(from handle: WindowHandle) -> WindowHandle? {
-        captureHandle(for: WindowTarget(pid: handle.pid, title: handle.title,
-                                        bounds: handle.bounds, cgWindowID: handle.cgWindowID))
-    }
-
     func activate(
         _ handle: WindowHandle,
         confirmationTimeout: TimeInterval = 0.6,
@@ -225,7 +199,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         preActivateForRestore: Bool = false,
         awaitOnScreenBeforeFocus: Bool = false
     ) -> Bool {
-        let runningApp = NSRunningApplication(processIdentifier: handle.pid)
+        guard !cancellation.isCancelled else { return false }
         if knownMinimized || reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element) == true {
             if preActivateForRestore, let wid = knownCGWindowID {
                 postSkyLightFrontSwitchOnly(pid: handle.pid, windowID: wid)
@@ -237,18 +211,19 @@ struct AccessibilityWindowActionExecutor: Sendable {
             if let wid = knownCGWindowID {
                 postSkyLightWindowFocus(pid: handle.pid, windowID: wid)
             }
-            AXUIElementSetAttributeValue(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue)
+            if !cancellation.isCancelled { AXUIElementSetAttributeValue(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue) }
         }
 
         return WindowActivationAttempt.run(
             requestPrivateFocus: { requestWindowFocusViaSkyLight(pid: handle.pid, element: handle.element) },
-            raise: { _ = AXUIElementPerformAction(handle.element, kAXRaiseAction as CFString) },
-            activateApplication: { _ = runningApp?.activate(options: []) },
+            raise: { if !cancellation.isCancelled { _ = AXUIElementPerformAction(handle.element, kAXRaiseAction as CFString) } },
+            activateApplication: { _ = activateApplication(pid: handle.pid) },
             confirm: { timeout in
                 confirmFocused(pid: handle.pid, windowID: handle.cgWindowID, element: handle.element,
                                timeout: timeout, pollIntervalMicroseconds: pollIntervalMicroseconds)
             },
-            timeout: confirmationTimeout
+            timeout: confirmationTimeout,
+            isCancelled: { cancellation.isCancelled }
         )
     }
 
@@ -256,6 +231,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
     private func waitForWindowOnScreen(_ windowID: CGWindowID, cap: TimeInterval = 0.9) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + cap
         repeat {
+            guard !cancellation.isCancelled else { return false }
             if let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
                let info = list.first,
                (info[kCGWindowIsOnscreen as String] as? Bool) == true,
@@ -271,10 +247,12 @@ struct AccessibilityWindowActionExecutor: Sendable {
         let deadline = Date().addingTimeInterval(0.6)
         var attempts = 0
         repeat {
+            guard !cancellation.isCancelled else { return false }
             attempts += 1
             var raw: CFTypeRef?
             let readError = AXUIElementCopyAttributeValue(handle.element, kAXCloseButtonAttribute as CFString, &raw)
             if readError == .success, let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() {
+                guard !cancellation.isCancelled else { return false }
                 let pressError = AXUIElementPerformAction(raw as! AXUIElement, kAXPressAction as CFString)
                 Self.chipProbeLogger.info("close-press pid=\(handle.pid, privacy: .public) error=\(pressError.rawValue, privacy: .public) attempt=\(attempts, privacy: .public)")
                 if pressError == .success { return true }
@@ -295,6 +273,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
     ) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
         repeat {
+            guard !cancellation.isCancelled else { return false }
             let remaining = max(0.001, deadline - ProcessInfo.processInfo.systemUptime)
             if NSRunningApplication(processIdentifier: pid)?.isActive == true,
                let focused = reader.focusedWindow(forPID: pid, messagingTimeout: min(remaining, 0.025)) {
@@ -317,7 +296,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         snapshot: DockSnapshot,
         focusedReadBudget: TimeInterval = 0
     ) -> MinimizeHandoffTarget.Verdict {
-        guard NSRunningApplication(processIdentifier: handle.pid)?.isActive == true else { return .none }
+        guard !cancellation.isCancelled, NSRunningApplication(processIdentifier: handle.pid)?.isActive == true else { return .none }
 
         let appElement = AXUIElementCreateApplication(handle.pid)
         AXUIElementSetMessagingTimeout(appElement, 0.2)
@@ -325,6 +304,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         var focused: AXUIElement?
         var readError = AXError.success
         repeat {
+            guard !cancellation.isCancelled else { return .none }
             var raw: CFTypeRef?
             readError = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &raw)
             if readError == .success, let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() {
@@ -384,6 +364,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         var lastAXError: Int32 = 0
         let waitStart = Date()
         repeat {
+            guard !cancellation.isCancelled else { return false }
             var raw: CFTypeRef?
             let axError = AXUIElementCopyAttributeValue(targetApp, kAXFrontmostAttribute as CFString, &raw)
             if axError == .success {
@@ -402,6 +383,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
     private func activateApplicationViaAccessibility(pid: pid_t) -> Bool {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.2)
+        guard !cancellation.isCancelled else { return false }
         return AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue) == .success
     }
 
@@ -416,7 +398,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         pid: pid_t, windowID: CGWindowID,
         mode: UInt32 = AccessibilityWindowActionExecutor.kCPSUserGenerated
     ) -> Bool {
-        guard Self.skyLightFocusEnabled else { return false }
+        guard Self.skyLightFocusEnabled, !cancellation.isCancelled else { return false }
         return focusBackend.setFrontmost(pid: pid, windowID: windowID, mode: mode)
     }
 
@@ -428,7 +410,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     @discardableResult
     fileprivate func postSkyLightMakeKeyDown(pid: pid_t, windowID: CGWindowID) -> Bool {
-        guard Self.skyLightFocusEnabled else { return false }
+        guard Self.skyLightFocusEnabled, !cancellation.isCancelled else { return false }
         return focusBackend.makeKey(pid: pid, windowID: windowID)
     }
 
@@ -448,7 +430,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
     }
 
     private func setMinimized(_ minimized: Bool, for handle: WindowHandle) -> Bool {
-        reader.setMinimized(
+        guard !cancellation.isCancelled else { return false }
+        return reader.setMinimized(
             minimized,
             for: AXWindowHandle(pid: handle.pid, title: handle.title, bounds: handle.bounds, element: handle.element)
         )
@@ -519,9 +502,11 @@ struct PlatformActionExecutor: WindowActionExecuting {
         _ request: PlatformActionRequest,
         snapshot: DockSnapshot,
         forcedMinimizedPrior: Bool,
+        cancellation: OperationCancellation,
         onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?
     ) -> Bool {
-        guard let windowID = request.windowID,
+        let windowExecutor = windowExecutor.withCancellation(cancellation)
+        guard !cancellation.isCancelled, let windowID = request.windowID,
               let record = snapshot.windows[windowID] else {
             return false
         }
@@ -544,6 +529,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
         if isFinderWindow {
             let finderApp = NSRunningApplication(processIdentifier: record.pid)
             if finderApp?.isHidden == true {
+                guard !cancellation.isCancelled else { return false }
                 finderApp?.unhide()
                 let deadline = Date().addingTimeInterval(0.2)
                 while finderApp?.isHidden == true, Date() < deadline {
@@ -594,6 +580,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
         )
         ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "handle", detail: captureTier)
 
+        guard !cancellation.isCancelled else { return false }
         guard let handle else {
             guard WindowHandleCapturePlan.usesAppFallbackAfterCaptureFailure(
                 requestKind: request.kind,
@@ -604,7 +591,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
             ) else {
                 return false
             }
-            return executeAppFallback(request: request, record: record)
+            return executeAppFallback(request: request, record: record, executor: windowExecutor)
         }
 
         switch request.kind {
@@ -620,11 +607,11 @@ struct PlatformActionExecutor: WindowActionExecuting {
             )
         case .minimizeWindow:
             let handoff = beginHandoff(handle: handle, record: record, snapshot: snapshot,
-                                       onHandoffActivePrediction: onHandoffActivePrediction, patience: .minimize)
+                                       onHandoffActivePrediction: onHandoffActivePrediction, executor: windowExecutor, patience: .minimize)
             let preSwitched = handoff.preSwitched
 
             func finishSuccessfulMinimize(_ exec: AccessibilityWindowActionExecutor.ActionExecution) -> Bool {
-                finishHandoff(handoff)
+                finishHandoff(handoff, executor: windowExecutor)
                 if switches.chipProbeEnabled {
                     Self.chipProbeLogger.info("minimize-exec-result windowID=\(request.windowID?.rawValue ?? "nil", privacy: .public) success=\(exec.success, privacy: .public) preSwitched=\(preSwitched, privacy: .public) mechanism=\(exec.mechanism, privacy: .public) verifiedMinimized=\(String(describing: exec.verifiedMinimized), privacy: .public)")
                 }
@@ -647,6 +634,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
             }
             if minExec.verifiedMinimized != true {
                 for attempt in 1...8 {
+                    guard !cancellation.isCancelled else { return false }
                     usleep(120_000)
                     let retryExec = windowExecutor.minimize(handle)
                     if switches.chipProbeEnabled {
@@ -663,9 +651,9 @@ struct PlatformActionExecutor: WindowActionExecuting {
             return false
         case .closeWindow:
             let handoff = beginHandoff(handle: handle, record: record, snapshot: snapshot,
-                                       onHandoffActivePrediction: onHandoffActivePrediction, patience: .close)
+                                       onHandoffActivePrediction: onHandoffActivePrediction, executor: windowExecutor, patience: .close)
             if windowExecutor.close(handle) {
-                finishHandoff(handoff)
+                finishHandoff(handoff, executor: windowExecutor)
                 return true
             }
             if justUnhid {
@@ -696,6 +684,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
         record: WindowRecord,
         snapshot: DockSnapshot,
         onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?,
+        executor windowExecutor: AccessibilityWindowActionExecutor,
         patience: HandoffPatience
     ) -> Handoff {
         let verdict = windowExecutor.findBackgroundActivationTarget(
@@ -719,15 +708,15 @@ struct PlatformActionExecutor: WindowActionExecuting {
         return handoff
     }
 
-    private func finishHandoff(_ handoff: Handoff) {
+    private func finishHandoff(_ handoff: Handoff, executor windowExecutor: AccessibilityWindowActionExecutor) {
         guard let targetPID = handoff.targetPID else { return }
         if handoff.preSwitched, let windowID = handoff.windowID,
            windowExecutor.makeKeyAfterHandoff(pid: targetPID, windowID: windowID) { return }
         usleep(Self.postMinimizeActivateDelayMicroseconds)
-        _ = NSRunningApplication(processIdentifier: targetPID)?.activate(options: [])
+        _ = windowExecutor.activateApplication(pid: targetPID)
     }
 
-    private func executeAppFallback(request: PlatformActionRequest, record: WindowRecord) -> Bool {
+    private func executeAppFallback(request: PlatformActionRequest, record: WindowRecord, executor windowExecutor: AccessibilityWindowActionExecutor) -> Bool {
         guard request.kind == .activateWindow else { return false }
         return windowExecutor.activateAppWithWindowRecovery(
             pid: record.pid, runningApp: NSRunningApplication(processIdentifier: record.pid))

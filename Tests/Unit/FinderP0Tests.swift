@@ -2228,7 +2228,7 @@ final class FinderP0Tests: XCTestCase {
         for kind in [PlatformActionRequest.ActionKind.activateWindow, .minimizeWindow, .closeWindow] {
             XCTAssertFalse(executor.execute(
                 PlatformActionRequest(kind: kind, windowID: id),
-                snapshot: state, forcedMinimizedPrior: false, onHandoffActivePrediction: nil))
+                snapshot: state, forcedMinimizedPrior: false, cancellation: OperationCancellation(), onHandoffActivePrediction: nil))
         }
     }
 }

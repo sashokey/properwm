@@ -3,7 +3,7 @@ import XCTest
 /// `DebugSwitch` 的极性锁：迁移前各调用点的 `!= "0"` / `== "1"` 语义必须逐字保留。
 final class DebugSwitchTests: XCTestCase {
     func testKillSwitchIsOnUnlessExplicitlyZero() {
-        let s = DebugSwitch.eventAxAsync
+        let s = DebugSwitch.axElementCache
         XCTAssertEqual(s.kind, .killSwitch)
         XCTAssertTrue(s.isEnabled(in: [:]))
         XCTAssertTrue(s.isEnabled(in: [s.rawValue: "1"]))
