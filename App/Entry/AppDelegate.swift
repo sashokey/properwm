@@ -110,13 +110,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func terminateOtherInstances() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        guard let origin = ApplicationOrigin(bundleURL: Bundle.main.bundleURL) else { return }
         let myPID = ProcessInfo.processInfo.processIdentifier
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            .filter { $0.processIdentifier != myPID && !$0.isTerminated }
+            .filter { $0.processIdentifier != myPID && !$0.isTerminated
+                && ApplicationOrigin(bundleURL: $0.bundleURL) == origin }
         guard !others.isEmpty else { return }
+        let generations = Dictionary(uniqueKeysWithValues: others.compactMap { app in
+            ProcessLiveness.startTime(pid: app.processIdentifier).map { (app.processIdentifier, ProcessGeneration($0)) }
+        })
 
         let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "instance")
         for app in others {
+            guard let expected = generations[app.processIdentifier],
+                  ProcessLiveness.startTime(pid: app.processIdentifier).map(ProcessGeneration.init) == expected,
+                  ApplicationOrigin(bundleURL: app.bundleURL) == origin else { continue }
             logger.warning("""
                 发现另一个ProperWM实例，终止它：pid=\(app.processIdentifier, privacy: .public) \
                 path=\(app.bundleURL?.path ?? "(unknown)", privacy: .public)
@@ -126,6 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             for app in others where !app.isTerminated {
+                guard let expected = generations[app.processIdentifier],
+                      ProcessLiveness.startTime(pid: app.processIdentifier).map(ProcessGeneration.init) == expected,
+                      ApplicationOrigin(bundleURL: app.bundleURL) == origin else { continue }
                 logger.error("旧实例 pid=\(app.processIdentifier, privacy: .public) 3 秒内未退出，强制结束")
                 app.forceTerminate()
             }

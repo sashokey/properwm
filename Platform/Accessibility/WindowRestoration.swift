@@ -7,10 +7,11 @@ struct WindowRestorationFrames: Sendable {
     let nativeQuartz: CGRect
     let targetQuartz: CGRect
     let primaryScreenHeight: CGFloat
+    var processGeneration: ProcessGeneration? = nil
 }
 
 extension WindowRestorationFrames {
-    init(nativeAppKit: CGRect, targetAppKit: CGRect, primaryScreenHeight: CGFloat) {
+    init(nativeAppKit: CGRect, targetAppKit: CGRect, primaryScreenHeight: CGFloat, processGeneration: ProcessGeneration? = nil) {
         self.init(
             nativeAppKit: nativeAppKit,
             targetAppKit: targetAppKit,
@@ -20,7 +21,7 @@ extension WindowRestorationFrames {
             targetQuartz: WindowLiftAvoidance.quartzFrame(
                 fromAppKit: targetAppKit, primaryScreenHeight: primaryScreenHeight
             ),
-            primaryScreenHeight: primaryScreenHeight
+            primaryScreenHeight: primaryScreenHeight, processGeneration: processGeneration
         )
     }
 }
@@ -64,13 +65,10 @@ struct WindowRestorer<Access: WindowRestorationAccess>: Sendable {
                  expectedStartTime: timeval?, liveWindowKeys: Set<WindowLiftAvoidance.WindowKey>?,
                  cancellation: OperationCancellation = OperationCancellation()) -> WindowRestorationOutcome {
         guard !cancellation.isCancelled else { return .retry }
-        if let expectedStartTime {
-            guard let current = access.processStartTime(pid: key.pid) else {
-                return liveWindowKeys?.contains(key) == false ? .handled : .retry
-            }
-            guard current.tv_sec == expectedStartTime.tv_sec, current.tv_usec == expectedStartTime.tv_usec else { return .handled }
-        }
         if liveWindowKeys?.contains(key) == false { return .handled }
+        guard let expectedStartTime = expectedStartTime ?? frames.processGeneration.map({ timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }) else { return .retry }
+        guard let currentStart = access.processStartTime(pid: key.pid) else { return .retry }
+        guard currentStart.tv_sec == expectedStartTime.tv_sec, currentStart.tv_usec == expectedStartTime.tv_usec else { return .handled }
         guard let handle = access.capture(key), let current = access.frame(handle) else { return .retry }
         let appKitFrame = WindowLiftAvoidance.appKitFrame(fromQuartz: current, primaryScreenHeight: frames.primaryScreenHeight)
         switch WindowLiftAvoidance.frameClassification(of: appKitFrame, nativeFrame: frames.nativeAppKit,
@@ -78,7 +76,8 @@ struct WindowRestorer<Access: WindowRestorationAccess>: Sendable {
         case .target, .managedTrajectory: break
         case .native, .external: return .handled
         }
-        guard !cancellation.isCancelled else { return .retry }
+        guard !cancellation.isCancelled, let finalStart = access.processStartTime(pid: key.pid),
+              finalStart.tv_sec == expectedStartTime.tv_sec, finalStart.tv_usec == expectedStartTime.tv_usec else { return .retry }
         switch access.write(frames.nativeQuartz, to: handle, matching: current) {
         case .success: return .handled
         case .failure: return .retry

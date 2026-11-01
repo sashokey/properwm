@@ -33,7 +33,10 @@ final class TaskbarPresenter {
                 for pid in Set(group.windows.map(\.item.pid)) {
                     guard let app = NSRunningApplication(processIdentifier: pid),
                           let representative = group.windows.first(where: { $0.item.pid == pid }),
-                          representative.item.bundleIdentifier == nil || app.bundleIdentifier == representative.item.bundleIdentifier else { continue }
+                          let expected = representative.item.processGeneration,
+                          let current = ProcessLiveness.startTime(pid: pid), ProcessGeneration(current) == expected,
+                          let origin = representative.item.applicationOrigin,
+                          ApplicationOrigin(bundleURL: app.bundleURL) == origin else { continue }
                     _ = app.terminate()
                 }
             },
@@ -76,7 +79,7 @@ final class TaskbarPresenter {
         defer { refreshing = false }
         let items = StripItem.openWindows(from: runtime.snapshot)
         liveIDs = items.map(\.id)
-        let keys = Dictionary(items.map { ($0.id, $0.bundleIdentifier ?? $0.appID) }, uniquingKeysWith: { first, _ in first })
+        let keys = Dictionary(items.map { ($0.id, $0.applicationKey) }, uniquingKeysWith: { first, _ in first })
         ordering.sync(current: liveIDs, appKeyOf: keys)
         let order = TaskbarGroupOrdering.contiguous(ordering.reconciled(current: liveIDs, appKeyOf: keys), appKeys: keys)
         let filter = StripDisplayFilter(scope: displayUUID, connectedUUIDs: topology.table.connectedUUIDs,

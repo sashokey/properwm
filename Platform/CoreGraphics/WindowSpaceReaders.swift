@@ -3,16 +3,15 @@ import Foundation
 
 enum ManagedSpaceLayoutReader {
     private typealias MainConnectionIDFn = @convention(c) () -> Int32
-    private typealias CopySpacesFn = @convention(c) (Int32) -> CFArray?
+    private typealias CopySpacesFn = @convention(c) (Int32) -> Unmanaged<CFArray>?
 
     private static let symbols: (cid: Int32, copy: CopySpacesFn)? = {
         guard let handle = dlopen(
-            "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight",
-            RTLD_LAZY
-        ),
-            let cidSym = dlsym(handle, "SLSMainConnectionID"),
+            "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY
+        ) else { return nil }
+        guard let cidSym = dlsym(handle, "SLSMainConnectionID"),
             let copySym = dlsym(handle, "SLSCopyManagedDisplaySpaces")
-        else { return nil }
+        else { dlclose(handle); return nil }
         let cid = unsafeBitCast(cidSym, to: MainConnectionIDFn.self)()
         return (cid, unsafeBitCast(copySym, to: CopySpacesFn.self))
     }()
@@ -24,7 +23,7 @@ enum ManagedSpaceLayoutReader {
 
     static func layouts() -> [String: SpaceLayoutSnapshot]? {
         guard let symbols,
-              let displays = symbols.copy(symbols.cid) as? [[String: Any]] else { return nil }
+              let displays = symbols.copy(symbols.cid)?.takeRetainedValue() as? [[String: Any]] else { return nil }
         return parse(displays)
     }
 
@@ -62,30 +61,39 @@ enum ManagedSpaceLayoutReader {
 
 enum WindowSpaceObservation {
     static func capture(_ requests: [WindowSpaceRequest]) -> WindowSpaceSnapshot? {
-        guard let layouts = ManagedSpaceLayoutReader.layouts() else { return nil }
+        capture(requests, cancellation: OperationCancellation())
+    }
+
+    static func capture(_ requests: [WindowSpaceRequest], cancellation: OperationCancellation,
+                        maximumDuration: TimeInterval = 1,
+                        uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                        layouts: () -> [String: SpaceLayoutSnapshot]? = ManagedSpaceLayoutReader.layouts,
+                        membership: (Int) -> [Int]? = WindowSpaceMembershipReader.spaceIDs) -> WindowSpaceSnapshot? {
+        let budget = OperationReadBudget(maximumDuration: maximumDuration, cancellation: cancellation, uptime: uptime)
+        guard budget.canContinue, let initial = layouts() else { return nil }
         var memberships: [WindowSpaceIdentity: Set<Int>] = [:]
         for request in requests {
-            if let spaces = WindowSpaceMembershipReader.spaceIDs(forWindowNumber: Int(request.identity.windowID)) {
+            guard budget.canContinue else { return nil }
+            if let spaces = membership(Int(request.identity.windowID)) {
                 memberships[request.identity] = Set(spaces)
             }
         }
-        guard layouts == ManagedSpaceLayoutReader.layouts() else { return nil }
-        return WindowSpaceSnapshot(layouts: layouts, memberships: memberships)
+        guard budget.canContinue, initial == layouts(), budget.canContinue else { return nil }
+        return WindowSpaceSnapshot(layouts: initial, memberships: memberships)
     }
 }
 
 enum WindowSpaceMembershipReader {
     private typealias MainConnectionIDFn = @convention(c) () -> Int32
-    private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> CFArray?
+    private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
 
     private static let symbols: (cid: Int32, copy: CopySpacesForWindowsFn)? = {
         guard let handle = dlopen(
-            "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight",
-            RTLD_LAZY
-        ),
-            let cidSym = dlsym(handle, "SLSMainConnectionID"),
+            "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY
+        ) else { return nil }
+        guard let cidSym = dlsym(handle, "SLSMainConnectionID"),
             let copySym = dlsym(handle, "SLSCopySpacesForWindows")
-        else { return nil }
+        else { dlclose(handle); return nil }
         let cid = unsafeBitCast(cidSym, to: MainConnectionIDFn.self)()
         return (cid, unsafeBitCast(copySym, to: CopySpacesForWindowsFn.self))
     }()
@@ -96,7 +104,7 @@ enum WindowSpaceMembershipReader {
             symbols.cid,
             0x7,
             [NSNumber(value: windowNumber)] as CFArray
-        ) as? [NSNumber] else { return nil }
+        )?.takeRetainedValue() as? [NSNumber] else { return nil }
         return raw.map(\.intValue)
     }
 }

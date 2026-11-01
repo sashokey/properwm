@@ -18,6 +18,8 @@
 		E90000000000000000002008 /* DebugSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000008 /* DebugSwitchTests.swift */; };
 		E90000000000000000004003 /* AXElementCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000003 /* AXElementCache.swift */; };
 		E90000000000000000004002 /* ClickLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000005 /* ClickLatencyTrace.swift */; };
+		C86AA66EF7CD09C12C5BE0EF /* PrivateJSONLinesFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEE8CB300EE9808ACB6C56C /* PrivateJSONLinesFile.swift */; };
+		41F516B91CB036284952E1BA /* BoundedText.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */; };
 		E90000000000000000004001 /* MinimizeHandoffTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000010D /* MinimizeHandoffTarget.swift */; };
 		E90000000000000000001006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
 		E90000000000000000002006 /* DockSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000006 /* DockSnapshot.swift */; };
@@ -68,9 +70,13 @@
 		A00000000000000000009071 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000008020 /* StatusMenuController.swift */; };
 		B72000000000000000000001 /* AppDisplayNameCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72000000000000000000003 /* AppDisplayNameCache.swift */; };
 		C90000000000000000000006 /* ClickLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000005 /* ClickLatencyTrace.swift */; };
+		0234E21D9353A6FE9BB87B5D /* PrivateJSONLinesFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEE8CB300EE9808ACB6C56C /* PrivateJSONLinesFile.swift */; };
+		6B192CB7AD9EC25E61695712 /* BoundedText.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */; };
 		A00000000000000000009AB1 /* HoverTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009AB0 /* HoverTrace.swift */; };
 		D20000000000000000000067 /* HoverTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009AB0 /* HoverTrace.swift */; };
 		C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000005 /* ClickLatencyTrace.swift */; };
+		1951A2583755EF4A94EE8C71 /* PrivateJSONLinesFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEE8CB300EE9808ACB6C56C /* PrivateJSONLinesFile.swift */; };
+		DE69DDC4F0AB48E2247A27A5 /* BoundedText.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */; };
 		B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72000000000000000000003 /* AppDisplayNameCache.swift */; };
 		B73000000000000000000001 /* AppTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000069 /* AppTracker.swift */; };
 		B73000000000000000000002 /* AppWindowObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000068 /* AppWindowObserver.swift */; };
@@ -93,7 +99,9 @@
 		C9000000000000000000000B /* AXElementCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000003 /* AXElementCache.swift */; };
 		A00000000000000000001030 /* DockWindowEligibilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000061 /* DockWindowEligibilityPolicy.swift */; };
 		A00000000000000000001032 /* ObservationAdmissionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000062 /* ObservationAdmissionGate.swift */; };
+		D419034221B622EE60894AB0 /* WindowLabInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 284869EFF1B89F353AFF5DDE /* WindowLabInput.swift */; };
 		A00000000000000000001033 /* ObservationAdmissionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000062 /* ObservationAdmissionGate.swift */; };
+		1349CD49997A54A4413BE837 /* WindowLabInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 284869EFF1B89F353AFF5DDE /* WindowLabInput.swift */; };
 		A00000000000000000001034 /* WindowFrameMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* WindowFrameMatchPolicy.swift */; };
 		A00000000000000000001035 /* WindowFrameMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* WindowFrameMatchPolicy.swift */; };
 		A00000000000000000001036 /* WindowFrameMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* WindowFrameMatchPolicy.swift */; };
@@ -277,6 +285,7 @@
 		6AA034F705268A8F93EAB2C6 /* TaskbarSpaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63BC9803AA93A08F173B96D2 /* TaskbarSpaceStore.swift */; };
 		0621792722C3D91946144543 /* WindowSpaceVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A933EC4B50271EC2E6F8AD /* WindowSpaceVisibilityTests.swift */; };
 		2DA4D11D616ACF0B045A003C /* TaskbarSpaceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */; };
+		29C98328B49C37750EF67463 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -382,6 +391,7 @@
 		A00000000000000000000010 /* CoreGraphicsSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreGraphicsSource.swift; sourceTree = "<group>"; };
 		A00000000000000000000061 /* DockWindowEligibilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockWindowEligibilityPolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000062 /* ObservationAdmissionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationAdmissionGate.swift; sourceTree = "<group>"; };
+		284869EFF1B89F353AFF5DDE /* WindowLabInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLabInput.swift; sourceTree = "<group>"; };
 		A00000000000000000000063 /* WindowFrameMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowFrameMatchPolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000064 /* AXWindowMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowMatchPolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000055 /* FinderWindowRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWindowRules.swift; sourceTree = "<group>"; };
@@ -405,6 +415,8 @@
 		A00000000000000000008040 /* AppSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStoreTests.swift; sourceTree = "<group>"; };
 		B72000000000000000000003 /* AppDisplayNameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDisplayNameCache.swift; sourceTree = "<group>"; };
 		C90000000000000000000005 /* ClickLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickLatencyTrace.swift; sourceTree = "<group>"; };
+		4BEE8CB300EE9808ACB6C56C /* PrivateJSONLinesFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateJSONLinesFile.swift; sourceTree = "<group>"; };
+		B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedText.swift; sourceTree = "<group>"; };
 		A00000000000000000009AB0 /* HoverTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTrace.swift; sourceTree = "<group>"; };
 		A10CF0000000000000000000 /* AppIconFreshness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconFreshness.swift; sourceTree = "<group>"; };
 		A10CF0000000000000000010 /* AppIconStampTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconStampTests.swift; sourceTree = "<group>"; };
@@ -612,6 +624,8 @@
 				B10000000000000000000133 /* StripDisplayFilter.swift */,
 				B72000000000000000000003 /* AppDisplayNameCache.swift */,
 				C90000000000000000000005 /* ClickLatencyTrace.swift */,
+				4BEE8CB300EE9808ACB6C56C /* PrivateJSONLinesFile.swift */,
+				B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */,
 				A00000000000000000009AB0 /* HoverTrace.swift */,
 				A00000000000000000000E200 /* WindowTitleSettle.swift */,
 				A00000000000000000009A00 /* WindowLiftAvoidance.swift */,
@@ -803,6 +817,7 @@
 				A00000000000000000000004 /* ObservationPipeline.swift */,
 				A00000000000000000000052 /* PendingCloseTracker.swift */,
 				A00000000000000000000062 /* ObservationAdmissionGate.swift */,
+				284869EFF1B89F353AFF5DDE /* WindowLabInput.swift */,
 				A0000000000000000000000A /* DockState.swift */,
 			);
 			path = Pipeline;
@@ -1091,6 +1106,8 @@
 					B10000000000000000000134 /* StripDisplayFilter.swift in Sources */,
 					B72000000000000000000001 /* AppDisplayNameCache.swift in Sources */,
 					C90000000000000000000006 /* ClickLatencyTrace.swift in Sources */,
+					0234E21D9353A6FE9BB87B5D /* PrivateJSONLinesFile.swift in Sources */,
+					6B192CB7AD9EC25E61695712 /* BoundedText.swift in Sources */,
 				A00000000000000000009AB1 /* HoverTrace.swift in Sources */,
 					A00000000000000000000E201 /* WindowTitleSettle.swift in Sources */,
 					A00000000000000000001005 /* IntentPipeline.swift in Sources */,
@@ -1126,6 +1143,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				29C98328B49C37750EF67463 /* AsyncWorkScope.swift in Sources */,
+				D419034221B622EE60894AB0 /* WindowLabInput.swift in Sources */,
 				14C901A396C207524EDF6C6E,
 				AFF1D586985CCB9CB3C032C5,
 				9FA394B44335E2ACB6F6213D,
@@ -1140,6 +1159,8 @@
 				E90000000000000000003007 /* DebugSwitch.swift in Sources */,
 				E90000000000000000004003 /* AXElementCache.swift in Sources */,
 				E90000000000000000004002 /* ClickLatencyTrace.swift in Sources */,
+				C86AA66EF7CD09C12C5BE0EF /* PrivateJSONLinesFile.swift in Sources */,
+				41F516B91CB036284952E1BA /* BoundedText.swift in Sources */,
 				E90000000000000000004001 /* MinimizeHandoffTarget.swift in Sources */,
 				E90000000000000000003006 /* DockSnapshot.swift in Sources */,
 				A00000000000000000001006 /* Identifiers.swift in Sources */,
@@ -1248,6 +1269,8 @@
 				B10000000000000000000135 /* StripDisplayFilter.swift in Sources */,
 				B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */,
 				C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */,
+				1951A2583755EF4A94EE8C71 /* PrivateJSONLinesFile.swift in Sources */,
+				DE69DDC4F0AB48E2247A27A5 /* BoundedText.swift in Sources */,
 				C9000000000000000000000B /* AXElementCache.swift in Sources */,
 				A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */,
 				A00000000000000000009771 /* WindowOrderingTests.swift in Sources */,
@@ -1313,6 +1336,7 @@
 					A0000000000000000000ACC1 /* NonConstrainingPanelTests.swift in Sources */,
 					A00000000000000000001031 /* DockWindowEligibilityPolicy.swift in Sources */,
 					A00000000000000000001033 /* ObservationAdmissionGate.swift in Sources */,
+					1349CD49997A54A4413BE837 /* WindowLabInput.swift in Sources */,
 					A0000000000000000000103D /* StripItem.swift in Sources */,
 				);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -57,6 +57,12 @@ final class TaskbarSpaceStoreTests: XCTestCase {
         XCTAssertTrue(predicate())
     }
 
+    private func reorderSecondBeforeFirst(_ ordering: StripOrderStore) {
+        let items = StripItem.openWindows(from: inventory())
+        ordering.reorderGroup(items[1].applicationKey, relativeTo: items[0].applicationKey,
+                              after: false, current: items.map(\.id))
+    }
+
     private func inventory() -> DockSnapshot {
         let records = (1...2).map { index in
             WindowRecord(id: WindowID(rawValue: "window-\(index)"), appID: AppID(rawValue: "app-\(index)"), pid: Int32(40 + index),
@@ -89,7 +95,7 @@ final class TaskbarSpaceStoreTests: XCTestCase {
         store.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
         defer { store.stop(); runtime.stop(); withExtendedLifetime(presenter) {} }
         await waitUntil { store.snapshot.memberships.count == 2 && view.taskbarContent.groups.flatMap(\.windows).map(\.id) == ["window-1"] }
-        ordering.reorderGroup("test.space.2", relativeTo: "test.space.1", after: false, current: ["window-1", "window-2"])
+        reorderSecondBeforeFirst(ordering)
         await waitUntil { ordering.liveOrder == ["window-2", "window-1"] }
         current.withLock { $0 = 2 }
         center.post(name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
@@ -220,7 +226,7 @@ final class TaskbarSpaceStoreTests: XCTestCase {
         store.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
         await waitUntil { store.snapshot.memberships.count == 2 && ids(left) == ["window-1", "window-2"] }
         XCTAssertTrue(ids(right).isEmpty)
-        ordering.reorderGroup("test.space.2", relativeTo: "test.space.1", after: false, current: ["window-1", "window-2"])
+        reorderSecondBeforeFirst(ordering)
         await waitUntil { ids(left) == ["window-2", "window-1"] }
         var moved = original
         moved.windows[WindowID(rawValue: "window-1")]?.displayUUID = "right"

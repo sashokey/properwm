@@ -1,4 +1,5 @@
 import XCTest
+import Synchronization
 
 final class WindowSpaceVisibilityTests: XCTestCase {
     private let window = WindowSpaceIdentity(itemID: "browser", pid: 42, windowID: 100)
@@ -6,6 +7,24 @@ final class WindowSpaceVisibilityTests: XCTestCase {
 
     private func layout(_ current: Int, spaces: [Int] = [1, 2, 3], fullscreen: Set<Int> = [3]) -> SpaceLayoutSnapshot {
         SpaceLayoutSnapshot(orderedSpaceIDs: spaces, fullscreenSpaceIDs: fullscreen, currentSpaceID: current)
+    }
+
+    func testCaptureStopsBetweenMembershipRequestsOnCancellationOrDeadline() {
+        let requests = [window, other].map { WindowSpaceRequest(identity: $0, isParked: false, isOnDesktop: true) }
+        let expectedLayout = ["left": layout(1)]
+        for expires in [false, true] {
+            let cancellation = OperationCancellation()
+            let now = Mutex<TimeInterval>(100)
+            var reads = 0
+            let result = WindowSpaceObservation.capture(requests, cancellation: cancellation, maximumDuration: 1,
+                uptime: { now.withLock { $0 } }, layouts: { expectedLayout }, membership: { _ in
+                    reads += 1
+                    if expires { now.withLock { $0 = 102 } } else { cancellation.cancel() }
+                    return [1]
+                })
+            XCTAssertNil(result)
+            XCTAssertEqual(reads, 1)
+        }
     }
 
     func testFullscreenWindowIsExcludedFromOriginalDesktopAndReturnsAfterLeavingFullscreen() {

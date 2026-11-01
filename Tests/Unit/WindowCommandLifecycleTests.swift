@@ -52,6 +52,49 @@ final class WindowCommandLifecycleTests: XCTestCase {
         return runtime
     }
 
+    func testBulkCommandsKeepOneWorkerAndExecuteEveryLiveWindow() async {
+        let queue = WindowActionQueue()
+        let completed = Mutex<[Int]>([])
+        for index in 0..<100 {
+            XCTAssertTrue(queue.submit(key: "window-\(index)", maximumPendingKeys: 100) { _, _ in
+                completed.withLock { $0.append(index) }
+            })
+        }
+        XCTAssertEqual(queue.pendingForTesting.count, 1)
+        for task in queue.pendingForTesting { await task.value }
+        XCTAssertEqual(completed.withLock { $0 }, Array(0..<100))
+        queue.stop()
+    }
+
+    func testRetiredWindowsAreRemovedBeforeQueuedMutations() async {
+        let queue = WindowActionQueue()
+        let completed = Mutex<[String]>([])
+        queue.submit(key: "gone") { _, _ in completed.withLock { $0.append("gone") } }
+        queue.submit(key: "live") { _, _ in completed.withLock { $0.append("live") } }
+        queue.retain(windowIDs: ["live"])
+        for task in queue.pendingForTesting { await task.value }
+        XCTAssertEqual(completed.withLock { $0 }, ["live"])
+        queue.stop()
+    }
+
+    func testRepeatedQueuedCommandsHaveBoundedRetainedWork() async {
+        let queue = WindowActionQueue()
+        let entered = Mutex(false)
+        let gate = DispatchSemaphore(value: 0)
+        queue.submit(key: "blocked") { _, _ in
+            _ = await AsyncWorkScope.performBlocking {
+                entered.withLock { $0 = true }
+                _ = gate.wait(timeout: .now() + 3)
+            }
+        }
+        await waitUntil { entered.withLock { $0 } }
+        for _ in 0..<500 { queue.submit(key: "latest") { _, _ in } }
+        XCTAssertLessThanOrEqual(queue.pendingForTesting.count, 33)
+        queue.stop()
+        gate.signal()
+        for task in queue.pendingForTesting { await task.value }
+    }
+
     func testStopCancelsMutationAfterAnInFlightReadReturns() async {
         let executor = ControlledWindowExecutor()
         let runtime = await start(executor)

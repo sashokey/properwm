@@ -17,6 +17,35 @@ final class TaskbarPresentationTests: XCTestCase {
                                     titles: [:], optimisticStates: optimistic, appName: { $0.appID })
     }
 
+    func testCollidingBundleIdentifiersFromDifferentBundlesStaySeparate() {
+        let records = ["One", "Two"].enumerated().map { index, name in
+            WindowRecord(id: WindowID(rawValue: name), appID: AppID(rawValue: "same"), pid: Int32(index + 10),
+                bundleIdentifier: "test.collision", title: name, bounds: nil, status: .inactive,
+                applicationOrigin: ApplicationOrigin(bundleURL: URL(fileURLWithPath: "/Applications/\(name).app")))
+        }
+        let items = records.map(StripItem.init(record:))
+        XCTAssertEqual(groups(items, order: items.map(\.id)).count, 2)
+    }
+
+    func testUnknownOriginsDoNotCombineDifferentProcesses() {
+        let records = [10, 20].map { pid in
+            WindowRecord(id: WindowID(rawValue: "\(pid)"), appID: AppID(rawValue: "same"), pid: Int32(pid),
+                bundleIdentifier: "test.collision", title: "Window", bounds: nil, status: .inactive)
+        }
+        let items = records.map(StripItem.init(record:))
+        XCTAssertEqual(groups(items, order: items.map(\.id)).count, 2)
+    }
+
+    func testInstancesOfOneCanonicalApplicationStillCombine() {
+        let records = [10, 20].map { pid in
+            WindowRecord(id: WindowID(rawValue: "\(pid)"), appID: AppID(rawValue: "editor"), pid: Int32(pid),
+                bundleIdentifier: "test.editor", title: "Window", bounds: nil, status: .inactive,
+                applicationOrigin: ApplicationOrigin(bundleURL: URL(fileURLWithPath: "/Applications/Editor.app")))
+        }
+        let items = records.map(StripItem.init(record:))
+        XCTAssertEqual(groups(items, order: items.map(\.id)).count, 1)
+    }
+
     func testOnlyTheDisplayContainingEachWindowContributesToItsGroup() {
         let items = [item("a", display: "left"), item("b", display: "right"), item("c", display: "left")]
         XCTAssertEqual(groups(items, order: ["a", "b", "c"]).flatMap(\.windows).map(\.id), ["a", "c"])

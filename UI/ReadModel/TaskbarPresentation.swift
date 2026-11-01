@@ -29,8 +29,8 @@ enum TaskbarPresentation {
         for id in order {
             guard let item = lookup[id], filter.shows(displayUUID: item.displayUUID) else { continue }
             guard spaces.shows(item.spaceIdentity, on: filter.scope ?? filter.resolvedWindowDisplayUUID(item.displayUUID)) else { continue }
-            let key = item.bundleIdentifier ?? item.appID
-            let name = appName(item)
+            let key = item.applicationKey
+            let name = WindowDisplayTitle.bounded(appName(item))
             if members[key] == nil { groupOrder.append(key) }
             names[key] = name
             let status = optimisticStates[item.actionWindowID]?.status.rawValue ?? item.status

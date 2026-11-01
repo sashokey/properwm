@@ -162,37 +162,13 @@ struct LiveAbsentSeatProber: AbsentSeatProbing {
         )
     }
 
-    private typealias MainConnectionIDFn = @convention(c) () -> Int32
-    private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> CFArray?
-    private typealias CopyManagedDisplaySpacesFn = @convention(c) (Int32) -> CFArray?
-
-    private static let symbols: (cid: Int32, forWindows: CopySpacesForWindowsFn, managed: CopyManagedDisplaySpacesFn)? = {
-        guard let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY),
-              let cidSym = dlsym(handle, "SLSMainConnectionID"),
-              let forWindowsSym = dlsym(handle, "SLSCopySpacesForWindows"),
-              let managedSym = dlsym(handle, "SLSCopyManagedDisplaySpaces") else { return nil }
-        return (
-            unsafeBitCast(cidSym, to: MainConnectionIDFn.self)(),
-            unsafeBitCast(forWindowsSym, to: CopySpacesForWindowsFn.self),
-            unsafeBitCast(managedSym, to: CopyManagedDisplaySpacesFn.self)
-        )
-    }()
-
-    /// Selector `0x7` = every Space, as Dock uses it. Nil = unreadable (unknown, not "no Space").
     private static func spaceIDs(of cgWindowID: CGWindowID) -> [Int]? {
-        guard cgWindowID > 0, let symbols,
-              let raw = symbols.forWindows(symbols.cid, 0x7, [NSNumber(value: cgWindowID)] as CFArray) as? [NSNumber]
-        else { return nil }
-        return raw.map(\.intValue)
+        WindowSpaceMembershipReader.spaceIDs(forWindowNumber: Int(cgWindowID))
     }
 
     /// Every display's current Space.
     private static func currentSpaceIDs() -> Set<Int>? {
-        guard let symbols, let displays = symbols.managed(symbols.cid) as? [[String: Any]] else { return nil }
-        let ids = displays.compactMap { display -> Int? in
-            guard let current = display["Current Space"] as? [String: Any] else { return nil }
-            return (current["ManagedSpaceID"] as? Int) ?? (current["id64"] as? Int)
-        }
-        return ids.isEmpty ? nil : Set(ids)
+        guard let layouts = ManagedSpaceLayoutReader.layouts(), !layouts.isEmpty else { return nil }
+        return Set(layouts.values.map(\.currentSpaceID))
     }
 }

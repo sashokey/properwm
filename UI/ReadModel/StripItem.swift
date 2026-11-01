@@ -3,11 +3,13 @@ import Foundation
 
 enum WindowDisplayTitle {
     static func resolve(rawTitle: String?, fallbackName: String) -> String {
-        let title = rawTitle.flatMap { title in
+        let title = rawTitle.map(bounded).flatMap { title in
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
-        } ?? fallbackName
+        } ?? bounded(fallbackName)
         return title == "ProperWM" ? String(localized: "Taskbar") : title
     }
+
+    static func bounded(_ value: String) -> String { BoundedText.utf8(value) }
 
 }
 
@@ -17,12 +19,28 @@ struct StripItem: Hashable {
     let status: String
     let appID: String
     let bundleIdentifier: String?
+    let applicationOrigin: ApplicationOrigin?
+    let processGeneration: ProcessGeneration?
+
+    var applicationKey: String {
+        if let applicationOrigin { return "bundle:\(applicationOrigin.bundlePath)" }
+        if let processGeneration { return "process:\(pid):\(processGeneration.seconds):\(processGeneration.microseconds)" }
+        return "process:\(pid)"
+    }
     let isOnDesktop: Bool
     let cgWindowID: CGWindowID?
     let bounds: CGRect?
     let pid: Int32
     let displayUUID: String?
     let actionWindowID: String
+
+    func representsSameProcess(as other: StripItem) -> Bool {
+        pid == other.pid && processGeneration == other.processGeneration && applicationOrigin == other.applicationOrigin
+    }
+
+    func representsSameWindow(as other: StripItem) -> Bool {
+        representsSameProcess(as: other) && id == other.id && cgWindowID == other.cgWindowID && actionWindowID == other.actionWindowID
+    }
 
     var spaceIdentity: WindowSpaceIdentity? {
         cgWindowID.map { WindowSpaceIdentity(itemID: id, pid: pid, windowID: $0) }
@@ -41,6 +59,8 @@ struct StripItem: Hashable {
         self.status = representative.status.rawValue
         self.appID = representative.appID.rawValue
         self.bundleIdentifier = representative.bundleIdentifier
+        self.applicationOrigin = representative.applicationOrigin
+        self.processGeneration = representative.processGeneration
         self.isOnDesktop = representative.isOnDesktop
         self.cgWindowID = representative.cgWindowID
         self.bounds = representative.bounds

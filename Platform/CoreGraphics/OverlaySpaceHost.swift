@@ -11,7 +11,7 @@ final class OverlaySpaceHost {
     private typealias SpaceSetAbsoluteLevelFn = @convention(c) (Int32, UInt64, Int32) -> Int32
     private typealias SpaceListFn = @convention(c) (Int32, CFArray) -> Int32
     private typealias SpaceAddWindowsFn = @convention(c) (Int32, UInt64, CFArray, Int32) -> Int32
-    private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> CFArray?
+    private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
 
     private struct Symbols {
         let cid: Int32
@@ -65,7 +65,7 @@ final class OverlaySpaceHost {
                 _ = symbols.addWindows(symbols.cid, sid, windows.map { NSNumber(value: $0) } as CFArray, 0x7)
             },
             spaces: { window in
-                (symbols.copySpaces(symbols.cid, 0xF, [NSNumber(value: window)] as CFArray) as? [NSNumber])?
+                (symbols.copySpaces(symbols.cid, 0xF, [NSNumber(value: window)] as CFArray)?.takeRetainedValue() as? [NSNumber])?
                     .map(\.uint64Value)
             },
             release: { sid in

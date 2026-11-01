@@ -1,6 +1,30 @@
 import XCTest
 
 final class WindowDisplayTitleTests: XCTestCase {
+    func testDisplayMetadataIsBoundedBeforeTextMeasurement() {
+        let long = String(repeating: "x", count: 100_000)
+        XCTAssertLessThanOrEqual(WindowDisplayTitle.resolve(rawTitle: long, fallbackName: "App").utf8.count, 4096)
+        XCTAssertLessThanOrEqual(WindowDisplayTitle.resolve(rawTitle: nil, fallbackName: long).utf8.count, 4096)
+    }
+
+    func testDisplayNameCacheReturnsTheSameBoundedValueOnAMissAndAHit() {
+        let cache = AppDisplayNameCache()
+        let long = "e" + String(repeating: "\u{0301}", count: 100_000)
+        let first = cache.value(for: "long") { long }
+        let second = cache.value(for: "long") { XCTFail("Expected cached name"); return "Other" }
+        XCTAssertLessThanOrEqual(first.utf8.count, 4096)
+        XCTAssertEqual(first, second)
+    }
+
+    func testDisplayNameCacheEvictsOldEntries() {
+        let cache = AppDisplayNameCache()
+        var loads = 0
+        _ = cache.value(for: "first") { loads += 1; return "First" }
+        for index in 0..<512 { _ = cache.value(for: "app-\(index)") { "App" } }
+        _ = cache.value(for: "first") { loads += 1; return "First" }
+        XCTAssertEqual(loads, 2)
+    }
+
     func testNonemptyTitleIsReturnedUnchanged() {
         XCTAssertEqual(
             WindowDisplayTitle.resolve(rawTitle: "  System Settings  ", fallbackName: "Fallback"),

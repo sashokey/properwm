@@ -1,14 +1,5 @@
 import Foundation
 
-enum LabMode: String {
-    case observe
-    case minimizeRestore
-    case closeTarget
-    case replay
-    case placementReplay
-    case transitionReplay
-}
-
 struct AnalyzedObservation {
     let observation: SystemObservation
     let identity: IdentityDecision
@@ -23,6 +14,11 @@ struct LabTarget {
     let bounds: CGRect?
 }
 
+func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+    exit(64)
+}
+
 var cgSource = CoreGraphicsSource()
 let axSource = AccessibilitySource()
 let finderSource = FinderSource()
@@ -31,13 +27,18 @@ let identityEngine = WindowIdentityEngine()
 let formatter = ISO8601DateFormatter()
 
 let rawArguments = Array(CommandLine.arguments.dropFirst())
-let mode = rawArguments.first.flatMap(LabMode.init(rawValue:)) ?? .observe
+let mode: LabMode = {
+    do { return try WindowLabInput.mode(rawArguments) }
+    catch { fail("Specify a mode: observe, minimizeRestore, closeTarget, replay, placementReplay or transitionReplay") }
+}()
 let modeArguments = Array(rawArguments.dropFirst())
 
 @MainActor
 func loadScenarioURL(named scenarioName: String) -> URL {
     let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    let preferred = currentDirectory.appendingPathComponent("Tools/WindowLab/Scenarios/\(scenarioName).json")
+    let preferred: URL
+    do { preferred = try WindowLabInput.scenarioURL(root: currentDirectory, name: scenarioName) }
+    catch { fail("Invalid scenario name") }
     let executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
     let fallbackRoot = executableURL
         .deletingLastPathComponent()
@@ -45,7 +46,9 @@ func loadScenarioURL(named scenarioName: String) -> URL {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-    let fallback = fallbackRoot.appendingPathComponent("Tools/WindowLab/Scenarios/\(scenarioName).json")
+    let fallback: URL
+    do { fallback = try WindowLabInput.scenarioURL(root: fallbackRoot, name: scenarioName) }
+    catch { fail("Invalid scenario name") }
     return FileManager.default.fileExists(atPath: preferred.path) ? preferred : fallback
 }
 
@@ -64,9 +67,7 @@ func analyze(_ observations: [SystemObservation]) -> [AnalyzedObservation] {
 
 @MainActor
 func frameString(for observation: SystemObservation) -> String {
-    observation.bounds.map {
-        "\(Int($0.origin.x.rounded())):\(Int($0.origin.y.rounded())):\(Int($0.width.rounded())):\(Int($0.height.rounded()))"
-    } ?? "<unknown>"
+    WindowFrameMatchPolicy.signature(for: observation.bounds)
 }
 
 @MainActor
@@ -375,7 +376,8 @@ func runMinimizeRestoreMode() {
     let actionTarget = AccessibilityWindowActionExecutor.WindowTarget(
         pid: target.pid,
         title: selected.observation.title,
-        bounds: selected.observation.bounds
+        bounds: selected.observation.bounds,
+        cgWindowID: target.baselineCGWindowID
     )
     guard let actionHandle = axActionExecutor.captureHandle(for: actionTarget) else {
         fputs("unable to capture AX handle for selected target\n", stderr)
@@ -418,11 +420,9 @@ func runMinimizeRestoreMode() {
     print("# baseline cg id disappeared: \(disappearedFromCG)")
 
     print("# step 4: restore the target window via AX")
-    let restoreExecution = axActionExecutor.restore(actionHandle)
-    print(
-        "# restore action: mechanism=\(restoreExecution.mechanism) verified_minimized=\(String(describing: restoreExecution.verifiedMinimized)) success=\(restoreExecution.success)"
-    )
-    guard restoreExecution.success else {
+    let restoredTarget = axActionExecutor.activate(actionHandle, knownCGWindowID: target.baselineCGWindowID, knownMinimized: true)
+    print("# restore action: success=\(restoredTarget)")
+    guard restoredTarget else {
         fputs("failed to restore selected target via AX\n", stderr)
         exit(1)
     }
@@ -496,7 +496,8 @@ func runCloseTargetMode() {
     let actionTarget = AccessibilityWindowActionExecutor.WindowTarget(
         pid: target.pid,
         title: selected.observation.title,
-        bounds: selected.observation.bounds
+        bounds: selected.observation.bounds,
+        cgWindowID: target.baselineCGWindowID
     )
     guard let actionHandle = axActionExecutor.captureHandle(for: actionTarget) else {
         fputs("unable to capture AX handle for selected target\n", stderr)
@@ -590,19 +591,20 @@ struct TransitionReplayScenario: Decodable {
 
 @MainActor
 func parseBounds(_ raw: String?) -> CGRect? {
-    guard let raw else { return nil }
-    let parts = raw.split(separator: ":").compactMap { Double($0) }
-    guard parts.count == 4 else { return nil }
-    return CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
+    do { return try WindowLabInput.bounds(raw) }
+    catch { fail("Invalid scenario geometry") }
 }
 
 @MainActor
 func systemObservation(from replay: ReplayScenario.ReplayObservation) -> SystemObservation {
+    guard let kind = SystemObservation.ObservationKind(rawValue: replay.kind),
+          let source = SystemObservation.ObservationSource(rawValue: replay.source),
+          (replay.atSeconds ?? 0).isFinite else { fail("Invalid observation kind, source or timestamp") }
     let timestamp = Date(timeIntervalSince1970: replay.atSeconds ?? 0)
     return SystemObservation(
         timestamp: timestamp,
-        kind: SystemObservation.ObservationKind(rawValue: replay.kind)!,
-        source: SystemObservation.ObservationSource(rawValue: replay.source)!,
+        kind: kind,
+        source: source,
         pid: replay.pid,
         bundleIdentifier: replay.bundleIdentifier,
         cgWindowID: replay.cgWindowID,
@@ -618,8 +620,9 @@ func systemObservation(from replay: ReplayScenario.ReplayObservation) -> SystemO
 func runReplayMode() {
     let replayScenarioName = modeArguments.first ?? "minimize-restore-replay"
     let root = loadScenarioURL(named: replayScenarioName)
-    let data = try! Data(contentsOf: root)
-    let scenario = try! JSONDecoder().decode(ReplayScenario.self, from: data)
+    let scenario: ReplayScenario
+    do { scenario = try WindowLabInput.decode(ReplayScenario.self, from: root) }
+    catch { fail("Unable to read a valid scenario JSON file") }
     print("# replay scenario: \(scenario.name)")
 
     var trackedKey = ""
@@ -675,8 +678,11 @@ func runReplayMode() {
 func runPlacementReplayMode() {
     let placementScenarioName = modeArguments.first ?? "placement-permanent-hold-replay"
     let root = loadScenarioURL(named: placementScenarioName)
-    let data = try! Data(contentsOf: root)
-    let scenario = try! JSONDecoder().decode(PlacementReplayScenario.self, from: data)
+    let scenario: PlacementReplayScenario
+    do { scenario = try WindowLabInput.decode(PlacementReplayScenario.self, from: root) }
+    catch { fail("Unable to read a valid scenario JSON file") }
+    do { try WindowLabInput.requireUniqueWindowIDs(scenario.initialOrderedWindowIDs) }
+    catch { fail("Initial window IDs must be unique and nonempty") }
     let engine = PlacementEngine()
 
     var snapshot = DockSnapshot(
@@ -704,9 +710,12 @@ func runPlacementReplayMode() {
     print("# initial order: \(scenario.initialOrderedWindowIDs.joined(separator: ","))")
 
     for step in scenario.steps {
+        guard let status = WindowStatus(rawValue: step.newStatus), step.atSeconds.isFinite else { fail("Invalid lifecycle status or timestamp") }
+        do { try WindowLabInput.requireUniqueWindowIDs(step.expectedOrder) }
+        catch { fail("Expected order must contain unique window IDs") }
         let lifecycle = LifecycleDecision(
             windowID: WindowID(rawValue: step.windowID),
-            newStatus: WindowStatus(rawValue: step.newStatus)!,
+            newStatus: status,
             requests: [],
             observedAt: Date(timeIntervalSince1970: step.atSeconds)
         )
@@ -729,8 +738,9 @@ func runPlacementReplayMode() {
 func runTransitionReplayMode() {
     let scenarioName = modeArguments.first ?? "focused-active-replay"
     let root = loadScenarioURL(named: scenarioName)
-    let data = try! Data(contentsOf: root)
-    let scenario = try! JSONDecoder().decode(TransitionReplayScenario.self, from: data)
+    let scenario: TransitionReplayScenario
+    do { scenario = try WindowLabInput.decode(TransitionReplayScenario.self, from: root) }
+    catch { fail("Unable to read a valid scenario JSON file") }
 
     let state = DockState()
     let identity = WindowIdentityEngine()

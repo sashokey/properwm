@@ -95,12 +95,12 @@ final class TaskbarRendererTests: XCTestCase {
         }
     }
 
-    private func groups(count: Int = 3) -> [TaskbarGroupPresentation] {
+    private func groups(count: Int = 3, generation: ProcessGeneration? = nil) -> [TaskbarGroupPresentation] {
         let windows = (0..<count).map { index in
             let record = WindowRecord(id: WindowID(rawValue: "window-\(index)"), appID: AppID(rawValue: "editor"), pid: 100,
                                       bundleIdentifier: "test.editor", title: ["Project — Editor", "Notes — Editor", "A long document title — Editor"][index % 3],
                                       bounds: CGRect(x: 0, y: 0, width: 1430, height: 760), status: index == 0 ? .active : .inactive,
-                                      cgWindowID: UInt32(index + 1), groupID: "window-\(index)", displayUUID: "left")
+                                      cgWindowID: UInt32(index + 1), groupID: "window-\(index)", displayUUID: "left", processGeneration: generation)
             return TaskbarWindowPresentation(item: StripItem(record: record), title: record.title, isActive: index == 0)
         }
         return [TaskbarGroupPresentation(id: "test.editor", name: "Editor", windows: windows)]
@@ -409,6 +409,27 @@ final class TaskbarRendererTests: XCTestCase {
         content.prepareForHiding()
         await clock.advance()
         XCTAssertFalse(activated)
+    }
+
+    func testAnOpenContextMenuCannotTargetAReplacementProcess() throws {
+        for width: CGFloat in [200, 800] {
+            let context = ContextMenu()
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: width, height: 32), contextMenu: context)
+            var closed: [String] = []
+            var quits = 0
+            content.actions.close = { closed.append($0) }
+            content.actions.quit = { _ in quits += 1 }
+            content.update(groups: groups(generation: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))))
+            let event = try XCTUnwrap(NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0))
+            content.buttonViews[width == 200 ? "group:test.editor" : "window:window-1"]?.onContextMenu?(event)
+            let menu = try XCTUnwrap(context.menu)
+            content.update(groups: groups(generation: ProcessGeneration(timeval(tv_sec: 20, tv_usec: 0))))
+            menu.performActionForItem(at: 0)
+            menu.performActionForItem(at: 1)
+            XCTAssertTrue(closed.isEmpty)
+            XCTAssertEqual(quits, 0)
+        }
     }
 
     func testSeparateContextMenuClosesOneWindowAndThenOffersNormalQuit() {

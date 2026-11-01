@@ -263,7 +263,7 @@ final class TaskbarContentView: NSView {
                                       delay: delay,
                                       icon: iconProvider,
                                       activate: { [weak self] item in self?.activateIfLive(item, dismiss: true) },
-                                      close: { [weak self] item in self?.closeIfLive(item.item.actionWindowID) },
+                                      close: { [weak self] item in self?.closeIfLive(item) },
                                       fileHover: { [weak self] item in self?.activateIfLive(item, dismiss: false) })
         let frame = TaskbarPopupGeometry.frame(anchor: screenAnchor(anchor), contentSize: view.frame.size, screen: screen.frame)
         popup.present(content: view, frame: frame, anchorWindow: window)
@@ -292,16 +292,17 @@ final class TaskbarContentView: NSView {
         let entries = TaskbarContextMenuModel.actions(button: button, group: group).map { action in
             switch action {
             case let .closeWindow(id):
-                return TaskbarMenuEntry(title: String(localized: "Close window"), symbol: "xmark", action: { [weak self] in self?.closeIfLive(id) })
+                return TaskbarMenuEntry(title: String(localized: "Close window"), symbol: "xmark", action: { [weak self] in self?.closeIfLive(id, expectedWindows: group.windows) })
             case let .closeWindows(ids):
                 return TaskbarMenuEntry(title: String(localized: "Close all windows"), symbol: "xmark", action: { [weak self] in
-                    for id in ids { self?.closeIfLive(id) }
+                    for id in ids { self?.closeIfLive(id, expectedWindows: group.windows) }
                 })
             case .quitApplication:
                 return TaskbarMenuEntry(title: String(localized: "Quit"), symbol: "power", action: { [weak self] in
                     guard let self, let current = self.groups.first(where: { $0.id == group.id }) else { return }
-                    let originalPIDs = Set(group.windows.map(\.item.pid))
-                    let survivors = current.windows.filter { originalPIDs.contains($0.item.pid) }
+                    let survivors = current.windows.filter { live in
+                        group.windows.contains { $0.item.representsSameProcess(as: live.item) }
+                    }
                     guard !survivors.isEmpty else { return }
                     self.actions.quit(TaskbarGroupPresentation(id: current.id, name: current.name, windows: survivors))
                 })
@@ -430,14 +431,19 @@ final class TaskbarContentView: NSView {
     }
 
     private func activateIfLive(_ item: TaskbarWindowPresentation, dismiss: Bool) {
-        guard groups.flatMap(\.windows).contains(where: { $0.id == item.id && $0.item.actionWindowID == item.item.actionWindowID }) else { return }
+        guard groups.flatMap(\.windows).contains(where: { $0.item.representsSameWindow(as: item.item) }) else { return }
         if dismiss { dismissPopups() }
         actions.activate(item.item.actionWindowID)
     }
 
-    private func closeIfLive(_ id: String) {
-        guard groups.flatMap(\.windows).contains(where: { $0.item.actionWindowID == id }) else { return }
-        actions.close(id)
+    private func closeIfLive(_ id: String, expectedWindows: [TaskbarWindowPresentation]) {
+        guard let item = expectedWindows.first(where: { $0.item.actionWindowID == id }) else { return }
+        closeIfLive(item)
+    }
+
+    private func closeIfLive(_ expected: TaskbarWindowPresentation) {
+        guard groups.flatMap(\.windows).contains(where: { $0.item.representsSameWindow(as: expected.item) }) else { return }
+        actions.close(expected.item.actionWindowID)
     }
 
     private func cancelFileHover() {

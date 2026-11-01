@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class TaskbarSpaceStore: ObservableObject {
     @Published private(set) var snapshot = WindowSpaceSnapshot()
-    private let read: @Sendable ([WindowSpaceRequest]) -> WindowSpaceSnapshot?
+    private let read: @Sendable ([WindowSpaceRequest], OperationCancellation) -> WindowSpaceSnapshot?
     private let notifications: NotificationCenter
     private let pollInterval: TimeInterval
     private let queue = DispatchQueue(label: "io.github.sashokey.properwm.window-spaces", qos: .utility)
@@ -18,10 +18,13 @@ final class TaskbarSpaceStore: ObservableObject {
     private var isRunning = false
     private var receivedInventory = false
 
-    init(read: @escaping @Sendable ([WindowSpaceRequest]) -> WindowSpaceSnapshot? = WindowSpaceObservation.capture,
+    init(read: (@Sendable ([WindowSpaceRequest]) -> WindowSpaceSnapshot?)? = nil,
          notifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
          pollInterval: TimeInterval = 5) {
-        self.read = read
+        self.read = { requests, cancellation in
+            if let read { return read(requests) }
+            return WindowSpaceObservation.capture(requests, cancellation: cancellation)
+        }
         self.notifications = notifications
         self.pollInterval = pollInterval
     }
@@ -92,7 +95,8 @@ final class TaskbarSpaceStore: ObservableObject {
         let read = read
         let queue = queue
         work.launch { [weak self] generation in
-            let observation = await AsyncWorkScope.performBlocking(on: queue) { read(requests) }
+            let cancellation = OperationCancellation()
+            let observation = await AsyncWorkScope.performBlocking(on: queue, cancellation: cancellation) { read(requests, cancellation) }
             await MainActor.run { [weak self] in
                 guard let self, self.work.isCurrent(generation), self.isRunning else { return }
                 self.inFlight = false

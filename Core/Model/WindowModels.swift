@@ -1,11 +1,32 @@
 import Foundation
 import CoreGraphics
 
+struct ProcessGeneration: Hashable, Sendable {
+    let seconds: Int64
+    let microseconds: Int32
+
+    init(_ time: timeval) {
+        seconds = Int64(time.tv_sec)
+        microseconds = time.tv_usec
+    }
+}
+
+struct ApplicationOrigin: Hashable, Sendable {
+    let bundlePath: String
+
+    init?(bundleURL: URL?) {
+        guard let bundleURL, bundleURL.isFileURL else { return nil }
+        bundlePath = bundleURL.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+}
+
 struct WindowRecord: Hashable, Sendable {
     let id: WindowID
     let appID: AppID
     let pid: Int32
     let bundleIdentifier: String?
+    var applicationOrigin: ApplicationOrigin?
+    var processGeneration: ProcessGeneration?
     var title: String
     var bounds: CGRect?
     var status: WindowStatus
@@ -31,12 +52,16 @@ struct WindowRecord: Hashable, Sendable {
         cgWindowID: CGWindowID? = nil,
         isOnDesktop: Bool = false,
         groupID: String = "",
-        displayUUID: String? = nil
+        displayUUID: String? = nil,
+        applicationOrigin: ApplicationOrigin? = nil,
+        processGeneration: ProcessGeneration? = nil
     ) {
         self.id = id
         self.appID = appID
         self.pid = pid
         self.bundleIdentifier = bundleIdentifier
+        self.applicationOrigin = applicationOrigin
+        self.processGeneration = processGeneration
         self.title = title
         self.bounds = bounds
         self.status = status

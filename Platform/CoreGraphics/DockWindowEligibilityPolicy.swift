@@ -12,7 +12,7 @@ struct DockWindowEligibilityPolicy {
     }
 
     enum Verdict: String, Equatable, CaseIterable {
-        case eligible, selfApp, transparent
+        case eligible, selfApp, transparent, invalidGeometry
         case systemSurfaceBundle, systemSurfaceAppName, systemSurfaceExtension
         case systemSurfaceExecutable, systemSurfaceTitle
         case prohibitedPolicy, accessoryWithoutTitleOrTooSmall, emptyTitleNotStandardOrTooSmall
@@ -35,6 +35,12 @@ struct DockWindowEligibilityPolicy {
     }
 
     func verdict(_ candidate: Candidate) -> Verdict {
+        let verdict = classify(candidate)
+        if verdict == .eligible, let bounds = candidate.bounds, !WindowFrameMatchPolicy.isValid(bounds) { return .invalidGeometry }
+        return verdict
+    }
+
+    private func classify(_ candidate: Candidate) -> Verdict {
         if candidate.bundleIdentifier == Self.selfBundleIdentifier {
             return .selfApp
         }

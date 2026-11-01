@@ -1,7 +1,42 @@
 import CoreGraphics
+import ApplicationServices
+import Synchronization
 import XCTest
 
 final class WindowFocusTests: XCTestCase {
+    func testDeniedAuthorizationPreventsEveryMutationIncludingEarlyFocus() {
+        let calls = Mutex(0)
+        let backend = SkyLightWindowFocus(frontRequest: { _, _, _ in calls.withLock { $0 += 1 }; return 0 },
+            keyRequest: { _, _ in calls.withLock { $0 += 1 }; return 0 })
+        let executor = AccessibilityWindowActionExecutor(focusBackend: backend)
+            .withCancellation(OperationCancellation(), authorization: { _, _ in false })
+        let handle = AccessibilityWindowActionExecutor.fastHandle(
+            from: AXWindowHandle(pid: -42, title: nil, bounds: nil, element: AXUIElementCreateApplication(-42)),
+            target: .init(pid: -42, title: nil, bounds: nil, cgWindowID: 100))
+        XCTAssertFalse(executor.requestEarlyWindowFocus(pid: -42, cgWindowID: 100))
+        XCTAssertFalse(executor.activate(handle))
+        XCTAssertFalse(executor.minimize(handle).success)
+        XCTAssertFalse(executor.close(handle))
+        XCTAssertFalse(executor.activateApplication(pid: -42))
+        XCTAssertEqual(calls.withLock { $0 }, 0)
+    }
+
+    func testCommandsRequireTheCapturedProcessGenerationAndWindowOwner() {
+        let start = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 3))
+        let record = WindowRecord(id: WindowID(rawValue: "one"), appID: AppID(rawValue: "app"), pid: 42,
+            bundleIdentifier: "test.app", title: "Window", bounds: nil, status: .inactive, cgWindowID: 100,
+            processGeneration: start)
+        XCTAssertTrue(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: 42))
+        XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: nil, ownerPID: 42))
+        XCTAssertFalse(WindowCommandIdentity.permits(record,
+            currentGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 4)), ownerPID: 42))
+        XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: 43))
+        XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: nil))
+        var unknown = record
+        unknown.processGeneration = nil
+        XCTAssertFalse(WindowCommandIdentity.permits(unknown, currentGeneration: start, ownerPID: 42))
+    }
+
     func testNativeStatusesAndUnavailableSymbolsAreNotReportedAsSuccess() {
         for status in [nil, CGError.failure.rawValue, CGError.illegalArgument.rawValue, CGError.success.rawValue] as [Int32?] {
             let backend = SkyLightWindowFocus(frontRequest: { _, _, _ in status }, keyRequest: { _, _ in status })

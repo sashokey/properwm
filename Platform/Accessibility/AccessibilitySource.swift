@@ -155,7 +155,7 @@ final class AccessibilitySource {
     ) {
         guard decision == .unconfirmedMainWindow else { return }
         Self.logger.debug(
-            "Admitting AXWindow with missing subrole app=\(app.localizedName ?? "", privacy: .public) bundle=\(app.bundleIdentifier ?? "", privacy: .public) title=\(window.title ?? "", privacy: .public)"
+            "Admitting AXWindow with missing subrole app=\(app.localizedName ?? "", privacy: .public) bundle=\(app.bundleIdentifier ?? "", privacy: .public) title=\(window.title ?? "", privacy: .private)"
         )
     }
 

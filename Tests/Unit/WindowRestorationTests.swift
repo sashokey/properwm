@@ -41,7 +41,26 @@ final class WindowRestorationTests: XCTestCase {
     private let key = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 1)
     private let frames = WindowRestorationFrames(nativeAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
         targetAppKit: CGRect(x: 0, y: 32, width: 100, height: 68), nativeQuartz: CGRect(x: 0, y: 0, width: 100, height: 100),
-        targetQuartz: CGRect(x: 0, y: 0, width: 100, height: 68), primaryScreenHeight: 100)
+        targetQuartz: CGRect(x: 0, y: 0, width: 100, height: 68), primaryScreenHeight: 100,
+        processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0)))
+
+    func testMissingOriginalProcessIdentityDefersRestorationWithoutWriting() {
+        var unknown = frames
+        unknown.processGeneration = nil
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: unknown,
+            expectedStartTime: nil, liveWindowKeys: [key]), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testRestorationUsesGenerationCapturedWithTheOriginalLift() {
+        var captured = frames
+        captured.processGeneration = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))
+        let access = RestorationFixture(start: timeval(tv_sec: 20, tv_usec: 0))
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: captured,
+            expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
 
     func testFailedOrUnverifiedRestorationRemainsPending() {
         for result in [AXWindowFrameWriteResult.failure(reason: .writeFailed(attribute: .size, error: .cannotComplete), rollback: .notRequested),
@@ -62,7 +81,8 @@ final class WindowRestorationTests: XCTestCase {
         let native = CGRect(x: 2560, y: 0, width: 2560, height: 1410)
         let target = CGRect(x: 2560, y: 34, width: 2560, height: 1376)
         let recoveredFrames = WindowRestorationFrames(
-            nativeAppKit: native, targetAppKit: target, primaryScreenHeight: 1440
+            nativeAppKit: native, targetAppKit: target, primaryScreenHeight: 1440,
+            processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))
         )
         let expectedNative = CGRect(x: 2560, y: 30, width: 2560, height: 1410)
         let access = RestorationFixture(

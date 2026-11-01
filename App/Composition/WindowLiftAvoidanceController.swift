@@ -223,6 +223,7 @@ final class WindowLiftAvoidanceController {
 
     private enum ValidationStage: String {
         case candidateMoved
+        case processIdentityUnavailable
         case handleUnavailable
         case roleUnavailable
         case unsupportedRole
@@ -326,7 +327,6 @@ final class WindowLiftAvoidanceController {
     /// 再交给 detached task 的，中途失权时新的冻结机制根本接管不到。
     var pendingRestorations: [WindowLiftAvoidance.WindowKey: ManagedFrames] = [:]
     /// 入列时的进程启动时间，用来在长时间冻结后识别 pid 复用。
-    private var pendingRestorationStartTimes: [WindowLiftAvoidance.WindowKey: timeval] = [:]
     /// 被取消但还没跑完的写任务。取消的 AX 调用没法半路打断，恢复前必须排空，
     /// 否则迟到的 rollback 会盖掉还原结果。
     private var pendingDrains: [Task<Void, Never>] = []
@@ -1009,7 +1009,8 @@ final class WindowLiftAvoidanceController {
             // never clears.
             managedFrames[candidate.key] = ManagedFrames(
                 nativeAppKit: appKitFrame, targetAppKit: targetFrame,
-                primaryScreenHeight: context.primaryScreenHeight
+                primaryScreenHeight: context.primaryScreenHeight,
+                processGeneration: ProcessLiveness.startTime(pid: candidate.key.pid).map(ProcessGeneration.init)
             )
         } else {
             event = .maximizedDetected(
@@ -1091,7 +1092,7 @@ final class WindowLiftAvoidanceController {
             break
         case let .abandon(reason):
             logger.error(
-                "lift abandoned pid=\(candidate.key.pid, privacy: .public) wid=\(candidate.key.cgWindowID, privacy: .public) reason=\(String(describing: reason), privacy: .public)"
+                "lift abandoned pid=\(candidate.key.pid, privacy: .public) wid=\(candidate.key.cgWindowID, privacy: .public) reason=\(reason.diagnosticDescription, privacy: .public)"
             )
         case let .write(targetFrame, rollbackFrame, generation, isRelift):
             guard generation == operationGeneration else { return }
@@ -1119,10 +1120,16 @@ final class WindowLiftAvoidanceController {
               attempt.generation == generation else {
             return
         }
+        guard let currentProcess = ProcessLiveness.startTime(pid: key.pid).map(ProcessGeneration.init),
+              managedFrames[key]?.processGeneration.map({ $0 == currentProcess }) ?? true else {
+            finishOperation(for: key, generation: generation, outcome: .transientValidation(.processIdentityUnavailable))
+            return
+        }
         let frames = ManagedFrames(
             nativeAppKit: nativeFrame,
             targetAppKit: targetFrame,
-            primaryScreenHeight: context.primaryScreenHeight
+            primaryScreenHeight: context.primaryScreenHeight,
+            processGeneration: currentProcess
         )
         managedFrames[key] = frames
         let nativeQuartz = frames.nativeQuartz
@@ -1972,7 +1979,9 @@ final class WindowLiftAvoidanceController {
         generation: UInt64,
         context: WindowLiftAvoidanceContext
     ) -> Bool {
-        guard hostContexts().contains(context),
+        guard let expected = managedFrames[key]?.processGeneration,
+              ProcessLiveness.startTime(pid: key.pid).map(ProcessGeneration.init) == expected,
+              hostContexts().contains(context),
               NSRunningApplication(processIdentifier: key.pid)?.isActive == true,
               case let .writing(attempt) = states[key],
               attempt.generation == generation else {
@@ -2099,7 +2108,7 @@ final class WindowLiftAvoidanceController {
             )
             store(transition.state, for: key)
             logger.error(
-                "lift write failed pid=\(key.pid, privacy: .public) wid=\(key.cgWindowID, privacy: .public) progress=\(progress, format: .fixed(precision: 3), privacy: .public) reason=\(String(describing: reason), privacy: .public) rollback=\(String(describing: rollback), privacy: .public)"
+                "lift write failed pid=\(key.pid, privacy: .public) wid=\(key.cgWindowID, privacy: .public) progress=\(progress, format: .fixed(precision: 3), privacy: .public) reason=\(reason.diagnosticDescription, privacy: .public) rollback=\(rollback.diagnosticDescription, privacy: .public)"
             )
 
         case let .completed(actualQuartzFrame, reliftCount, anomalies):
@@ -2140,7 +2149,7 @@ final class WindowLiftAvoidanceController {
     ) {
         for anomaly in anomalies.prefix(4) {
             let progress = String(format: "%.3f", anomaly.progress)
-            let message = "lift animation anomaly pid=\(key.pid) wid=\(key.cgWindowID) progress=\(progress) reason=\(String(describing: anomaly.reason)) decision=\(String(describing: anomaly.decision)) rollback=\(String(describing: anomaly.rollback))"
+            let message = "lift animation anomaly pid=\(key.pid) wid=\(key.cgWindowID) progress=\(progress) reason=\(anomaly.reason.diagnosticDescription) decision=\(anomaly.decision.diagnosticDescription) rollback=\(anomaly.rollback.diagnosticDescription)"
             if terminal {
                 logger.error("\(message, privacy: .public)")
             } else {
@@ -2190,7 +2199,6 @@ final class WindowLiftAvoidanceController {
             cancelledWrites.append(contentsOf: writeDrainTasks.removeValue(forKey: key).map { Array($0.values) } ?? [])
             if let state = states[key], state != .idle, let frames = managedFrames[key] {
                 pendingRestorations[key] = frames
-                pendingRestorationStartTimes[key] = ProcessLiveness.startTime(pid: key.pid)
             }
             states.removeValue(forKey: key)
             sessionContexts.removeValue(forKey: key)
@@ -2217,7 +2225,7 @@ final class WindowLiftAvoidanceController {
         restoreGeneration &+= 1
         let generation = restoreGeneration
         let items = pendingRestorations
-        let startTimes = pendingRestorationStartTimes
+        let startTimes = items.compactMapValues { $0.processGeneration.map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) } }
         let restoreWindow = restoreWindow
         let windowKeys = restorationWindowKeys
         let cancellation = OperationCancellation()
@@ -2241,7 +2249,6 @@ final class WindowLiftAvoidanceController {
                     await MainActor.run { [weak self] in
                         guard let self, self.restoreGeneration == generation else { return }
                         self.pendingRestorations.removeValue(forKey: key)
-                        self.pendingRestorationStartTimes.removeValue(forKey: key)
                     }
                 }
             }
@@ -2385,7 +2392,7 @@ final class WindowLiftAvoidanceController {
         case let .lifted(session):
             return "lifted(reliftCount:\(session.reliftCount))"
         case let .abandoned(session):
-            return "abandoned(reason:\(String(describing: session.reason)),reliftCount:\(session.reliftCount))"
+            return "abandoned(reason:\(session.reason.diagnosticDescription),reliftCount:\(session.reliftCount))"
         }
     }
 }

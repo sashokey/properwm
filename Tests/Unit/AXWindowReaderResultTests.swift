@@ -2,7 +2,79 @@ import ApplicationServices
 import Combine
 import XCTest
 
+final class ExternalWindowGeometryTests: XCTestCase {
+    func testInventoryRejectsInvalidKnownGeometryBeforeTabFolding() {
+        let app = AppTrackerWindowEligibility.Application(
+            bundleIdentifier: "audit.example.geometry", appName: "Geometry",
+            activationPolicy: .regular, executablePath: "/Applications/Geometry.app/Contents/MacOS/Geometry"
+        )
+        let frames = [
+            CGRect(x: 1e30, y: 100, width: 800, height: 600),
+            CGRect(x: -1e30, y: 100, width: 800, height: 600),
+            CGRect(x: CGFloat.nan, y: 100, width: 800, height: 600),
+            CGRect(x: 100, y: CGFloat.infinity, width: 800, height: 600),
+            CGRect(x: 100, y: 100, width: 1e30, height: 600),
+            CGRect(x: 100, y: 100, width: 800, height: -CGFloat.infinity),
+            CGRect(x: 100, y: 100, width: 0, height: 600),
+            CGRect(x: CGFloat(Int.max), y: 100, width: 800, height: 600)
+        ]
+        for frame in frames {
+            XCTAssertFalse(AppTrackerWindowEligibility().isEligible(
+                title: "Window", role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String, bounds: frame,
+                alpha: 1, isMinimized: true, isBelowNormalLayer: false, application: app
+            ), "Invalid external frame was admitted: \(frame)")
+        }
+    }
+
+    func testNegativeMonitorCoordinatesAndUnknownFrameRemainEligible() {
+        let app = AppTrackerWindowEligibility.Application(
+            bundleIdentifier: "audit.example.geometry", appName: "Geometry",
+            activationPolicy: .regular, executablePath: "/Applications/Geometry.app/Contents/MacOS/Geometry"
+        )
+        for frame: CGRect? in [CGRect(x: -2560.5, y: -120.25, width: 800.5, height: 600), nil] {
+            XCTAssertTrue(AppTrackerWindowEligibility().isEligible(
+                title: "Window", role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String, bounds: frame,
+                alpha: 1, isMinimized: true, isBelowNormalLayer: false, application: app
+            ))
+        }
+    }
+}
+
 final class AXWindowReaderResultTests: XCTestCase {
+    func testRollbackAcceptsOnlyFramesOwnedByThePartialWrite() {
+        let original = CGRect(x: 100, y: 100, width: 900, height: 700)
+        let partial = CGRect(x: 100, y: 100, width: 900, height: 668)
+        let target = CGRect(x: 100, y: 132, width: 900, height: 668)
+        XCTAssertTrue(AXWindowFrameRollbackPolicy.accepts(partial, attemptedFrames: [partial, target], tolerance: 1))
+        XCTAssertTrue(AXWindowFrameRollbackPolicy.accepts(target, attemptedFrames: [partial, target], tolerance: 1))
+        XCTAssertFalse(AXWindowFrameRollbackPolicy.accepts(original, attemptedFrames: [partial, target], tolerance: 1))
+        XCTAssertFalse(AXWindowFrameRollbackPolicy.accepts(CGRect(x: 500, y: 100, width: 900, height: 668),
+            attemptedFrames: [partial, target], tolerance: 1))
+        XCTAssertFalse(AXWindowFrameRollbackPolicy.accepts(partial, attemptedFrames: [], tolerance: 1))
+    }
+
+    func testAXWindowArraysValidateEveryElementType() throws {
+        let element = AXUIElementCreateApplication(-42)
+        XCTAssertEqual(try XCTUnwrap(AXWindowReader.validatedElements([element] as CFArray)).count, 1)
+        XCTAssertNil(AXWindowReader.validatedElements([element, "wrong" as CFString] as CFArray))
+        XCTAssertNil(AXWindowReader.validatedElements("wrong" as CFString))
+        let cancellation = OperationCancellation()
+        cancellation.cancel()
+        XCTAssertNil(AXWindowReader.validatedElements([element] as CFArray,
+            budget: OperationReadBudget(maximumDuration: 1, cancellation: cancellation)))
+    }
+
+    func testWindowIDsRejectTruncationFractionsAndBooleans() {
+        for number in [NSNumber(value: -1), NSNumber(value: UInt64(UInt32.max) + 1),
+                       NSNumber(value: 42.5), NSNumber(value: true), NSNumber(value: Double.nan), NSNumber(value: Double.infinity)] {
+            XCTAssertNil(AXWindowIDBridge.cgWindowID(from: number), "Invalid ID admitted: \(number)")
+        }
+        XCTAssertEqual(AXWindowIDBridge.cgWindowID(from: NSNumber(value: UInt32.max)), UInt32.max)
+        XCTAssertEqual(AXWindowIDBridge.cgWindowID(from: " 42 " as CFString), 42)
+    }
+
     func testSuccessPreservesOriginalWindowArray() {
         let snapshot = AXWindowSnapshot(
             pid: 42,
@@ -1080,5 +1152,29 @@ private struct FixedAppTrackerProcessProvider: AppTrackerProcessProviding {
             startTimeUsec: 2,
             bundleID: bundleID
         )
+    }
+}
+
+final class WindowLabInputTests: XCTestCase {
+    func testMissingAndUnknownModesFailWithoutStartingObservation() {
+        for args in [[], ["typo"], ["--help"]] as [[String]] { XCTAssertThrowsError(try WindowLabInput.mode(args)) }
+        XCTAssertEqual(try WindowLabInput.mode(["observe"]), .observe)
+    }
+
+    func testScenarioNamesCannotEscapeTheScenarioDirectory() {
+        let root = URL(fileURLWithPath: "/fixture")
+        for name in ["../outside", "/absolute", "", "a/b", "a\\b", "two..dots"] {
+            XCTAssertThrowsError(try WindowLabInput.scenarioURL(root: root, name: name))
+        }
+        XCTAssertEqual(try WindowLabInput.scenarioURL(root: root, name: "valid-replay_1").path,
+            "/fixture/Tools/WindowLab/Scenarios/valid-replay_1.json")
+    }
+
+    func testMalformedAndOutOfRangeFramesAreErrorsRatherThanUnknownFrames() throws {
+        for frame in ["1:2:3", "1::2:3:4", "nan:1:800:600", "0:0:0:600", "1e30:0:800:600"] {
+            XCTAssertThrowsError(try WindowLabInput.bounds(frame))
+        }
+        XCTAssertNil(try WindowLabInput.bounds(nil))
+        XCTAssertEqual(try WindowLabInput.bounds("-2560:30:800:600"), CGRect(x: -2560, y: 30, width: 800, height: 600))
     }
 }

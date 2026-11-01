@@ -80,13 +80,10 @@ final class ObservationRoundAnomalyFuse {
         }
 
         private static func frameBucket(for bounds: CGRect?) -> String {
-            guard let bounds else { return "no-frame" }
+            guard let bounds, WindowFrameMatchPolicy.isValid(bounds) else { return "no-frame" }
             let size = WindowFrameMatchPolicy.tolerance
-            let x = Int((bounds.origin.x / size).rounded())
-            let y = Int((bounds.origin.y / size).rounded())
-            let width = Int((bounds.width / size).rounded())
-            let height = Int((bounds.height / size).rounded())
-            return "\(x):\(y):\(width):\(height)"
+            let values = [bounds.origin.x, bounds.origin.y, bounds.width, bounds.height]
+            return values.map { String(Int(exactly: ($0 / size).rounded()) ?? 0) }.joined(separator: ":")
         }
     }
 }
@@ -318,13 +315,10 @@ final class ObservationAdmissionGate {
         }
 
         private static func frameBucket(for bounds: CGRect?) -> String {
-            guard let bounds else { return "no-frame" }
+            guard let bounds, WindowFrameMatchPolicy.isValid(bounds) else { return "no-frame" }
             let size = WindowFrameMatchPolicy.tolerance
-            let x = Int((bounds.origin.x / size).rounded())
-            let y = Int((bounds.origin.y / size).rounded())
-            let width = Int((bounds.width / size).rounded())
-            let height = Int((bounds.height / size).rounded())
-            return "\(x):\(y):\(width):\(height)"
+            let values = [bounds.origin.x, bounds.origin.y, bounds.width, bounds.height]
+            return values.map { String(Int(exactly: ($0 / size).rounded()) ?? 0) }.joined(separator: ":")
         }
     }
 }

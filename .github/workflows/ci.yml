@@ -92,6 +92,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/xcodebuild-test.log
 
+      - name: Build and validate WindowLab replay
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project ProperWM.xcodeproj -target window-lab -configuration Debug \
+            SYMROOT="$PWD/build/WindowLab/Products" OBJROOT="$PWD/build/WindowLab/Intermediates" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild-windowlab.log
+          python3 Scripts/check_windowlab_cli.py build/WindowLab/Products/Debug/window-lab build/windowlab-fixtures
+
       - name: Check deployment compatibility
         if: (success() || failure()) && steps.tests.outcome != 'skipped'
         run: python3 Scripts/check_availability_warnings.py build/xcodebuild-test.log
@@ -163,6 +174,7 @@ jobs:
             build/xcodebuild-test.log
             build/xcodebuild-release.log
             build/xcodebuild-inventory.log
+            build/xcodebuild-windowlab.log
             build/TestResults.xcresult
             build/coverage.txt
             build/coverage.json

@@ -176,7 +176,7 @@ final class AppRuntime: ObservableObject {
         } else {
             onHandoffActivePrediction = nil
         }
-        work.submit(key: key) { [weak self] generation, cancellation in
+        let accepted = work.submit(key: key, maximumPendingKeys: max(32, capturedSnapshot.windows.count)) { [weak self] generation, cancellation in
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "execStart")
             let result = await AsyncWorkScope.performBlocking(cancellation: cancellation) {
                 executor.execute(request, snapshot: capturedSnapshot,
@@ -196,9 +196,17 @@ final class AppRuntime: ObservableObject {
                 self.updateFeedbackTimer()
             }
         }
+        if !accepted {
+            actionTokens.removeValue(forKey: key)
+            optimisticStatesByWindowID.removeValue(forKey: key)
+            intentPipeline.registerExecutionResult(intent: intent, request: request, success: false)
+            publishFeedbackEntries()
+            updateFeedbackTimer()
+        }
     }
 
     private func handleSnapshotUpdate(_ newSnapshot: DockSnapshot) {
+        work.retain(windowIDs: Set(newSnapshot.windows.keys.map(\.rawValue)))
         if snapshot != newSnapshot { snapshot = newSnapshot }
         reconcileTitleSettle(with: newSnapshot)
         let trusted = isAccessibilityTrusted()

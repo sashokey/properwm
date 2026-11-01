@@ -1190,3 +1190,25 @@ enum WindowLiftAvoidance {
         ))
     }
 }
+
+extension WindowLiftAvoidance.AbandonReason {
+    var diagnosticDescription: String {
+        switch self {
+        case .reliftLimitReached: return "reliftLimitReached"
+        case .writeFailed: return "writeFailed"
+        }
+    }
+}
+
+extension WindowLiftAvoidance.AnimationWriteFailureDecision {
+    var diagnosticDescription: String {
+        switch self {
+        case .complete: return "complete"
+        case .continueFromActual: return "continueFromActual"
+        case .clearSession: return "clearSession"
+        case .restartFromNative: return "restartFromNative"
+        case .reliftLimitReached: return "reliftLimitReached"
+        case .abandonWriteFailed: return "abandonWriteFailed"
+        }
+    }
+}

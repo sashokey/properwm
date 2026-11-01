@@ -20,6 +20,8 @@ struct AppEntry {
     /// Pass B 折叠判定第二级用它兜住「成员历史被 dock 重启清零」的缺口；每轮从活信号重建，
     /// 不依赖持久化。判定用上一轮的池（最小化爆发瞬间所有标签涌进 AX，本轮现算会是空的）。
     var shadowTabCgIDs: Set<CGWindowID> = []
+    var applicationOrigin: ApplicationOrigin? = nil
+    var processGeneration: ProcessGeneration? = nil
 
 }
 
@@ -401,8 +403,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     /// 「同 pid + 逐像素相同 frame」键。物理座位据此认领"切标签顶替"的新当前标签：同一物理窗口的
     /// 各标签 frame 完全一致，新当前标签会出现在座位当前的 frame 上。
     private func frameKey(_ pid: pid_t, _ bounds: CGRect?) -> String? {
-        guard let b = bounds else { return nil }
-        return "\(pid)|\(Int(b.origin.x.rounded())):\(Int(b.origin.y.rounded())):\(Int(b.size.width.rounded())):\(Int(b.size.height.rounded()))"
+        guard let bounds, WindowFrameMatchPolicy.isValid(bounds) else { return nil }
+        return "\(pid)|\(WindowFrameMatchPolicy.signature(for: bounds))"
     }
 
     /// 物理座位对账（单座位模型 · 拽标签根治 step 1）。把一个 app 当前的 AX 合格窗口收敛成
@@ -460,7 +462,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         func fk(_ b: CGRect?) -> String? { frameKey(pid, b) }
 
         var eligibleByCgID: [CGWindowID: AXWindowSnapshot] = [:]
-        for s in eligible { if let c = s.cgWindowID { eligibleByCgID[c] = s } }
+        var eligibleByFrame: [String: [AXWindowSnapshot]] = [:]
+        for snapshot in eligible {
+            if let id = snapshot.cgWindowID { eligibleByCgID[id] = snapshot }
+            if let key = fk(snapshot.bounds) { eligibleByFrame[key, default: []].append(snapshot) }
+        }
 
         // 顺手把 AX 元素喂给动作路径的旁路缓存（见 `AXElementCache` 的注释）。这里是唯一的写入点：
         // 这一轮已经过了 `.unread` 早退闸，元素是真读到的。**不因为某个 cgID 这轮没出现在 AX 里就删**
@@ -496,9 +502,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                                createdAt: createdAtByToken[token] ?? now)
         }
         // 某 frame 当前有几个老座位认领（>1 = 窗口重叠歧义，切标签顶替时跳过，保守不误并）
-        func seatsAtFrame(_ key: String) -> Int {
-            app.windowOrder.filter { fk(app.windowsByID[$0]?.bounds) == key }.count
+        let seatCountByFrame = app.windowOrder.reduce(into: [String: Int]()) { counts, id in
+            if let key = fk(app.windowsByID[id]?.bounds) { counts[key, default: 0] += 1 }
         }
+        func seatsAtFrame(_ key: String) -> Int { seatCountByFrame[key] ?? 0 }
 
         // 当前 activeCgID 仍在 AX 里的座位数——幽灵自愈的「兄弟座位在场」门槛（幽灵自己缺席，天然不计入）。
         let axPresentSeatCount = app.windowOrder.filter { eligibleByCgID[$0] != nil }.count
@@ -530,7 +537,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 )
                 // X 仍可见。检查「拖当前标签出去」：X 移到了新 frame，旧 frame 上来了别的合格窗口 Y。
                 if let seatKey, fk(snapX.bounds) != seatKey,
-                   let Y = eligible.first(where: { s in
+                   let Y = eligibleByFrame[seatKey]?.first(where: { s in
                        guard let c = s.cgWindowID, c != X, !usedEligible.contains(c) else { return false }
                        return fk(s.bounds) == seatKey
                    }), let yc = Y.cgWindowID {
@@ -567,7 +574,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             } else {
                 // X 离开 AX：旧 frame 有没有新当前标签顶上 → 切标签
                 if let seatKey, seatsAtFrame(seatKey) == 1,
-                   let Y = eligible.first(where: { s in
+                   let Y = eligibleByFrame[seatKey]?.first(where: { s in
                        guard let c = s.cgWindowID, !usedEligible.contains(c), app.windowsByID[c] == nil else { return false }
                        return fk(s.bounds) == seatKey
                    }), let yc = Y.cgWindowID {
@@ -729,9 +736,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     // 诊断（常驻）：min=true 候选在已有落座座位时四级判定全失败走到新建座位 =
                     // 潜在分裂点，dump 全部判定输入抓现场。placed 为空（seed 时本就最小化的
                     // 独立窗口）是正确新建，不打。正常路径零输出——别再当遗留清掉。
-                    let cand = s.bounds.map { "\(Int($0.origin.x)),\(Int($0.origin.y)) \(Int($0.width))x\(Int($0.height))" } ?? "nil"
+                    let cand = WindowFrameMatchPolicy.signature(for: s.bounds)
                     let placedDesc = placedForFold.map { p in
-                        let b = p.bounds.map { "\(Int($0.origin.x)),\(Int($0.origin.y)) \(Int($0.width))x\(Int($0.height))" } ?? "nil"
+                        let b = WindowFrameMatchPolicy.signature(for: p.bounds)
                         return "(cg=\(p.activeCgID) min=\(p.isMinimized) b=[\(b)] hist=\(p.formerCgIDs.sorted()))"
                     }.joined(separator: " ")
                     print("[tabfold] 分裂点 pid=\(pid) 为 min 窗口新建座位 cg=\(c) b=[\(cand)] onScreen=\(onScreenCGIDs.contains(c)) shadow=\(shadowPool.contains(c)) pool=\(shadowPool.count) placed=\(placedDesc)")
@@ -1281,8 +1288,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var results: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
             for identity in candidates {
                 guard !Task.isCancelled else { return }
-                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                    messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0) }
+                let cancellation = OperationCancellation()
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
+                    messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0, cancellation: cancellation) }
                         ?? reader.windowReadResult(forPID: identity.pid)
                 }) else { return }
                 results.append((identity, result))
@@ -1549,7 +1557,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             executablePath: application.executablePath,
             windowsByID: [:],
             windowOrder: [],
-            isHidden: app.isHidden
+            isHidden: app.isHidden,
+            applicationOrigin: ApplicationOrigin(bundleURL: app.bundleURL),
+            processGeneration: ProcessLiveness.startTime(pid: pid).map(ProcessGeneration.init)
         )
         appOrder.append(pid)
         mutationGenerations[pid, default: 0] &+= 1
@@ -1595,8 +1605,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     return self.processIdentity(pid: pid, bundleID: current.bundleIdentifier)
                 }
                 guard let identity, !Task.isCancelled else { return }
-                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                    reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+                let cancellation = OperationCancellation()
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
+                    reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1, cancellation: cancellation)
                 }) else { return }
                 await MainActor.run {
                     guard let self, self.work.isCurrent(generation), self.apps[pid] == nil,
@@ -1850,8 +1861,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let ticket = makeCGSnapshotReuseTicket(pid: pid)
 
         work.launch { [weak self] generation in
-            guard let read = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1)
+            let cancellation = OperationCancellation()
+            guard let read = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
+                let result = reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1, cancellation: cancellation)
                 // Absence probes run only on a readable round, after the AX list and before the CG
                 // capture: a window shown again meanwhile is then on-screen in the table that decides.
                 var evidence: [AbsentSeatProbeEvidence] = []
@@ -2196,8 +2208,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var results: [(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult)] = []
             for entry in pending {
                 guard !Task.isCancelled else { return }
-                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                    reader.inventoryWindows(forPID: entry.pid, messagingTimeout: timeout)
+                let cancellation = OperationCancellation()
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
+                    reader.inventoryWindows(forPID: entry.pid, messagingTimeout: timeout, cancellation: cancellation)
                 }) else { return }
                 results.append((entry.pid, entry.request, result))
             }
@@ -2333,8 +2346,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             var probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
             for candidate in candidates {
                 guard !Task.isCancelled else { return }
-                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                    reader.inventoryWindows(forPID: candidate.pid, messagingTimeout: 0.1)
+                let cancellation = OperationCancellation()
+                guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
+                    reader.inventoryWindows(forPID: candidate.pid, messagingTimeout: 0.1, cancellation: cancellation)
                 }) else { return }
                 probed.append((candidate.pid, candidate.identity, result))
             }
@@ -2546,7 +2560,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     status: windowStatus(isHidden: app.isHidden, isMinimized: seat.isMinimized,
                                          isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID),
                     cgWindowID: cgID, isOnDesktop: !seat.isMinimized && !app.isHidden,
-                    groupID: seat.token, displayUUID: seat.displayUUID
+                    groupID: seat.token, displayUUID: seat.displayUUID,
+                    applicationOrigin: app.applicationOrigin, processGeneration: app.processGeneration
                 )
                 orderedWindowIDs.append(id)
             }

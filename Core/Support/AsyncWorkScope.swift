@@ -80,3 +80,19 @@ final class AsyncWorkScope {
         for task in tasks.values { task.cancel() }
     }
 }
+
+struct OperationReadBudget: Sendable {
+    let cancellation: OperationCancellation
+    private let deadline: TimeInterval
+    private let uptime: @Sendable () -> TimeInterval
+
+    init(maximumDuration: TimeInterval, cancellation: OperationCancellation,
+         uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.cancellation = cancellation
+        self.uptime = uptime
+        deadline = uptime() + max(0, maximumDuration.isFinite ? maximumDuration : 0)
+    }
+
+    var remaining: TimeInterval { cancellation.isCancelled ? 0 : max(0, deadline - uptime()) }
+    var canContinue: Bool { remaining > 0 }
+}

@@ -131,6 +131,12 @@ enum AXWindowFrameWriteFailure: Error, Equatable {
     }
 }
 
+enum AXWindowFrameRollbackPolicy {
+    static func accepts(_ actual: CGRect, attemptedFrames: [CGRect], tolerance: CGFloat) -> Bool {
+        attemptedFrames.contains { WindowFrameMatchPolicy.areClose(actual, $0, tolerance: tolerance) }
+    }
+}
+
 enum AXWindowFrameRollbackResult: Equatable {
     case notRequested
     case restored(actualFrame: CGRect)
@@ -163,9 +169,36 @@ protocol AppTrackerWindowReading: Sendable {
     func windows(forPID pid: pid_t) -> [AXWindowSnapshot]
     func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult
+    func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult
+}
+
+extension AppTrackerWindowReading {
+    func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
+        guard !cancellation.isCancelled else { return .unread(.cannotComplete) }
+        return inventoryWindows(forPID: pid, messagingTimeout: messagingTimeout)
+    }
 }
 
 struct AXWindowReader: AppTrackerWindowReading, Sendable {
+    private var budget: OperationReadBudget?
+    private var readMessagingTimeout: TimeInterval = 0.1
+
+    init() {}
+
+    func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
+        readWindows(forPID: pid, messagingTimeout: messagingTimeout, cancellation: cancellation)
+    }
+
+    static func validatedElements(_ value: CFTypeRef?, budget: OperationReadBudget? = nil) -> [AXUIElement]? {
+        guard let value, CFGetTypeID(value) == CFArrayGetTypeID(), let values = value as? [AnyObject] else { return nil }
+        var result: [AXUIElement] = []
+        for element in values {
+            guard budget?.canContinue ?? true, CFGetTypeID(element) == AXUIElementGetTypeID() else { return nil }
+            result.append(unsafeBitCast(element, to: AXUIElement.self))
+        }
+        return result
+    }
+
     func windows(for app: NSRunningApplication) -> [AXWindowSnapshot] {
         windows(forPID: app.processIdentifier)
     }
@@ -186,7 +219,19 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         readWindows(forPID: pid, messagingTimeout: messagingTimeout)
     }
 
-    private func readWindows(forPID pid: pid_t, messagingTimeout: TimeInterval?) -> AXWindowReadResult {
+    private func readWindows(forPID pid: pid_t, messagingTimeout: TimeInterval?,
+                             cancellation: OperationCancellation = OperationCancellation()) -> AXWindowReadResult {
+        var reader = self
+        if let messagingTimeout {
+            guard messagingTimeout.isFinite, messagingTimeout > 0 else { return .unread(.illegalArgument) }
+            reader.readMessagingTimeout = messagingTimeout
+        }
+        reader.budget = OperationReadBudget(maximumDuration: 2, cancellation: cancellation)
+        return reader.readWindowsWithinBudget(forPID: pid, messagingTimeout: messagingTimeout)
+    }
+
+    private func readWindowsWithinBudget(forPID pid: pid_t, messagingTimeout: TimeInterval?) -> AXWindowReadResult {
+        guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
         let appElement = AXUIElementCreateApplication(pid)
         applyMessagingTimeout(messagingTimeout, to: appElement)
 
@@ -198,15 +243,18 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             into: &rawWindows,
             maxAttempts: maxAttempts
         )
-        guard result == .success, let elements = rawWindows as? [AXUIElement] else {
-            return .unread(result)
+        guard result == .success else { return .unread(result) }
+        guard let elements = Self.validatedElements(rawWindows, budget: budget) else {
+            return .unread(budget?.canContinue == false ? .cannotComplete : .failure)
         }
 
         let focusedElement = elementAttribute(kAXFocusedWindowAttribute as CFString, from: appElement)
-        return .success(elements.map { element in
+        var snapshots: [AXWindowSnapshot] = []
+        for element in elements {
+            guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
             applyMessagingTimeout(messagingTimeout, to: element)
             let minimized = boolAttribute(kAXMinimizedAttribute as CFString, from: element, maxAttempts: maxAttempts)
-            return AXWindowSnapshot(
+            snapshots.append(AXWindowSnapshot(
                 pid: pid,
                 cgWindowID: cgWindowID(for: element, maxAttempts: maxAttempts),
                 titleRead: titleAttribute(from: element, maxAttempts: maxAttempts),
@@ -217,8 +265,10 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 isFocusedWindow: focusedElement.map { CFEqual($0, element) } ?? false,
                 element: element,
                 isMinimizedRead: minimized
-            )
-        })
+            ))
+        }
+        guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
+        return .success(snapshots)
     }
 
     func captureHandle(
@@ -318,7 +368,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             into: &rawWindows,
             maxAttempts: 1
         ) == .success,
-              let elements = rawWindows as? [AXUIElement],
+              let elements = Self.validatedElements(rawWindows, budget: budget),
               let element = elements.first(where: matches) else {
             return nil
         }
@@ -432,7 +482,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return nil
         }
 
-        return CGRect(origin: point, size: size)
+        let frame = CGRect(origin: point, size: size)
+        return WindowFrameMatchPolicy.isValid(frame) ? frame : nil
     }
 
     func frame(of element: AXUIElement, messagingTimeout: TimeInterval) -> CGRect? {
@@ -466,11 +517,13 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return .failure(reason: .invalidGeometry, rollback: .notRequested)
         }
 
+        var attemptedFrames: [CGRect] = []
         switch writeSize(
             size,
             to: element,
             verificationTolerance: verificationTolerance,
-            onlyIfCurrentMatches: expectedCurrentFrame
+            onlyIfCurrentMatches: expectedCurrentFrame,
+            recordAttempt: { attemptedFrames.append($0) }
         ) {
         case let .success(actualFrame):
             return .success(actualFrame: actualFrame)
@@ -481,6 +534,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                     after: reason,
                     to: restoreFrame,
                     for: element,
+                    attemptedFrames: attemptedFrames,
                     verificationTolerance: verificationTolerance
                 )
             )
@@ -502,11 +556,13 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return .failure(reason: .invalidGeometry, rollback: .notRequested)
         }
 
+        var attemptedFrames: [CGRect] = []
         switch writeFrame(
             frame,
             to: element,
             verificationTolerance: verificationTolerance,
-            onlyIfCurrentMatches: expectedCurrentFrame
+            onlyIfCurrentMatches: expectedCurrentFrame,
+            recordAttempt: { attemptedFrames.append($0) }
         ) {
         case let .success(actualFrame):
             return .success(actualFrame: actualFrame)
@@ -517,6 +573,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                     after: reason,
                     to: restoreFrame,
                     for: element,
+                    attemptedFrames: attemptedFrames,
                     verificationTolerance: verificationTolerance
                 )
             )
@@ -553,6 +610,10 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         var attempt = 0
         var lastResult: AXError = .failure
         while attempt < maxAttempts {
+            if let budget {
+                guard budget.canContinue else { return .cannotComplete }
+                applyMessagingTimeout(min(readMessagingTimeout, budget.remaining), to: element)
+            }
             let result = AXUIElementCopyAttributeValue(element, attribute, &value)
             if result == .success {
                 return result
@@ -599,7 +660,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         _ size: CGSize,
         to element: AXUIElement,
         verificationTolerance: CGFloat,
-        onlyIfCurrentMatches expectedCurrentFrame: CGRect? = nil
+        onlyIfCurrentMatches expectedCurrentFrame: CGRect? = nil,
+        recordAttempt: (CGRect) -> Void = { _ in }
     ) -> Result<CGRect, AXWindowFrameWriteFailure> {
         guard let initialFrame = frame(of: element, maxAttempts: 1) else {
             return .failure(.initialFrameUnavailable)
@@ -636,6 +698,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             }
         }
 
+        recordAttempt(expectedFrame)
         let writeResult = AXUIElementSetAttributeValue(
             element,
             kAXSizeAttribute as CFString,
@@ -658,7 +721,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         _ targetFrame: CGRect,
         to element: AXUIElement,
         verificationTolerance: CGFloat,
-        onlyIfCurrentMatches expectedCurrentFrame: CGRect? = nil
+        onlyIfCurrentMatches expectedCurrentFrame: CGRect? = nil,
+        recordAttempt: (CGRect) -> Void = { _ in }
     ) -> Result<CGRect, AXWindowFrameWriteFailure> {
         guard let initialFrame = frame(of: element, maxAttempts: 1) else {
             return .failure(.initialFrameUnavailable)
@@ -724,6 +788,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         if let sizeValue {
+            recordAttempt(CGRect(origin: initialFrame.origin, size: targetFrame.size))
             let result = AXUIElementSetAttributeValue(
                 element,
                 kAXSizeAttribute as CFString,
@@ -735,6 +800,12 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         if let positionValue {
+            let expectedPartial = CGRect(origin: initialFrame.origin, size: needsSize ? targetFrame.size : initialFrame.size)
+            guard let current = frame(of: element, maxAttempts: 1),
+                  framesMatch(current, expectedPartial, tolerance: verificationTolerance) else {
+                return .failure(.verificationUnavailable)
+            }
+            recordAttempt(targetFrame)
             let result = AXUIElementSetAttributeValue(
                 element,
                 kAXPositionAttribute as CFString,
@@ -758,16 +829,24 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         after failure: AXWindowFrameWriteFailure,
         to restoreFrame: CGRect?,
         for element: AXUIElement,
+        attemptedFrames: [CGRect],
         verificationTolerance: CGFloat
     ) -> AXWindowFrameRollbackResult {
         guard failure.mayHaveMutatedWindow, let restoreFrame else {
             return .notRequested
         }
 
+        guard let current = frame(of: element, maxAttempts: 1) else {
+            return .failed(reason: .verificationUnavailable, actualFrame: nil)
+        }
+        guard AXWindowFrameRollbackPolicy.accepts(current, attemptedFrames: attemptedFrames, tolerance: verificationTolerance) else {
+            return .failed(reason: .initialFrameMismatch(expected: attemptedFrames.last ?? restoreFrame, actual: current), actualFrame: current)
+        }
         switch writeFrame(
             restoreFrame,
             to: element,
-            verificationTolerance: verificationTolerance
+            verificationTolerance: verificationTolerance,
+            onlyIfCurrentMatches: current
         ) {
         case let .success(actualFrame):
             return .restored(actualFrame: actualFrame)
@@ -829,7 +908,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
 }
 
-private enum AXWindowIDBridge {
+enum AXWindowIDBridge {
     typealias GetWindowFunction = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 
     static let fallbackAttributeNames = ["AXWindowID", "AXWindowNumber"]
@@ -851,6 +930,7 @@ private enum AXWindowIDBridge {
                     return unsafeBitCast(symbol, to: GetWindowFunction.self)
                 }
             }
+            dlclose(handle)
         }
 
         return nil
@@ -868,8 +948,9 @@ private enum AXWindowIDBridge {
 
     static func cgWindowID(from value: CFTypeRef) -> UInt32? {
         if let number = value as? NSNumber {
-            let id = number.uint32Value
-            return id == 0 ? nil : id
+            guard CFGetTypeID(number) != CFBooleanGetTypeID(),
+                  let id = UInt32(exactly: number.doubleValue), id != 0 else { return nil }
+            return id
         }
 
         if let string = value as? String,
@@ -878,5 +959,39 @@ private enum AXWindowIDBridge {
         }
 
         return nil
+    }
+}
+
+extension AXWindowFrameAttribute {
+    var diagnosticDescription: String {
+        switch self { case .position: return "position"; case .size: return "size" }
+    }
+}
+
+extension AXWindowFrameWriteFailure {
+    var diagnosticDescription: String {
+        switch self {
+        case .invalidGeometry: return "invalidGeometry"
+        case .initialFrameUnavailable: return "initialFrameUnavailable"
+        case let .initialFrameMismatch(expected, actual):
+            return "initialFrameMismatch(expected:\(WindowFrameMatchPolicy.signature(for: expected)),actual:\(WindowFrameMatchPolicy.signature(for: actual)))"
+        case let .capabilityQueryFailed(attribute, error): return "capabilityQueryFailed(\(attribute.diagnosticDescription),\(error.rawValue))"
+        case let .attributeNotSettable(attribute): return "attributeNotSettable(\(attribute.diagnosticDescription))"
+        case let .valueCreationFailed(attribute): return "valueCreationFailed(\(attribute.diagnosticDescription))"
+        case let .writeFailed(attribute, error): return "writeFailed(\(attribute.diagnosticDescription),\(error.rawValue))"
+        case .verificationUnavailable: return "verificationUnavailable"
+        case let .verificationMismatch(expected, actual):
+            return "verificationMismatch(expected:\(WindowFrameMatchPolicy.signature(for: expected)),actual:\(WindowFrameMatchPolicy.signature(for: actual)))"
+        }
+    }
+}
+
+extension AXWindowFrameRollbackResult {
+    var diagnosticDescription: String {
+        switch self {
+        case .notRequested: return "notRequested"
+        case let .restored(actual): return "restored(\(WindowFrameMatchPolicy.signature(for: actual)))"
+        case let .failed(reason, actual): return "failed(\(reason.diagnosticDescription),\(WindowFrameMatchPolicy.signature(for: actual)))"
+        }
     }
 }
