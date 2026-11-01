@@ -12,7 +12,10 @@ extension PanelCoordinator {
 
     func relayout(animated: Bool) {
         guard let panel = dockPanel else { return }
-        let screen = resolvedPinnedScreen() ?? panelCurrentScreen(panel: panel)
+        guard let screen = resolvedPinnedScreen() ?? panelCurrentScreen(panel: panel) else {
+            orderDockSurfaceOut()
+            return
+        }
         let frame = TaskbarMetrics.panelFrame(on: screen.frame)
         if panel.frame != frame {
             taskbarView?.taskbarContent.prepareForHiding()

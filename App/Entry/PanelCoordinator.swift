@@ -8,7 +8,6 @@ final class PanelCoordinator: NSObject {
     static let panelLevelOverride: NSWindow.Level? = DebugSwitch.panelLevel.value().flatMap(Int.init).map { NSWindow.Level(rawValue: $0) }
     let runtime: AppRuntime
     let stripOrderStore: StripOrderStore
-    let settingsStore: AppSettingsStore
     var onRequestTaskbarMenu: ((NSEvent, NSView) -> Void)?
     var dockPanel: NSPanel?
     var dockContentHost: ManualPanelHost?
@@ -18,6 +17,8 @@ final class PanelCoordinator: NSObject {
     var displayTopologySubscription: AnyCancellable?
     let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "dock-panel")
     var fullscreenReconcileTimer: Timer?
+    var fullscreenProbeWorker: FullscreenProbeWorker?
+    var fullscreenFrameProvider: (() -> CGRect?)?
     var workspaceObserverTokens: [NSObjectProtocol] = []
     var fullscreenProbeGeneration: UInt64 = 0
     var fullscreenSpaceHoldGeneration: UInt64 = 0
@@ -46,6 +47,8 @@ final class PanelCoordinator: NSObject {
     let overlaySpaceHost: OverlaySpaceHost?
     let stripSurfaceID = "strip-" + UUID().uuidString
     let displayTopologyStore: DisplayTopologyStore
+    let screenProvider: @MainActor () -> [NSScreen]
+    let mainScreenProvider: @MainActor () -> NSScreen?
     var fixedUnitDisplayUUID: String? {
         if case .fixed(let uuid) = unitPlacement { return uuid }
         return nil
@@ -55,26 +58,30 @@ final class PanelCoordinator: NSObject {
          overlaySpaceHost: OverlaySpaceHost?,
          runtime: AppRuntime,
          stripOrderStore: StripOrderStore,
-         settingsStore: AppSettingsStore,
-         displayTopologyStore: DisplayTopologyStore) {
+         displayTopologyStore: DisplayTopologyStore,
+         screenProvider: @escaping @MainActor () -> [NSScreen] = { NSScreen.screens },
+         mainScreenProvider: @escaping @MainActor () -> NSScreen? = { NSScreen.main }) {
         self.unitPlacement = placement
         self.overlaySpaceHost = overlaySpaceHost
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
-        self.settingsStore = settingsStore
         self.displayTopologyStore = displayTopologyStore
+        self.screenProvider = screenProvider
+        self.mainScreenProvider = mainScreenProvider
         super.init()
     }
 
-    func start() {
-        setupDockPanel()
+    func start() -> Bool {
+        guard setupDockPanel() else { return false }
         presentInitialPanels()
         pinResidentPanelsIfNeeded()
         subscribeSettings()
         setupFullscreenMonitor()
+        return true
     }
 
     isolated deinit {
+        fullscreenProbeWorker?.stop()
         fullscreenReconcileTimer?.invalidate()
         fullscreenSpaceHoldTimer?.invalidate()
         overlayWindowWatchTimer?.invalidate()
@@ -89,6 +96,10 @@ final class PanelCoordinator: NSObject {
         guard !isSuspendedForPermissionLoss else { return }
         isSuspendedForPermissionLoss = true
         fullscreenProbeGeneration &+= 1
+        fullscreenProbeWorker?.stop()
+        fullscreenProbeWorker = nil
+        fullscreenReconcileTimer?.invalidate()
+        fullscreenReconcileTimer = nil
         fullscreenSpaceHoldTimer?.invalidate()
         fullscreenSpaceHoldTimer = nil
         fullscreenSpaceHold = nil
@@ -107,7 +118,7 @@ final class PanelCoordinator: NSObject {
         taskbarView?.taskbarContent.dismissPopups()
     }
 
-    var currentScreen: NSScreen? { dockPanel.map { panelCurrentScreen(panel: $0) } }
+    var currentScreen: NSScreen? { dockPanel.flatMap { panelCurrentScreen(panel: $0) } }
     var isLogicallyVisible: Bool { panelsAreVisible }
     func windowLiftAvoidanceContext() -> WindowLiftAvoidanceContext? {
         guard visibilityState.isVisible,
@@ -116,7 +127,7 @@ final class PanelCoordinator: NSObject {
             return nil
         }
 
-        let screen = panelCurrentScreen(panel: panel)
+        guard let screen = panelCurrentScreen(panel: panel) else { return nil }
         let primaryScreenHeight = Self.quartzPrimaryScreenHeight
         let geometry = WindowLiftAvoidance.Geometry(
             screenFrame: screen.frame,
@@ -137,11 +148,12 @@ final class PanelCoordinator: NSObject {
 
     var allSpacesPanels: [NSPanel] { [dockPanel].compactMap { $0 } }
 
-    func panelCurrentScreen(panel: NSPanel) -> NSScreen {
+    func panelCurrentScreen(panel: NSPanel) -> NSScreen? {
         let visualCenter = CGPoint(x: panel.frame.midX, y: panel.frame.minY + panelHeight / 2)
-        return NSScreen.screens.first(where: { $0.frame.contains(visualCenter) })
-            ?? NSScreen.screens.first(where: { $0.frame.intersects(panel.frame) })
-            ?? NSScreen.main ?? NSScreen.screens[0]
+        let screens = screenProvider()
+        return screens.first(where: { $0.frame.contains(visualCenter) })
+            ?? screens.first(where: { $0.frame.intersects(panel.frame) })
+            ?? mainScreenProvider() ?? screens.first
     }
 
     static func toCGRect(_ screen: NSScreen) -> CGRect {

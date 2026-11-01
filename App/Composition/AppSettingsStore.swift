@@ -4,7 +4,6 @@ import Foundation
 @MainActor
 final class AppSettingsStore: ObservableObject {
     @Published private(set) var launchAtLogin: Bool
-    let windowLiftEnabled = true
     private let defaults: UserDefaults
     private static let launchAtLoginKey = "properwm.launchAtLogin"
 

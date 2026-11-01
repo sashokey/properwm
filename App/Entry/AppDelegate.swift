@@ -217,7 +217,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let coordinator = TaskbarScreenOrchestrator(
             runtime: runtime,
             stripOrderStore: stripOrderStore,
-            settingsStore: settingsStore,
             displayTopologyStore: displayTopologyStore
         )
         panelCoordinator = coordinator
@@ -227,7 +226,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
         let lift = WindowLiftAvoidanceController(host: coordinator)
         windowLiftAvoidanceController = lift
-        lift.setEnabledBySetting(true)
         lift.start()
     }
 

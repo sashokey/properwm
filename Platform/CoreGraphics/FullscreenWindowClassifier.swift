@@ -10,7 +10,8 @@ import CoreGraphics
 /// `.notOnThisScreen` = 焦点窗口的主体在别的屏上——对本屏的条而言它**不是证据**：
 /// 本屏此刻可能正显示着别的 app 的全屏空间，此时要改问 SkyLight 本屏的当前空间类型
 ///（`PanelCoordinator.triggerAsyncFullscreenCheck`），而不是当成「不全屏」把条放出来。
-enum FullscreenAXVerdict: Equatable {
+enum FullscreenAXVerdict: Equatable, Sendable {
+    case unknown
     case fullscreen
     case windowed
     case notOnThisScreen

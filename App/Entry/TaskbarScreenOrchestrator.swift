@@ -15,9 +15,9 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     private let runtime: AppRuntime
     private let stripOrderStore: StripOrderStore
-    private let settingsStore: AppSettingsStore
     private let displayTopologyStore: DisplayTopologyStore
     private let topologySnapshotProvider: @MainActor () -> ScreenTopologySnapshot
+    private let startCoordinator: (PanelCoordinator) -> Bool
     private let topologyRetryScheduler: DisplayTopologyRefreshController.ScheduleAfter
     private let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "taskbar-screens")
 
@@ -34,11 +34,11 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     init(
         runtime: AppRuntime,
         stripOrderStore: StripOrderStore,
-        settingsStore: AppSettingsStore,
         displayTopologyStore: DisplayTopologyStore,
         topologySnapshotProvider: @escaping @MainActor () -> ScreenTopologySnapshot = {
             DisplayIdentity.topologySnapshot()
         },
+        startCoordinator: @escaping (PanelCoordinator) -> Bool = { $0.start() },
         topologyRetryScheduler: @escaping DisplayTopologyRefreshController.ScheduleAfter = { delay, action in
             let item = DispatchWorkItem(block: action)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
@@ -47,10 +47,10 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     ) {
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
-        self.settingsStore = settingsStore
         self.displayTopologyStore = displayTopologyStore
         self.topologySnapshotProvider = topologySnapshotProvider
         self.topologyRetryScheduler = topologyRetryScheduler
+        self.startCoordinator = startCoordinator
         super.init()
     }
 
@@ -65,7 +65,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         let seedController = makeTopologyRefreshController()
         topologyRefreshController = seedController
         let snapshot = seedController.prepareForTopologyChange()
-        rebuildUnits(reason: "start", connectedKeys: snapshot.identifiedDisplayUUIDs)
+        rebuildUnits(reason: "start", snapshot: snapshot)
         observeMenuTracking()
         NotificationCenter.default.addObserver(
             self,
@@ -92,10 +92,10 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         units.forEach { $0.coordinator.setTaskbarMenuOpen(open) }
     }
 
-    private func rebuildUnits(reason: String, connectedKeys: [String]) {
+    private func rebuildUnits(reason: String, snapshot: ScreenTopologySnapshot) {
         guard started, !isSuspended else { return }
         let desired = TaskbarDisplaySet.desiredUnitKeys(
-            connectedKeys: connectedKeys
+            connectedKeys: snapshot.identifiedDisplayUUIDs, physicalDisplayCount: snapshot.physicalDisplayCount
         )
         let current = units.map(\.key)
         guard desired != current else { return }
@@ -108,25 +108,24 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
                 unit.coordinator.tearDown()
             }
         }
-        units = desired.map { key in survivors[key] ?? makeUnit(key: key) }
+        units = desired.compactMap { key in survivors[key] ?? makeUnit(key: key) }
         logger.info("units rebuilt reason=\(reason, privacy: .public) count=\(self.units.count, privacy: .public)")
     }
 
-    private func makeUnit(key: String?) -> Unit {
+    private func makeUnit(key: String?) -> Unit? {
         let placement: TaskbarUnitPlacement = key.map { .fixed(displayUUID: $0) } ?? .primary
         let coordinator = PanelCoordinator(
             placement: placement,
             overlaySpaceHost: overlaySpaceHost,
             runtime: runtime,
             stripOrderStore: stripOrderStore,
-            settingsStore: settingsStore,
             displayTopologyStore: displayTopologyStore
         )
         coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu
         coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
             self?.closeAccessories(exceptFor: unit, opening: kind)
         }
-        coordinator.start()
+        guard startCoordinator(coordinator) else { return nil }
         return Unit(key: key, coordinator: coordinator)
     }
 
@@ -138,7 +137,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             snapshot = topologySnapshotProvider()
             displayTopologyStore.apply(snapshot)
         }
-        rebuildUnits(reason: "screens", connectedKeys: snapshot.identifiedDisplayUUIDs)
+        rebuildUnits(reason: "screens", snapshot: snapshot)
         units.forEach { $0.coordinator.screenParametersChanged() }
     }
 
@@ -151,7 +150,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             onRetrySnapshot: { [weak self] snapshot in
                 self?.rebuildUnits(
                     reason: "topology-retry",
-                    connectedKeys: snapshot.identifiedDisplayUUIDs
+                    snapshot: snapshot
                 )
                 self?.units.forEach { $0.coordinator.screenParametersChanged() }
             },
@@ -167,6 +166,10 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] {
         units.compactMap { $0.coordinator.windowLiftAvoidanceContext() }
+    }
+
+    func windowGeometryChanged() {
+        units.forEach { $0.coordinator.windowGeometryChanged() }
     }
 
     private func observeMenuTracking() {

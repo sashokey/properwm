@@ -8,11 +8,11 @@ import os
 extension PanelCoordinator {
     func resolvedPinnedScreen() -> NSScreen? {
         guard let pinnedUUID = fixedDisplayUUID else { return nil }
-        let screens = NSScreen.screens
+        let screens = screenProvider()
         let outcome = TaskbarScreenResolution.resolve(
             pinnedUUID: pinnedUUID,
             screenUUIDs: screens.map { DisplayIdentity.uuidString(for: $0) },
-            mainIndex: NSScreen.main.flatMap { screens.firstIndex(of: $0) }
+            mainIndex: mainScreenProvider().flatMap { screens.firstIndex(of: $0) }
         )
         switch outcome {
         case .matched(let index), .fallback(let index):
@@ -32,7 +32,7 @@ extension PanelCoordinator {
 
     func applyPanelVisibility() {
         guard !isSuspendedForPermissionLoss else { return }
-        let shouldShow = visibilityState.isVisible
+        let shouldShow = visibilityState.isVisible && currentScreen != nil
         guard shouldShow != panelsAreVisible else { return }
         noteVisibilityChange(visible: shouldShow, source: diagnosticFullscreenSource)
         if shouldShow {

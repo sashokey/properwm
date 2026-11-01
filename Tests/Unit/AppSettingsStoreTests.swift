@@ -23,17 +23,6 @@ final class AppSettingsStoreTests: XCTestCase {
         withExtendedLifetime(loginSubscription) {}
     }
 
-    func testRemovedPreferencesCannotOverrideFixedBehavior() {
-        let defaults = makeDefaults()
-        defaults.set("followMouse", forKey: "properwm.legacy.taskbarScreen.mode")
-        defaults.set("quiet", forKey: "properwm.legacy.hoverStyle")
-        defaults.set(false, forKey: "properwm.legacy.windowLiftEnabled")
-        defaults.set(false, forKey: "properwm.legacy.fullscreenIntentEnabled")
-        defaults.set(2.0, forKey: "properwm.legacy.autoHide.edge.delay")
-        let store = AppSettingsStore(defaults: defaults)
-        XCTAssertTrue(store.windowLiftEnabled)
-    }
-
     private func makeDefaults() -> UserDefaults {
         let suite = "ProperWM.AppSettingsStoreTests.\(UUID().uuidString)"
         addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }

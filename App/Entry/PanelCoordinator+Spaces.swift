@@ -27,7 +27,8 @@ extension PanelCoordinator {
             return
         }
 
-        guard let uuid = DisplayIdentity.uuidString(for: panelCurrentScreen(panel: dock)),
+        guard let screen = panelCurrentScreen(panel: dock),
+              let uuid = DisplayIdentity.uuidString(for: screen),
               let layout = ManagedSpaceLayoutReader.layout(forDisplayUUID: uuid) else {
             spaceMembershipRepairInFlight = false
             return
@@ -78,14 +79,4 @@ extension PanelCoordinator {
         }
     }
 
-    /// 瞬时面板（抽屉 / 弹窗 / 名字气泡）**也要钉进同一空间**——它们都会和任务条那几扇窗口的范围
-    /// （含 20pt 阴影透明边）重叠，而留在桌面空间的窗口不论 `level` 都被合成在私有空间**下面**：
-    /// 抽屉最下一行压在胶囊窗口的阴影边里就发暗，启动弹跳往上一抬又变亮（owner 2026-09-03，
-    /// `DOCK_OVERLAY_SPACE=0` A/B 坐实）。每次 order front 后补钉一次，已钉住的只是一次廉价读回。
-    func pinOverlappingPanelIfNeeded(_ panel: NSPanel) {
-        guard let host = overlaySpaceHost, !isSuspendedForPermissionLoss, panel.windowNumber > 0 else { return }
-        if !host.pin(windowNumbers: [panel.windowNumber]) {
-            logger.error("[overlay-space] pin failed window=\(panel.windowNumber, privacy: .public)")
-        }
-    }
 }

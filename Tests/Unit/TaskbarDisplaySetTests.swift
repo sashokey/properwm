@@ -1,27 +1,14 @@
 import XCTest
 
 final class TaskbarDisplaySetTests: XCTestCase {
-    func testDiffKeepsCurrentOrderForAddedAndKept() {
-        let diff = TaskbarDisplaySet.diff(previous: ["A", "B", "C"], current: ["C", "D", "A"])
-        XCTAssertEqual(diff.added, ["D"])
-        XCTAssertEqual(diff.removed, ["B"])
-        XCTAssertEqual(diff.kept, ["C", "A"])
+    func testSeparateUnitsFollowDisplayOrder() {
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["A", "B"], physicalDisplayCount: 2), ["A", "B"])
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["B"], physicalDisplayCount: 1), ["B"])
     }
 
-    func testDiffEmptyToSomething() {
-        let diff = TaskbarDisplaySet.diff(previous: [], current: ["A"])
-        XCTAssertEqual(diff, TaskbarDisplaySet.Diff(added: ["A"], removed: [], kept: []))
-    }
-
-    func testDesiredUnitKeysOnePerDisplayForAllScreensModes() {
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["A", "B"]), ["A", "B"])
-        XCTAssertEqual(
-            TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["B"]),
-            ["B"]
-        )
-    }
-
-    func testDesiredUnitKeysFallsBackToSingleUnitWhenNoDisplays() {
-        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: []), [nil])
+    func testMissingUUIDKeepsAPrimaryUnitOnlyWhenAScreenExists() {
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: [], physicalDisplayCount: 1), [nil])
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: [], physicalDisplayCount: 0), [])
+        XCTAssertEqual(TaskbarDisplaySet.desiredUnitKeys(connectedKeys: ["stale"], physicalDisplayCount: 0), [])
     }
 }

@@ -22,6 +22,7 @@ struct WindowLiftCGScanResult {
 @MainActor
 protocol WindowLiftAvoidanceHost: AnyObject {
     func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext]
+    func windowGeometryChanged()
 }
 
 enum WindowLiftCGWindowProbe {
@@ -198,15 +199,7 @@ enum WindowLiftCGWindowProbe {
 
 @MainActor
 final class WindowLiftAvoidanceController {
-    private struct ManagedFrames {
-        let nativeAppKit: CGRect
-        let targetAppKit: CGRect
-        let nativeQuartz: CGRect
-        let targetQuartz: CGRect
-        let primaryScreenHeight: CGFloat
-        /// Set only on a user-zoom-toggle restore: the remembered pre-maximize frame to write
-        /// instead of `nativeQuartz`.
-    }
+    private typealias ManagedFrames = WindowRestorationFrames
 
     private enum ValidationStage: String {
         case candidateMoved
@@ -268,7 +261,6 @@ final class WindowLiftAvoidanceController {
     }
 
     private static let trackedProbeInterval = WindowLiftAvoidance.trackedSessionProbeInterval
-    /// For the static restore path, which cannot reach the instance logger.
 
     private weak var host: WindowLiftAvoidanceHost?
     private let logger = Logger(
@@ -308,8 +300,6 @@ final class WindowLiftAvoidanceController {
     private var lastContexts: [WindowLiftAvoidanceContext] = []
     /// 每个会话归属的那块屏的上下文（多屏下各会话不同屏）。随 `states` 增删，探测时按它分别处理。
     private var sessionContexts: [WindowLiftAvoidance.WindowKey: WindowLiftAvoidanceContext] = [:]
-    /// Each on-screen window's last settled non-eligible frame — what the system zoom's undo would
-    /// return to, had our lift not poisoned it. Fed by every scan, used by `restoreUserFrame`.
     private var nextGeneration: UInt64 = 0
     private var scanGeneration: UInt64 = 0
     private var trackedProbeGeneration: UInt64 = 0
@@ -323,11 +313,6 @@ final class WindowLiftAvoidanceController {
     private var eventPollCount: UInt64 = 0
     private var trailingEventPollCount: UInt64 = 0
     private var isEnabled = false
-    /// 用户设置（菜单「最大化窗口避开任务条」）。**默认关**，由 `AppDelegate` 起步时按
-    /// 持久化值灌一次、之后订阅同步。放在控制器自己身上而不是只在调用方拦——
-    /// `endPermissionUncertainty()` 内部会调 `start()`，只在外面拦的话一次权限抖动
-    /// 就能把用户关掉的功能重新打开。
-    private var isEnabledBySetting = false
 
     /// 冻结期间：只丢任务引用，绝不动 `states` / `managedFrames` / `suppressedFrames` /
     /// `pendingRestorations`。撤权之后 AX 写不动窗口，这时候清掉快照等于永久丢失还原能力。
@@ -343,16 +328,21 @@ final class WindowLiftAvoidanceController {
     private var pendingDrains: [Task<Void, Never>] = []
     private let isTrustedProbe: () -> Bool
 
-    private enum RestoreOutcome: Equatable {
-        /// 已还原、或已确认不需要还原（用户动过、窗口没了、pid 被复用）。
-        case handled
-        /// 这一轮够不着（多半是还没拿到辅助功能权限），留着下次再还。
-        case unreachable
-    }
+    typealias RestoreWindow = @Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames, timeval?, Set<WindowLiftAvoidance.WindowKey>?, OperationCancellation) -> WindowRestorationOutcome
+    private let restoreWindow: RestoreWindow
+    private let restorationWindowKeys: @Sendable () -> Set<WindowLiftAvoidance.WindowKey>?
+    private var nextRestoreRetryAt: TimeInterval = 0
 
-    init(host: WindowLiftAvoidanceHost, isTrustedProbe: @escaping () -> Bool = { AXIsProcessTrusted() }) {
+    init(host: WindowLiftAvoidanceHost, isTrustedProbe: @escaping () -> Bool = { AXIsProcessTrusted() },
+         restoreWindow: @escaping RestoreWindow = { key, frames, start, live, cancellation in
+             WindowRestorer(access: AXWindowRestorationAccess()).restore(key: key, frames: frames,
+                 expectedStartTime: start, liveWindowKeys: live, cancellation: cancellation)
+         },
+         restorationWindowKeys: @escaping @Sendable () -> Set<WindowLiftAvoidance.WindowKey>? = WindowLiftCGWindowProbe.liveWindowKeys) {
         self.host = host
         self.isTrustedProbe = isTrustedProbe
+        self.restoreWindow = restoreWindow
+        self.restorationWindowKeys = restorationWindowKeys
     }
 
     // MARK: - 权限冻结
@@ -425,6 +415,12 @@ final class WindowLiftAvoidanceController {
         for tasks in writeDrainTasks.values { pendingDrains.append(contentsOf: tasks) }
         writeTasks.removeAll()
         writeDrainTasks.removeAll()
+        restoreGeneration &+= 1
+        if let restoreTask {
+            restoreTask.cancel()
+            pendingDrains.append(restoreTask)
+            self.restoreTask = nil
+        }
 
         logger.notice("""
             lift frozen reason=\(reason, privacy: .public) \
@@ -453,12 +449,6 @@ final class WindowLiftAvoidanceController {
     /// 冻结期间禁止一切会抹掉会话数据的操作。
     private func canMutateSessions() -> Bool { !isPermissionFrozen }
 
-    /// 破坏性入口的统一闸门，顺手做一次**静默**的受信自检（绝不带 prompt）。
-    ///
-    /// 快照保护必须是控制器自己的事：看门狗 5 秒采样一次；只要有会话、抑制帧或还原任务，
-    /// 这里仍保持 0.2 秒轮询。1 秒慢档只在没有任何快照要保护的空闲期启用。
-    /// 撤权之后到看门狗看见第一次 false 之间那 0–5 秒里，只要用户切一次屏，
-    /// `reconcileContext` 就会先清掉快照再去还原——而此刻 AX 已经写不动了。
     private func ensureTrustedOrFreeze() -> Bool {
         if isPermissionFrozen { return false }
         guard isTrustedProbe() else {
@@ -469,29 +459,14 @@ final class WindowLiftAvoidanceController {
     }
 
     isolated deinit {
-        stop()
-    }
-
-    /// 用户设置的开关。关 → `stop()`（顺带把已抬起的窗口还原回原生尺寸）；
-    /// 开 → 重新起轮询。
-    ///
-    /// 冻结期间不重新起：`enterFreeze` 已经把 workspace 观察者拆了、`isEnabled` 清了，
-    /// 这时候 `start()` 只会挂一个空转定时器并装回冻结期不该有的观察者。解冻时
-    /// `endPermissionUncertainty()` 自己会调 `start()`，那条路径现在也认这个标志位。
-    func setEnabledBySetting(_ enabled: Bool) {
-        guard isEnabledBySetting != enabled else { return }
-        isEnabledBySetting = enabled
-        if enabled {
-            guard !isPermissionFrozen else { return }
-            start()
-        } else {
-            stop()
-        }
+        stopMonitoring()
+        for task in writeTasks.values { task.cancel() }
+        for tasks in writeDrainTasks.values { for task in tasks { task.cancel() } }
+        restoreTask?.cancel()
     }
 
     func start(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard !isEnabled else { return }
-        guard isEnabledBySetting else { return }
+        guard !isEnabled, !isPermissionFrozen else { return }
         guard DebugSwitch.windowLift.isEnabled(in: environment) else {
             logger.info("window lift disabled by DOCK_WINDOW_LIFT=0")
             return
@@ -508,6 +483,7 @@ final class WindowLiftAvoidanceController {
 
         let geometryObserver = FrontmostWindowGeometryObserver()
         geometryObserver.onEvent = { [weak self] _ in
+            self?.host?.windowGeometryChanged()
             self?.requestEventPoll()
         }
         self.geometryObserver = geometryObserver
@@ -527,6 +503,13 @@ final class WindowLiftAvoidanceController {
         // 待还原的窗口永远回不去——所以还得看有没有欠着的还原。
         guard isEnabled || pollTimer != nil || geometryObserver != nil
             || !states.isEmpty || !pendingRestorations.isEmpty else { return }
+        stopMonitoring()
+        restoreSettledWindowsAndClearSessions()
+        lastContexts = []
+        sessionContexts.removeAll()
+    }
+
+    private func stopMonitoring() {
         tracePollSummary(reason: "stop")
         isEnabled = false
         pollTimer?.invalidate()
@@ -544,9 +527,6 @@ final class WindowLiftAvoidanceController {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
         workspaceObservers.removeAll()
-        restoreSettledWindowsAndClearSessions()
-        lastContexts = []
-        sessionContexts.removeAll()
     }
 
     func stopAndRestore() async {
@@ -592,6 +572,10 @@ final class WindowLiftAvoidanceController {
 
     private func poll() {
         guard isEnabled, ensureTrustedOrFreeze() else { return }
+        if !pendingRestorations.isEmpty, restoreTask == nil,
+           ProcessInfo.processInfo.systemUptime >= nextRestoreRetryAt {
+            launchRestoreTask(cancelledWrites: [])
+        }
         let contexts = hostContexts()
         reconcileContexts(contexts)
         guard !contexts.isEmpty, !scanInFlight, restoreTask == nil else { return }
@@ -915,8 +899,6 @@ final class WindowLiftAvoidanceController {
         // 已经排队的扫描回调也要过闸门：光给几个清理函数加 guard 挡不住在飞的工作。
         guard canMutateSessions() else { return }
         guard hostContexts() == contexts else { return }
-        // A restore queued after this scan started (user zoom toggle) owns the window now; a
-        // candidate captured before the restore wrote would start a lift against it.
         guard restoreTask == nil else { return }
 
         if let liveWindowKeys = result.liveWindowKeys {
@@ -2240,34 +2222,38 @@ final class WindowLiftAvoidanceController {
         let generation = restoreGeneration
         let items = pendingRestorations
         let startTimes = pendingRestorationStartTimes
+        let restoreWindow = restoreWindow
+        let windowKeys = restorationWindowKeys
+        let cancellation = OperationCancellation()
         restoreTask = Task.detached { [weak self] in
-            // A cancelled AX call cannot be interrupted mid-message. Drain every old writer before
-            // allowing the next context to scan, so a late rollback cannot overwrite a new lift.
-            for task in cancelledWrites {
-                await task.value
-            }
-
-            let reader = AXWindowReader()
-            let liveWindowKeys = WindowLiftCGWindowProbe.liveWindowKeys()
-            for (key, frames) in items {
-                guard !Task.isCancelled else { break }
-                let outcome = await Self.restoreOne(
-                    key: key,
-                    frames: frames,
-                    expectedStartTime: startTimes[key],
-                    reader: reader,
-                    liveWindowKeys: liveWindowKeys
-                )
-                guard outcome == .handled else { continue }
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    self.pendingRestorations.removeValue(forKey: key)
-                    self.pendingRestorationStartTimes.removeValue(forKey: key)
+            for task in cancelledWrites { await task.value }
+            let deadline = ProcessInfo.processInfo.systemUptime + 2
+            var remaining = items
+            for attempt in 0..<3 {
+                guard !Task.isCancelled, !remaining.isEmpty else { break }
+                if attempt > 0 { try? await Task.sleep(for: .milliseconds(100)) }
+                let liveWindowKeys = await AsyncWorkScope.performBlocking(cancellation: cancellation) { windowKeys() }
+                for (key, frames) in remaining {
+                    guard !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline else { break }
+                    let outcome = await AsyncWorkScope.performBlocking(cancellation: cancellation) {
+                        restoreWindow(key, frames, startTimes[key], liveWindowKeys ?? nil, cancellation)
+                    }
+                    guard outcome == .handled else { continue }
+                    remaining[key] = nil
+                    await MainActor.run { [weak self] in
+                        guard let self, self.restoreGeneration == generation else { return }
+                        self.pendingRestorations.removeValue(forKey: key)
+                        self.pendingRestorationStartTimes.removeValue(forKey: key)
+                    }
                 }
             }
             await MainActor.run { [weak self] in
                 guard let self, self.restoreGeneration == generation else { return }
                 self.restoreTask = nil
+                self.nextRestoreRetryAt = ProcessInfo.processInfo.systemUptime + 5
+                if !self.pendingRestorations.isEmpty {
+                    self.logger.error("window restoration pending count=\(self.pendingRestorations.count, privacy: .public)")
+                }
                 if self.pendingRestorations.keys.contains(where: { items[$0] == nil }) {
                     self.launchRestoreTask(cancelledWrites: [])
                     return
@@ -2279,63 +2265,12 @@ final class WindowLiftAvoidanceController {
         updatePollTimerLifecycle()
     }
 
-    /// 长时间冻结之后才还原，中间什么都可能变过，所以每一项都要重新验一遍：
-    /// 进程有没有被换掉（pid 复用）、窗口还在不在（cgWindowID 复用）、
-    /// 用户有没有自己动过。任何一条对不上就丢弃，绝不硬改。
-    nonisolated private static func restoreOne(
-        key: WindowLiftAvoidance.WindowKey,
-        frames: ManagedFrames,
-        expectedStartTime: timeval?,
-        reader: AXWindowReader,
-        liveWindowKeys: Set<WindowLiftAvoidance.WindowKey>?
-    ) async -> RestoreOutcome {
-        if let expected = expectedStartTime {
-            guard let current = ProcessLiveness.startTime(pid: key.pid),
-                  current.tv_sec == expected.tv_sec,
-                  current.tv_usec == expected.tv_usec else {
-                return .handled
-            }
-        }
-        if liveWindowKeys?.contains(key) == false { return .handled }
-
-        guard let handle = reader.captureHandle(
-                  forPID: key.pid,
-                  cgWindowID: key.cgWindowID,
-                  messagingTimeout: windowLiftAXMessagingTimeout
-              ),
-              let currentAXFrame = reader.frame(
-                  of: handle.element,
-                  messagingTimeout: windowLiftAXMessagingTimeout
-              ) else {
-            // 多半是还没拿到辅助功能权限。留在队列里，等授权回来再还。
-            return .unreachable
-        }
-
-        let currentAppKitFrame = WindowLiftAvoidance.appKitFrame(
-            fromQuartz: currentAXFrame,
-            primaryScreenHeight: frames.primaryScreenHeight
-        )
-        switch WindowLiftAvoidance.frameClassification(
-            of: currentAppKitFrame,
-            nativeFrame: frames.nativeAppKit,
-            targetFrame: frames.targetAppKit
-        ) {
-        case .target, .managedTrajectory:
-            break
-        case .native, .external:
-            return .handled
-        }
-
-        _ = reader.setFrame(
-            frames.nativeQuartz,
-            for: handle.element,
-            messagingTimeout: windowLiftAXMessagingTimeout,
-            verificationTolerance: WindowLiftAvoidance.verificationTolerance,
-            onlyIfCurrentMatches: currentAXFrame,
-            restoreOnFailureTo: currentAXFrame
-        )
-        return .handled
+    #if DEBUG
+    func enqueueRestorationForTesting(key: WindowLiftAvoidance.WindowKey, frames: WindowRestorationFrames) {
+        pendingRestorations[key] = frames
     }
+    var pendingRestorationCountForTesting: Int { pendingRestorations.count }
+    #endif
 
     private func store(
         _ state: WindowLiftAvoidance.SessionState,

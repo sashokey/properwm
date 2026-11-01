@@ -14,6 +14,10 @@ struct FullscreenSpaceHold {
 extension PanelCoordinator {
 
     func setupFullscreenMonitor() {
+        fullscreenProbeWorker = FullscreenProbeWorker(
+            read: { Self.detectFullscreenViaAX(pid: $0.pid, screenCGFrame: $0.screenFrame) },
+            deliver: { [weak self] request, result in self?.receiveFullscreenProbe(result, request: request) }
+        )
         let nc = NSWorkspace.shared.notificationCenter
         workspaceObserverTokens.append(nc.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
@@ -29,9 +33,10 @@ extension PanelCoordinator {
         })
         lastActiveApplicationPID = NSWorkspace.shared.runningApplications.first(where: { $0.isActive })?.processIdentifier
         fullscreenReconcileTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.fullscreenReconcileIfNeeded() }
+            Task { @MainActor [weak self] in self?.reconcileFullscreenState() }
         }
         fullscreenReconcileTimer?.tolerance = 0.5
+        triggerAsyncFullscreenCheck(source: "initial-ax")
     }
 
     private func handleSpaceChange() {
@@ -67,7 +72,7 @@ extension PanelCoordinator {
 
     private func checkFullscreenViaCGSync() -> Bool {
         guard let panel = dockPanel else { return false }
-        let screen = panelCurrentScreen(panel: panel)
+        guard let screen = panelCurrentScreen(panel: panel) else { return false }
         let screenCGFrame = Self.toCGRect(screen)
         let ourPID = pid_t(ProcessInfo.processInfo.processIdentifier)
         guard let candidate = WindowLiftCGWindowProbe.frontmostLargeWindow(
@@ -89,54 +94,52 @@ extension PanelCoordinator {
         isFinalSpaceHoldWindowedConfirmation: Bool = false,
         source: String = "ax"
     ) {
-        guard let panel = dockPanel else { return }
-        let screenCGFrame = Self.toCGRect(panelCurrentScreen(panel: panel))
+        guard let screenCGFrame = currentPanelScreenCGFrame() else { return }
         let frontPID = explicitPID ?? lastActiveApplicationPID
         fullscreenProbeGeneration &+= 1
         let probeGeneration = fullscreenProbeGeneration
         let expectedSpaceHoldGeneration = explicitSpaceHoldGeneration ?? fullscreenSpaceHold?.generation
-        Task.detached { [weak self] in
-            let probe = Self.detectFullscreenViaAX(pid: frontPID, screenCGFrame: screenCGFrame)
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                guard probeGeneration == self.fullscreenProbeGeneration else {
-                    return
-                }
-                let verdict = probe.verdict
-                let fullscreen: Bool
-                let resolvedSource: String
-                switch verdict {
-                case .fullscreen:
-                    fullscreen = true
-                    resolvedSource = source
-                case .windowed:
-                    fullscreen = false
-                    resolvedSource = source
-                case .notOnThisScreen:
-                    guard Self.slsVerdictEnabled else {
-                        fullscreen = false
-                        resolvedSource = source
-                        break
-                    }
-                    if let fromSpace = self.fullscreenVerdictFromSpaceLayout() {
-                        fullscreen = fromSpace
-                        resolvedSource = "\(source)-sls"
-                    } else if isFinalSpaceHoldWindowedConfirmation {
-                        fullscreen = self.checkFullscreenViaCGSync()
-                        resolvedSource = "\(source)-cgfallback"
-                    } else {
-                        return
-                    }
-                }
-                self.applyFullscreenVisibility(
-                    fullscreen,
-                    source: resolvedSource,
-                    expectedSpaceHoldGeneration: expectedSpaceHoldGeneration,
-                    isFinalSpaceHoldWindowedConfirmation: isFinalSpaceHoldWindowedConfirmation
-                )
-                self.reconcileOverlayWindowWatch(overlayWindowID: probe.overlayWindowID)
+        fullscreenProbeWorker?.request(FullscreenProbeRequest(
+            pid: frontPID, screenFrame: screenCGFrame, generation: probeGeneration,
+            spaceGeneration: expectedSpaceHoldGeneration, finalConfirmation: isFinalSpaceHoldWindowedConfirmation, source: source
+        ))
+    }
+
+    func receiveFullscreenProbe(_ probe: FullscreenAXProbe, request: FullscreenProbeRequest) {
+        guard !isSuspendedForPermissionLoss, request.generation == fullscreenProbeGeneration else { return }
+        let fullscreen: Bool
+        let source: String
+        switch probe.verdict {
+        case .unknown:
+            guard Self.slsVerdictEnabled, fullscreenVerdictFromSpaceLayout() == true else { return }
+            fullscreen = true
+            source = request.source + "-sls"
+        case .fullscreen:
+            fullscreen = true
+            source = request.source
+        case .windowed:
+            fullscreen = false
+            source = request.source
+        case .notOnThisScreen:
+            guard Self.slsVerdictEnabled else {
+                return
             }
+            if let fromSpace = fullscreenVerdictFromSpaceLayout() {
+                fullscreen = fromSpace
+                source = request.source + "-sls"
+            } else if request.finalConfirmation {
+                fullscreen = checkFullscreenViaCGSync()
+                source = request.source + "-cgfallback"
+            } else { return }
         }
+        applyFullscreenVisibility(fullscreen, source: source, expectedSpaceHoldGeneration: request.spaceGeneration,
+                                  isFinalSpaceHoldWindowedConfirmation: request.finalConfirmation)
+        reconcileOverlayWindowWatch(overlayWindowID: probe.overlayWindowID)
+    }
+
+    func windowGeometryChanged() {
+        guard !isSuspendedForPermissionLoss else { return }
+        triggerAsyncFullscreenCheck(source: "window-geometry-ax")
     }
 
     private func reconcileOverlayWindowWatch(overlayWindowID: CGWindowID?) {
@@ -192,9 +195,11 @@ extension PanelCoordinator {
         return (isOnscreen, bounds)
     }
 
-    private func fullscreenReconcileIfNeeded() {
-        guard visibilityState.hideReasons.contains(.fullscreen) else { return }
-        triggerAsyncFullscreenCheck()
+    func reconcileFullscreenState() {
+        triggerAsyncFullscreenCheck(
+            isFinalSpaceHoldWindowedConfirmation: fullscreenSpaceHold != nil && fullscreenSpaceHoldTimer == nil,
+            source: "periodic-ax"
+        )
     }
 
     private func applyFullscreenVisibility(
@@ -310,29 +315,41 @@ extension PanelCoordinator {
     }
 
     func currentPanelScreenCGFrame() -> CGRect? {
+        if let fullscreenFrameProvider { return fullscreenFrameProvider() }
         guard let panel = dockPanel else { return nil }
-        return Self.toCGRect(panelCurrentScreen(panel: panel))
-    }
-
-    struct FullscreenAXProbe {
-        let verdict: FullscreenAXVerdict
-        let overlayWindowID: CGWindowID?
+        return panelCurrentScreen(panel: panel).map(Self.toCGRect)
     }
 
     nonisolated private static func detectFullscreenViaAX(pid: pid_t?, screenCGFrame: CGRect) -> FullscreenAXProbe {
         guard let pid else { return FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil) }
         let reader = AXWindowReader()
         let appElement = AXUIElementCreateApplication(pid)
-        _ = AXUIElementSetMessagingTimeout(appElement, 0.5)
+        _ = AXUIElementSetMessagingTimeout(appElement, 0.1)
 
-        guard let focused = reader.elementAttribute(kAXFocusedWindowAttribute as CFString, from: appElement) else {
-            return FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil)
+        var rawFocused: CFTypeRef?
+        let focusedError = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &rawFocused)
+        if focusedError == .noValue { return FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil) }
+        guard focusedError == .success, let rawFocused, CFGetTypeID(rawFocused) == AXUIElementGetTypeID() else {
+            return FullscreenAXProbe(verdict: .unknown, overlayWindowID: nil)
         }
-        _ = AXUIElementSetMessagingTimeout(focused, 0.5)
-
-        let role = reader.stringAttribute(kAXRoleAttribute as CFString, from: focused, maxAttempts: 1)
-        let isAXFullscreen = reader.boolAttribute("AXFullScreen" as CFString, from: focused, maxAttempts: 1) ?? false
-        let windowFrame = reader.frame(of: focused, maxAttempts: 1)
+        let focused = rawFocused as! AXUIElement
+        _ = AXUIElementSetMessagingTimeout(focused, 0.1)
+        guard let role = reader.stringAttribute(kAXRoleAttribute as CFString, from: focused, maxAttempts: 1) else {
+            return FullscreenAXProbe(verdict: .unknown, overlayWindowID: nil)
+        }
+        if role != kAXWindowRole { return FullscreenAXProbe(verdict: .windowed, overlayWindowID: nil) }
+        var rawFullscreen: CFTypeRef?
+        let fullscreenError = AXUIElementCopyAttributeValue(focused, "AXFullScreen" as CFString, &rawFullscreen)
+        guard fullscreenError == .success || fullscreenError == .attributeUnsupported || fullscreenError == .noValue else {
+            return FullscreenAXProbe(verdict: .unknown, overlayWindowID: nil)
+        }
+        guard fullscreenError != .success || rawFullscreen is NSNumber else {
+            return FullscreenAXProbe(verdict: .unknown, overlayWindowID: nil)
+        }
+        let isAXFullscreen = (rawFullscreen as? NSNumber)?.boolValue ?? false
+        guard let windowFrame = reader.frame(of: focused, maxAttempts: 1) else {
+            return FullscreenAXProbe(verdict: .unknown, overlayWindowID: nil)
+        }
         let cgWindowID = isAXFullscreen ? nil : reader.cgWindowID(for: focused, maxAttempts: 1)
         let windowLayer = cgWindowID.flatMap(Self.cgWindowLayer(of:))
 
@@ -358,7 +375,8 @@ extension PanelCoordinator {
 
     private func fullscreenVerdictFromSpaceLayout() -> Bool? {
         guard let panel = dockPanel,
-              let uuid = DisplayIdentity.uuidString(for: panelCurrentScreen(panel: panel)),
+              let screen = panelCurrentScreen(panel: panel),
+              let uuid = DisplayIdentity.uuidString(for: screen),
               let layout = ManagedSpaceLayoutReader.layout(forDisplayUUID: uuid) else { return nil }
         return layout.fullscreenSpaceIDs.contains(layout.currentSpaceID)
     }

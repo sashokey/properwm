@@ -1,8 +1,8 @@
 import AppKit
 
 extension PanelCoordinator {
-    func setupDockPanel() {
-        let screen = resolvedPinnedScreen() ?? NSScreen.main ?? NSScreen.screens[0]
+    func setupDockPanel() -> Bool {
+        guard let screen = resolvedPinnedScreen() ?? mainScreenProvider() ?? screenProvider().first else { return false }
         let frame = TaskbarMetrics.panelFrame(on: screen.frame)
         let panel = NonConstrainingPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
                                           backing: .buffered, defer: false)
@@ -28,6 +28,7 @@ extension PanelCoordinator {
                 self.setTaskbarMenuOpen(visible)
             }
         )
+        return true
     }
 
     func orderDockSurfaceFront() {
