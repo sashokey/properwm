@@ -1,24 +1,34 @@
 {
   "fill": {
-    "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+    "solid": "srgb:0.06500,0.25500,0.67000,1.00000"
   },
   "groups": [
     {
       "layers": [
         {
-          "image-name": "glyph.svg",
-          "name": "glyph",
+          "image-name": "taskbar-buttons.svg",
+          "name": "Taskbar buttons"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.12
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.15
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "taskbar.svg",
+          "name": "Taskbar",
           "fill-specializations": [
             {
               "appearance": "dark",
               "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+                "solid": "srgb:0.85000,0.95000,1.00000,1.00000"
               }
             }
           ]
@@ -26,11 +36,55 @@
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.5
+        "opacity": 0.3
       },
       "translucency": {
-        "enabled": false,
-        "value": 0.5
+        "enabled": true,
+        "value": 0.28
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "window-details.svg",
+          "name": "Window controls"
+        },
+        {
+          "image-name": "front-window.svg",
+          "name": "Front window",
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.85000,0.95000,1.00000,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.14
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "back-window.svg",
+          "name": "Back window"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.32
       }
     }
   ],
