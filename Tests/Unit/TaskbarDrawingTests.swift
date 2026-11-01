@@ -140,6 +140,47 @@ final class TaskbarDrawingTests: XCTestCase {
         }
     }
 
+    func testRenderedIndicatorIsCenteredUnderTheRenderedIcon() throws {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 280, height: 56),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 280, height: 56))
+        panel.contentView = content
+        for dark in [false, true] {
+            for scale: CGFloat in [1, 2] {
+                content.bounds.size = CGSize(width: 280 * panel.backingScaleFactor / scale,
+                                             height: 56 * panel.backingScaleFactor / scale)
+                for active in [false, true] {
+                    let view = button(dark: dark)
+                    view.frame.origin = CGPoint(x: 28, y: 2)
+                    content.addSubview(view)
+                    defer { view.removeFromSuperview() }
+                    XCTAssertEqual(view.convertToBacking(CGRect(x: 0, y: 0, width: 1, height: 1)).width, scale)
+                    view.image = NSImage(size: CGSize(width: 16, height: 16), flipped: false) { rect in
+                        NSColor.systemGreen.setFill()
+                        rect.fill()
+                        return true
+                    }
+                    view.isActiveWindow = active
+                    view.iconView.isHidden = true
+                    view.indicator.isHidden = true
+                    let empty = try render(view, scale: scale)
+                    view.iconView.isHidden = false
+                    let icon = try render(view, scale: scale)
+                    view.iconView.isHidden = true
+                    view.indicator.isHidden = false
+                    let indicator = try render(view, scale: scale)
+                    let iconPoints = changedPixels(empty, icon, region: view.bounds, scale: scale)
+                    let indicatorPoints = changedPixels(empty, indicator, region: view.bounds, scale: scale)
+                    let iconCenter = (try XCTUnwrap(iconPoints.map(\.x).min()) + XCTUnwrap(iconPoints.map(\.x).max()) + 1) / 2
+                    let indicatorCenter = (try XCTUnwrap(indicatorPoints.map(\.x).min()) + XCTUnwrap(indicatorPoints.map(\.x).max()) + 1) / 2
+                    XCTAssertEqual(indicatorCenter, iconCenter, accuracy: 0.000_001,
+                                   "dark=\(dark), scale=\(scale), active=\(active)")
+                }
+            }
+        }
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testRasterizedActiveIndicatorIsElevenByTwoPointsAndInactiveIsFourByTwo() throws {
         for dark in [false, true] {
             for scale: CGFloat in [1, 2] {

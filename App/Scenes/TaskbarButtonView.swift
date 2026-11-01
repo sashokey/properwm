@@ -207,9 +207,8 @@ final class TaskbarButtonView: NSButton {
 
     private var indicatorFrame: CGRect {
         let width: CGFloat = isActiveWindow ? 11 : 4
-        let frame = CGRect(x: TaskbarMetrics.iconInset + (TaskbarMetrics.iconSize - width) / 2,
-                           y: 25, width: width, height: 2)
-        return backingAlignedRect(frame, options: [.alignMinXNearest, .alignWidthNearest, .alignMinYNearest, .alignHeightNearest])
+        return CGRect(x: TaskbarMetrics.iconInset + (TaskbarMetrics.iconSize - width) / 2,
+                      y: 25, width: width, height: 2)
     }
 
     private func updateAppearance(animated: Bool) {

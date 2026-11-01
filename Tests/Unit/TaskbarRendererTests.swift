@@ -822,7 +822,7 @@ final class TaskbarRendererTests: XCTestCase {
                     XCTAssertEqual(textRect.minX, 28)
                     XCTAssertEqual(textRect.maxX, width - 8)
                     XCTAssertEqual(button.selectionView.frame, button.bounds)
-                    XCTAssertEqual(button.indicator.frame, CGRect(x: active ? (scale == 1 ? 9 : 8.5) : 12,
+                    XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 8.5 : 12,
                                                                  y: 25, width: active ? 11 : 4, height: 2))
                 }
             }
@@ -938,11 +938,11 @@ final class TaskbarRendererTests: XCTestCase {
                 XCTAssertEqual(frame.width, active ? 11 : 4)
                 XCTAssertEqual(frame.height, 2)
                 XCTAssertEqual(button.bounds.maxY - frame.maxY, 1)
-                XCTAssertLessThanOrEqual(abs(frame.midX - button.iconView.frame.midX), 0.5 / scale)
+                XCTAssertEqual(frame.midX, button.iconView.frame.midX, accuracy: 0.000_001)
                 let backing = button.convertToBacking(frame)
                 XCTAssertEqual(backing.width, (active ? 11 : 4) * scale)
                 XCTAssertEqual(backing.height, 2 * scale)
-                XCTAssertEqual(backing.minX, backing.minX.rounded())
+                XCTAssertEqual(backing.midX, button.convertToBacking(button.iconView.frame).midX, accuracy: 0.000_001)
                 XCTAssertEqual(backing.minY, backing.minY.rounded())
             }
         }
