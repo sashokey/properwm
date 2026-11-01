@@ -14,6 +14,43 @@ private final class SpaceInventory: WindowInventoryTracking {
 
 @MainActor
 final class TaskbarSpaceStoreTests: XCTestCase {
+    func testIconRecoveryRefreshesExistingButtonsWithoutAnInventoryChange() async throws {
+        let fixture = SpaceInventory(inventory())
+        let runtime = AppRuntime(tracker: fixture, isAccessibilityTrusted: { true })
+        let center = NotificationCenter()
+        var resolved = false
+        var rendered = false
+        let icons = AppIconResolver(notifications: center, applicationURL: { _ in
+            resolved ? URL(fileURLWithPath: "/fixture/Icon.app") : nil
+        }, imageForFile: { _ in rendered = true; return NSImage(size: .init(width: 32, height: 32)) },
+            fallbackImage: { NSImage(size: .init(width: 32, height: 32)) })
+        let store = TaskbarSpaceStore(read: { requests in
+            .init(layouts: ["left": .init(orderedSpaceIDs: [1], fullscreenSpaceIDs: [], currentSpaceID: 1)],
+                  memberships: Dictionary(uniqueKeysWithValues: requests.map { ($0.identity, Set([1])) }))
+        }, notifications: NotificationCenter(), pollInterval: 0)
+        let domain = "ProperWM.IconRecovery.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let view = TaskbarView(frame: CGRect(x: 0, y: 0, width: 800, height: 32))
+        let topology = DisplayTopologyStore(initialSnapshot: .init(physicalDisplayCount: 1,
+            identifiedDisplayUUIDs: ["left"], attributionTable: .empty))
+        let presenter = TaskbarPresenter(view: view, runtime: runtime, ordering: StripOrderStore(defaults: defaults),
+            topology: topology, spaces: store, displayUUID: nil, backgroundMenu: { _, _ in },
+            popupPresented: { _ in }, contextMenuVisibilityChanged: { _ in }, icons: icons)
+        runtime.start()
+        store.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
+        defer { store.stop(); runtime.stop(); withExtendedLifetime(presenter) {} }
+        await waitUntil { view.taskbarContent.buttonViews.count == 2 && store.snapshot.memberships.count == 2 }
+        let button = try XCTUnwrap(view.taskbarContent.buttonViews.values.first)
+        let originalImage = button.image
+        let originalSnapshot = runtime.snapshot
+        resolved = true
+        center.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        await waitUntil { rendered && button.image !== originalImage }
+        XCTAssertEqual(runtime.snapshot, originalSnapshot)
+        XCTAssertNil(view.window)
+    }
+
     private func waitUntil(_ predicate: () -> Bool) async {
         let deadline = ContinuousClock.now + .seconds(2)
         while !predicate(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }

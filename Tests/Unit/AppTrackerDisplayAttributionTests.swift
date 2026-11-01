@@ -200,7 +200,6 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
         tracker.installFixtureForTesting(makeApp(bounds: frameOnB, displayUUID: "B"))
         tracker.rebuildSnapshotForTesting()
 
-        // 窗口关掉（AX 没了、CG 也没了）→ 座位释放 → 兜底卡带着「最后在 B」。
         let empty = AppTrackerCGWindowSnapshot(allWindowIDs: [], onScreenWindowIDs: [], windowIDsByPID: [:], alphaByWindowID: [:])
         XCTAssertTrue(tracker.reconcileFixtureForTesting(
             pid: pid, cgSnapshot: empty, now: Date(), eligible: [], readOutcome: .success(count: 0)

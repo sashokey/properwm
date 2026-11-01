@@ -1,90 +1,92 @@
 import AppKit
-import OSLog
+import Combine
 import UniformTypeIdentifiers
 
 @MainActor
-enum AppIconResolver {
+final class AppIconResolver {
+    static let shared = AppIconResolver()
+    let changes = PassthroughSubject<Void, Never>()
+
     private struct CachedIcon {
         let image: NSImage
         let path: String?
         let stamp: AppIconStamp?
     }
 
-    private static var cache: [String: CachedIcon] = [:]
-    private static var lastKnownPaths: [String: String] = [:]
-    private static let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "AppIconResolver")
-    private static var activationObserver: NSObjectProtocol?
-    private static let freshnessChecker = AppIconFreshnessChecker(
-        snapshot: {
-            cache.compactMap { bundleID, cached in
-                guard let path = cached.path else { return nil }
-                return AppIconFreshnessChecker.Entry(key: bundleID, path: path, stamp: cached.stamp)
-            }
+    private var cache: [String: CachedIcon] = [:]
+    private var lastKnownPaths: [String: String] = [:]
+    private let notifications: NotificationCenter
+    private let applicationURL: (String) -> URL?
+    private let imageForFile: (String) -> NSImage
+    private let fallbackImage: () -> NSImage
+    private var observers: [NSObjectProtocol] = []
+    private lazy var freshnessChecker = AppIconFreshnessChecker(
+        snapshot: { [weak self] in
+            self?.cache.compactMap { key, entry in
+                entry.path.map { AppIconFreshnessChecker.Entry(key: key, path: $0, stamp: entry.stamp) }
+            } ?? []
         },
-        didCheck: { entries in
+        didCheck: { [weak self] entries in
+            guard let self else { return }
+            var changed = false
             for entry in entries {
-                guard let current = cache[entry.key], current.path == entry.path,
+                guard let current = self.cache[entry.key], current.path == entry.path,
                       current.stamp != entry.stamp else { continue }
-                cache.removeValue(forKey: entry.key)
-                logger.debug("图标变了：\(entry.key, privacy: .public)")
+                self.cache.removeValue(forKey: entry.key)
+                changed = true
             }
+            if changed { self.changes.send() }
         }
     )
 
-    private static func observeActivationIfNeeded() {
-        guard activationObserver == nil else { return }
-        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            MainActor.assumeIsolated { freshnessChecker.requestCheck() }
+    init(notifications: NotificationCenter = NSWorkspace.shared.notificationCenter,
+         applicationURL: @escaping (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
+         imageForFile: @escaping (String) -> NSImage = { NSWorkspace.shared.icon(forFile: $0) },
+         fallbackImage: @escaping () -> NSImage = { NSWorkspace.shared.icon(for: .applicationBundle) }) {
+        self.notifications = notifications
+        self.applicationURL = applicationURL
+        self.imageForFile = imageForFile
+        self.fallbackImage = fallbackImage
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didActivateApplicationNotification] {
+            observers.append(notifications.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applicationStateChanged() }
+            })
         }
     }
 
-    static func icon(for bundleIdentifier: String) -> NSImage {
-        observeActivationIfNeeded()
-        if let cached = cache[bundleIdentifier] {
-            return cached.image
-        }
+    isolated deinit {
+        for observer in observers { notifications.removeObserver(observer) }
+    }
 
+    private func applicationStateChanged() {
+        let unresolved = cache.compactMap { $0.value.path == nil ? $0.key : nil }
+        for key in unresolved { cache.removeValue(forKey: key) }
+        if !unresolved.isEmpty { changes.send() }
+        freshnessChecker.requestCheck()
+    }
+
+    func icon(for bundleIdentifier: String) -> NSImage {
+        if let cached = cache[bundleIdentifier] { return cached.image }
         let shared: NSImage
         let path: String?
-        let stamp: AppIconStamp?
-        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            if lastKnownPaths[bundleIdentifier] == nil, lastKnownPaths.count >= 512 {
-                lastKnownPaths.removeAll()
-            }
-            lastKnownPaths[bundleIdentifier] = appURL.path
-            path = appURL.path
-            stamp = AppIconStamp.stamp(atPath: appURL.path)
-            logger.debug("取图标：\(bundleIdentifier, privacy: .public)")
-            shared = NSWorkspace.shared.icon(forFile: appURL.path)
-        } else if let lastPath = lastKnownPaths[bundleIdentifier],
-                  FileManager.default.fileExists(atPath: lastPath) {
+        if let url = applicationURL(bundleIdentifier) {
+            if lastKnownPaths[bundleIdentifier] == nil, lastKnownPaths.count >= 512 { lastKnownPaths.removeAll() }
+            lastKnownPaths[bundleIdentifier] = url.path
+            path = url.path
+            shared = imageForFile(url.path)
+        } else if let lastPath = lastKnownPaths[bundleIdentifier], FileManager.default.fileExists(atPath: lastPath) {
             path = lastPath
-            stamp = AppIconStamp.stamp(atPath: lastPath)
-            logger.debug("取图标（按上次路径）：\(bundleIdentifier, privacy: .public)")
-            shared = NSWorkspace.shared.icon(forFile: lastPath)
+            shared = imageForFile(lastPath)
         } else {
             path = nil
-            stamp = nil
-            shared = NSWorkspace.shared.icon(for: .applicationBundle)
+            shared = fallbackImage()
         }
-
         let icon = (shared.copy() as? NSImage) ?? shared
-        removePlatedRepresentations(from: icon)
+        let plated = icon.representations.filter { $0.size.width < 128 && CGFloat($0.pixelsWide) <= $0.size.width }
+        if plated.count < icon.representations.count { plated.forEach(icon.removeRepresentation) }
         icon.size = NSSize(width: 32, height: 32)
-        if cache.count >= 512 { cache.removeAll() }   // 只防无限增长；正常一辈子都碰不到
-        cache[bundleIdentifier] = CachedIcon(image: icon, path: path, stamp: stamp)
+        if cache.count >= 512 { cache.removeAll() }
+        cache[bundleIdentifier] = CachedIcon(image: icon, path: path, stamp: path.flatMap(AppIconStamp.stamp(atPath:)))
         return icon
-    }
-
-    private static func removePlatedRepresentations(from icon: NSImage) {
-        let plated = icon.representations.filter {
-            $0.size.width < 128 && CGFloat($0.pixelsWide) <= $0.size.width
-        }
-        guard plated.count < icon.representations.count else { return }
-        plated.forEach(icon.removeRepresentation)
     }
 }

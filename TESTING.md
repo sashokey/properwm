@@ -81,3 +81,15 @@ macOS 26 remains the deployment minimum without a dedicated compatibility matrix
 ## Accessory application admission
 
 Run the inventory lifecycle tests with injected application metadata; fixtures must pass through the production activation-policy gate. A Stats-shaped standalone accessory bundle with a standard Dashboard window must be admitted through seed, scan, and launch retry. Reject ProperWM itself, prohibited processes, unknown accessory bundle ownership, and embedded helper bundles, including Steam's recorded nested helper layout. Preserve per-window filtering for empty, untitled, undersized, and floating utility surfaces. Closing and reopening a tracked accessory window must work through the window event read without periodic admission or an app-only taskbar button. No live permissions or desktop windows are required for these tests.
+
+## Review regression coverage
+
+Use the production lifecycle controllers with injected AX sessions, a monotonic clock, window probes, and restoration operations. Keep the test views offscreen and do not revoke live Accessibility permission.
+
+- Geometry observer: blocked startup/registration/read, rapid app and focus changes, stop, stale callbacks, transient read and registration failure, retry recovery, and absence of immediate retry loops.
+- Context isolation: remove a display, change its geometry, reorder displays, retain unaffected sessions, and await a second cancelled writer while a first restoration is in flight.
+- Quiet state: a long-settled session has no fast per-window queries; fast probes include only transitioning windows and expire after the response interval. Verify event-driven refresh and fallback discovery of external geometry changes with a fake clock and counted probe calls.
+- Inventory: closing the last window leaves no synthetic card and retains the application observer; process churn releases mutation generations; a late response from an old process cannot consume a replacement process's in-flight read.
+- Icons: unresolved lookup retries on launch and activation, repeated renders use the cache, resolver lifetime is independent of notifications, and icon recovery refreshes an existing button without an inventory update.
+
+The constrained Swift-executor CI pass includes the geometry/context and icon regressions. Retain behavior tests for window order, native tabs, actions, rendering, display attribution, permissions, restoration, and the Chrome fullscreen-return geometry. Remove assertions only for intentionally removed app-only card contracts and unused model fields.

@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import XCTest
 
 final class AppIconStampTests: XCTestCase {
@@ -67,5 +69,47 @@ final class AppIconStampTests: XCTestCase {
             format: .xml, options: 0
         )
         try data.write(to: infoPlist)
+    }
+}
+
+@MainActor
+final class AppIconResolverTests: XCTestCase {
+    func testUnresolvedIconRetriesOnApplicationEventsAndNotEveryRender() {
+        for notification in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didActivateApplicationNotification] {
+            let notifications = NotificationCenter()
+            var url: URL?
+            var lookups = 0
+            var renderedPaths: [String] = []
+            let resolver = AppIconResolver(notifications: notifications, applicationURL: { _ in
+                lookups += 1
+                return url
+            }, imageForFile: { path in renderedPaths.append(path); return NSImage(size: .init(width: 32, height: 32)) },
+                fallbackImage: { NSImage(size: .init(width: 32, height: 32)) })
+            var updates = 0
+            let subscription = resolver.changes.sink { updates += 1 }
+            _ = resolver.icon(for: "test.icon")
+            _ = resolver.icon(for: "test.icon")
+            XCTAssertEqual(lookups, 1)
+            url = URL(fileURLWithPath: "/fixture/Test.app")
+            notifications.post(name: notification, object: nil)
+            XCTAssertEqual(updates, 1)
+            _ = resolver.icon(for: "test.icon")
+            XCTAssertEqual(lookups, 2)
+            XCTAssertEqual(renderedPaths, ["/fixture/Test.app"])
+            _ = resolver.icon(for: "test.icon")
+            XCTAssertEqual(lookups, 2)
+            withExtendedLifetime(subscription) {}
+        }
+    }
+
+    func testApplicationNotificationDoesNotRetainResolver() {
+        let notifications = NotificationCenter()
+        var resolver: AppIconResolver? = AppIconResolver(notifications: notifications, applicationURL: { _ in nil },
+            fallbackImage: { NSImage(size: .init(width: 32, height: 32)) })
+        weak var weakResolver = resolver
+        _ = resolver?.icon(for: "test.icon")
+        resolver = nil
+        notifications.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        XCTAssertNil(weakResolver)
     }
 }

@@ -17,7 +17,8 @@ final class TaskbarPresenter {
          topology: DisplayTopologyStore, spaces: TaskbarSpaceStore, displayUUID: String?,
          backgroundMenu: @escaping (NSEvent, NSView) -> Void,
          popupPresented: @escaping (NSPanel) -> Void,
-         contextMenuVisibilityChanged: @escaping (Bool) -> Void) {
+         contextMenuVisibilityChanged: @escaping (Bool) -> Void,
+         icons: AppIconResolver = .shared) {
         self.view = view
         self.runtime = runtime
         self.ordering = ordering
@@ -45,7 +46,7 @@ final class TaskbarPresenter {
             contextMenuVisibilityChanged: contextMenuVisibilityChanged
         )
         view.taskbarContent.iconProvider = { item in
-            if let bundleID = item.item.bundleIdentifier { return AppIconResolver.icon(for: bundleID) }
+            if let bundleID = item.item.bundleIdentifier { return icons.icon(for: bundleID) }
             return NSRunningApplication(processIdentifier: item.item.pid)?.icon
         }
         runtime.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
@@ -54,6 +55,7 @@ final class TaskbarPresenter {
         ordering.$liveOrder.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         topology.$table.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         spaces.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
+        icons.changes.sink { [weak self] in self?.scheduleRefresh() }.store(in: &subscriptions)
         refresh()
     }
 

@@ -117,6 +117,7 @@ jobs:
             -only-testing:ProperWMTests/WindowObservationLifecycleTests \
             -only-testing:ProperWMTests/WindowRestorationTests \
             -only-testing:ProperWMTests/WindowLiftContextLifecycleTests \
+            -only-testing:ProperWMTests/AppIconResolverTests \
             -only-testing:ProperWMTests/PanelLifecycleTests \
             -only-testing:ProperWMTests/TaskbarSpaceStoreTests \
             CODE_SIGNING_ALLOWED=NO \
