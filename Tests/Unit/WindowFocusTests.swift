@@ -4,12 +4,39 @@ import Synchronization
 import XCTest
 
 final class WindowFocusTests: XCTestCase {
+    func testMinimizedWindowCanRestoreWithExactAccessibilityIdentityWhenWindowServerOmitsIt() {
+        let start = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 3))
+        let record = WindowRecord(id: WindowID(rawValue: "one"), appID: AppID(rawValue: "app"), pid: 42,
+            bundleIdentifier: "test.app", title: "Window", bounds: nil, status: .minimized, cgWindowID: 100,
+            processGeneration: start)
+        XCTAssertTrue(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: nil,
+            accessibilityOwnerPID: 42, accessibilityWindowID: 100))
+    }
+
+    func testMissingWindowServerEntryStillRejectsWrongOrUnreadAccessibilityIdentity() {
+        let start = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 3))
+        let record = WindowRecord(id: WindowID(rawValue: "one"), appID: AppID(rawValue: "app"), pid: 42,
+            bundleIdentifier: "test.app", title: "Window", bounds: nil, status: .minimized, cgWindowID: 100,
+            processGeneration: start)
+        for (owner, window): (Int32?, CGWindowID?) in [(nil, nil), (42, nil), (nil, 100), (43, 100), (42, 101)] {
+            XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: nil,
+                accessibilityOwnerPID: owner, accessibilityWindowID: window))
+        }
+        XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: nil, ownerPID: nil,
+            accessibilityOwnerPID: 42, accessibilityWindowID: 100))
+        XCTAssertFalse(WindowCommandIdentity.permits(record,
+            currentGeneration: ProcessGeneration(timeval(tv_sec: 11, tv_usec: 3)), ownerPID: nil,
+            accessibilityOwnerPID: 42, accessibilityWindowID: 100))
+        XCTAssertFalse(WindowCommandIdentity.permits(record, currentGeneration: start, ownerPID: 43,
+            accessibilityOwnerPID: 42, accessibilityWindowID: 100))
+    }
+
     func testDeniedAuthorizationPreventsEveryMutationIncludingEarlyFocus() {
         let calls = Mutex(0)
         let backend = SkyLightWindowFocus(frontRequest: { _, _, _ in calls.withLock { $0 += 1 }; return 0 },
             keyRequest: { _, _ in calls.withLock { $0 += 1 }; return 0 })
         let executor = AccessibilityWindowActionExecutor(focusBackend: backend)
-            .withCancellation(OperationCancellation(), authorization: { _, _ in false })
+            .withCancellation(OperationCancellation(), authorization: { _, _, _ in false })
         let handle = AccessibilityWindowActionExecutor.fastHandle(
             from: AXWindowHandle(pid: -42, title: nil, bounds: nil, element: AXUIElementCreateApplication(-42)),
             target: .init(pid: -42, title: nil, bounds: nil, cgWindowID: 100))
@@ -19,6 +46,28 @@ final class WindowFocusTests: XCTestCase {
         XCTAssertFalse(executor.close(handle))
         XCTAssertFalse(executor.activateApplication(pid: -42))
         XCTAssertEqual(calls.withLock { $0 }, 0)
+    }
+
+    func testMinimizedRestoreCarriesItsAccessibilityElementIntoFocusAuthorization() {
+        let calls = Mutex<[String]>([])
+        let backend = SkyLightWindowFocus(frontRequest: { _, window, _ in
+            calls.withLock { $0.append("front:\(window)") }
+            return 0
+        }, keyRequest: { _, window in
+            calls.withLock { $0.append("key:\(window)") }
+            return 0
+        })
+        let executor = AccessibilityWindowActionExecutor(focusBackend: backend)
+            .withCancellation(OperationCancellation(), authorization: { pid, window, element in
+                pid == -42 && window == 100 && element != nil
+            })
+        let handle = AccessibilityWindowActionExecutor.fastHandle(
+            from: AXWindowHandle(pid: -42, title: nil, bounds: nil, element: AXUIElementCreateApplication(-42)),
+            target: .init(pid: -42, title: nil, bounds: nil, cgWindowID: 100))
+        XCTAssertFalse(executor.activate(handle, confirmationTimeout: 0, knownCGWindowID: 100,
+            knownMinimized: true, preActivateForRestore: true))
+        XCTAssertTrue(calls.withLock { $0.contains("front:100") })
+        XCTAssertTrue(calls.withLock { $0.contains("key:100") })
     }
 
     func testCommandsRequireTheCapturedProcessGenerationAndWindowOwner() {
