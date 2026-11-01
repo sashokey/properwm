@@ -1,8 +1,6 @@
 import ApplicationServices
 import CoreGraphics
 
-// 焦点窗口「是否全屏、是否属于本屏」的纯判定。Platform 层：`FullscreenIntentMonitor` 在事件 tap
-// 线程上调用它，`PanelCoordinator` 的异步 AX 探测也调；这里不允许出现 AX 调用 / AppKit / 日志。
 // 2026-09-05 从 App/Composition/PanelVisibilityState.swift 搬来，消掉唯一一处 Platform→App 反向依赖。
 
 // 异步 AX 全屏探测的纯判定（PanelCoordinator.detectFullscreenViaAX 调用）。
@@ -20,24 +18,6 @@ enum FullscreenAXVerdict: Equatable {
 
 enum FullscreenWindowClassifier {
     static let frameTolerance: CGFloat = 8
-
-    /// 布尔口径保留给单屏语义的调用方（`FullscreenIntentMonitor.readAXState`、探针副本）：
-    /// 只有 `.fullscreen` 为 true——与三态引入前逐字等价。
-    static func isFullscreen(
-        role: String?,
-        isAXFullscreen: Bool,
-        windowFrame: CGRect?,
-        windowLayer: Int?,
-        screenCGFrame: CGRect
-    ) -> Bool {
-        classify(
-            role: role,
-            isAXFullscreen: isAXFullscreen,
-            windowFrame: windowFrame,
-            windowLayer: windowLayer,
-            screenCGFrame: screenCGFrame
-        ) == .fullscreen
-    }
 
     /// `windowLayer` is the focused window's CG layer (`kCGWindowLayer`); nil = not read / unknown.
     /// No default on purpose: a caller that omits it silently loses the desktop-overlay guard below.
@@ -82,7 +62,6 @@ enum FullscreenWindowClassifier {
     }
 
     /// 窗口面积的一半以上落在这块屏上才算「属于本屏」。纯 CGRect 数学——
-    /// `FullscreenIntentMonitor.readAXState` 也调本判定，结果在事件 tap 线程上消费，
     /// 这里不允许出现 AX / AppKit / 日志（见 panels-and-screens 规则）。
     /// 与 `WindowLiftAvoidance` 里私有的同名方法是同一个面积法，刻意不共享——
     /// 避让那份冻结在自己的规则文件里，两边耦合反而让改动更危险。

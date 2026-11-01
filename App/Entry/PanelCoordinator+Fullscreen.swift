@@ -5,12 +5,6 @@ import QuartzCore
 import SwiftUI
 import os
 
-struct FullscreenIntentTransaction {
-    let generation: UInt64
-    let pid: pid_t
-    let focusedWindowID: CGWindowID
-    let screenCGFrame: CGRect
-}
 struct FullscreenSpaceHold {
     let generation: UInt64
     let pid: pid_t?
@@ -40,17 +34,6 @@ extension PanelCoordinator {
         fullscreenReconcileTimer?.tolerance = 0.5
     }
 
-    func setFullscreenIntentRouting(enabled: Bool) {
-        fullscreenIntentRoutingEnabled = enabled && !isSuspendedForPermissionLoss
-        guard !fullscreenIntentRoutingEnabled else { return }
-        if let transaction = fullscreenIntentTransaction {
-            cancelFullscreenIntent(generation: transaction.generation, reason: "disabled")
-        }
-        if let spaceGeneration = fullscreenSpaceIntentGeneration {
-            cancelFullscreenSpaceArrowIntent(generation: spaceGeneration, reason: "disabled")
-        }
-    }
-
     private func handleSpaceChange() {
         let spaceHoldGeneration = beginFullscreenSpaceHold(
             pid: lastActiveApplicationPID,
@@ -60,17 +43,12 @@ extension PanelCoordinator {
         applyFullscreenVisibility(
             cgFullscreen,
             source: "space-cg",
-            expectedIntentGeneration: fullscreenIntentTransaction?.generation,
-            pid: lastActiveApplicationPID,
-            screenCGFrame: currentPanelScreenCGFrame(),
             expectedSpaceHoldGeneration: spaceHoldGeneration
         )
-        if !cgFullscreen || fullscreenIntentTransaction == nil {
-            triggerAsyncFullscreenCheck(
-                expectedSpaceHoldGeneration: spaceHoldGeneration,
-                source: "space-ax"
-            )
-        }
+        triggerAsyncFullscreenCheck(
+            expectedSpaceHoldGeneration: spaceHoldGeneration,
+            source: "space-ax"
+        )
         repairAllSpacesMembershipIfNeeded()
     }
 
@@ -80,7 +58,6 @@ extension PanelCoordinator {
             pid: lastActiveApplicationPID,
             confirmationDelay: FullscreenSpaceHoldDecision.activationFallbackDelay
         )
-        cancelFullscreenIntentIfContextChanged(activePID: pid)
         triggerAsyncFullscreenCheck(
             pid: lastActiveApplicationPID,
             expectedSpaceHoldGeneration: spaceHoldGeneration,
@@ -110,7 +87,6 @@ extension PanelCoordinator {
         pid explicitPID: pid_t? = nil,
         expectedSpaceHoldGeneration explicitSpaceHoldGeneration: UInt64? = nil,
         isFinalSpaceHoldWindowedConfirmation: Bool = false,
-        isFinalSpaceIntentVerdict: Bool = false,
         source: String = "ax"
     ) {
         guard let panel = dockPanel else { return }
@@ -118,7 +94,6 @@ extension PanelCoordinator {
         let frontPID = explicitPID ?? lastActiveApplicationPID
         fullscreenProbeGeneration &+= 1
         let probeGeneration = fullscreenProbeGeneration
-        let expectedIntentGeneration = fullscreenIntentTransaction?.generation
         let expectedSpaceHoldGeneration = explicitSpaceHoldGeneration ?? fullscreenSpaceHold?.generation
         Task.detached { [weak self] in
             let probe = Self.detectFullscreenViaAX(pid: frontPID, screenCGFrame: screenCGFrame)
@@ -146,7 +121,7 @@ extension PanelCoordinator {
                     if let fromSpace = self.fullscreenVerdictFromSpaceLayout() {
                         fullscreen = fromSpace
                         resolvedSource = "\(source)-sls"
-                    } else if isFinalSpaceHoldWindowedConfirmation || isFinalSpaceIntentVerdict {
+                    } else if isFinalSpaceHoldWindowedConfirmation {
                         fullscreen = self.checkFullscreenViaCGSync()
                         resolvedSource = "\(source)-cgfallback"
                     } else {
@@ -156,12 +131,8 @@ extension PanelCoordinator {
                 self.applyFullscreenVisibility(
                     fullscreen,
                     source: resolvedSource,
-                    expectedIntentGeneration: expectedIntentGeneration,
-                    pid: frontPID,
-                    screenCGFrame: screenCGFrame,
                     expectedSpaceHoldGeneration: expectedSpaceHoldGeneration,
-                    isFinalSpaceHoldWindowedConfirmation: isFinalSpaceHoldWindowedConfirmation,
-                    isFinalSpaceIntentVerdict: isFinalSpaceIntentVerdict
+                    isFinalSpaceHoldWindowedConfirmation: isFinalSpaceHoldWindowedConfirmation
                 )
                 self.reconcileOverlayWindowWatch(overlayWindowID: probe.overlayWindowID)
             }
@@ -229,73 +200,25 @@ extension PanelCoordinator {
     private func applyFullscreenVisibility(
         _ isFullscreen: Bool,
         source: String,
-        expectedIntentGeneration: UInt64? = nil,
-        pid: pid_t? = nil,
-        screenCGFrame: CGRect? = nil,
         expectedSpaceHoldGeneration: UInt64? = nil,
-        isFinalSpaceHoldWindowedConfirmation: Bool = false,
-        isFinalSpaceIntentVerdict: Bool = false
+        isFinalSpaceHoldWindowedConfirmation: Bool = false
     ) {
-        if let spaceGeneration = fullscreenSpaceIntentGeneration {
-            if isFullscreen {
-                guard visibilityState.confirmFullscreenTransition(generation: spaceGeneration) else {
-                    return
-                }
-                clearFullscreenSpaceArrowIntent()
-                fullscreenIntentLogger.notice(
-                    "space-confirmed source=\(source, privacy: .public) generation=\(spaceGeneration, privacy: .public)"
-                )
-                dismissTaskbarPopups()
-                diagnosticFullscreenSource = source
-                diagnosticFullscreenVerdict = true
-                reconcilePanelVisibility()
-                logFullscreenVerdict(true, source: source)
-                return
-            }
-            guard isFinalSpaceIntentVerdict else {
-                if source == "space-cg" {
-                    scheduleFullscreenSpaceIntentVerdict(generation: spaceGeneration)
-                }
-                return
-            }
-            cancelFullscreenSpaceArrowIntent(generation: spaceGeneration, reason: "space-windowed")
-        }
+        guard !isSuspendedForPermissionLoss else { return }
         switch FullscreenSpaceHoldDecision.disposition(
             isFullscreenVerdict: isFullscreen,
             expectedGeneration: expectedSpaceHoldGeneration,
             activeGeneration: fullscreenSpaceHold?.generation,
             isFinalWindowedConfirmation: isFinalSpaceHoldWindowedConfirmation
         ) {
-        case .stale:
-            return
-        case .hold:
+        case .stale, .hold:
             return
         case .apply:
             if let hold = fullscreenSpaceHold {
                 finishFullscreenSpaceHold(generation: hold.generation)
             }
         }
-        if isFullscreen {
-            if let transaction = fullscreenIntentTransaction {
-                guard expectedIntentGeneration == transaction.generation,
-                      pid == transaction.pid,
-                      screenCGFrame == transaction.screenCGFrame,
-                      isFullscreenIntentContextCurrent(transaction),
-                      visibilityState.confirmFullscreenTransition(generation: transaction.generation) else {
-                    return
-                }
-                finishFullscreenIntentTransaction()
-                fullscreenIntentLogger.notice(
-                    "confirmed source=\(source, privacy: .public) generation=\(transaction.generation, privacy: .public)"
-                )
-            } else {
-                visibilityState.setFullscreen(true)
-            }
-            dismissTaskbarPopups()
-        } else {
-            if fullscreenIntentTransaction != nil { return }
-            visibilityState.setFullscreen(false)
-        }
+        visibilityState.setFullscreen(isFullscreen)
+        if isFullscreen { dismissTaskbarPopups() }
         diagnosticFullscreenSource = source
         diagnosticFullscreenVerdict = isFullscreen
         reconcilePanelVisibility()
@@ -306,179 +229,9 @@ extension PanelCoordinator {
         let reasons = visibilityState.hideReasons
         var parts: [String] = []
         if reasons.contains(.fullscreen) { parts.append("fullscreen") }
-        if reasons.contains(.fullscreenTransitionPending) { parts.append("pending") }
         let reasonText = parts.isEmpty ? "none" : parts.joined(separator: "+")
         logger.info(
             "[fullscreen] active=\(isFullscreen, privacy: .public) source=\(source, privacy: .public) reasons=\(reasonText, privacy: .public) pid=\(self.lastActiveApplicationPID ?? -1, privacy: .public)"
-        )
-    }
-
-    func beginFullscreenIntent(_ request: FullscreenIntentRequest) {
-        guard fullscreenIntentRoutingEnabled,
-              fullscreenIntentTransaction == nil,
-              request.screenCGFrame == currentPanelScreenCGFrame(),
-              lastActiveApplicationPID == request.pid else {
-            return
-        }
-        fullscreenIntentGeneration &+= 1
-        let generation = fullscreenIntentGeneration
-        fullscreenProbeGeneration &+= 1
-        fullscreenIntentTransaction = FullscreenIntentTransaction(
-            generation: generation,
-            pid: request.pid,
-            focusedWindowID: request.focusedWindowID,
-            screenCGFrame: request.screenCGFrame
-        )
-        fullscreenIntentTimeoutTimer?.invalidate()
-        visibilityState.beginFullscreenTransition(generation: generation)
-
-        diagnosticFullscreenSource = request.source.rawValue + "-prediction"
-
-        orderOutPanelsForFullscreenPrediction()
-        fullscreenIntentLogger.notice(
-            "pending source=\(request.source.rawValue, privacy: .public) generation=\(generation, privacy: .public) pid=\(request.pid, privacy: .public)"
-        )
-
-        let timer = Timer(timeInterval: 1.2, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.cancelFullscreenIntent(generation: generation, reason: "timeout")
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        fullscreenIntentTimeoutTimer = timer
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.fullscreenIntentTransaction?.generation == generation else { return }
-            self.reconcilePanelVisibility()
-        }
-    }
-
-    func cancelFullscreenIntent(generation: UInt64, reason: String) {
-        guard fullscreenIntentTransaction?.generation == generation,
-              visibilityState.timeoutFullscreenTransition(generation: generation) else {
-            return
-        }
-        finishFullscreenIntentTransaction()
-        fullscreenProbeGeneration &+= 1
-        diagnosticFullscreenSource = "intent-cancel-" + reason
-        fullscreenIntentLogger.notice(
-            "cancelled reason=\(reason, privacy: .public) generation=\(generation, privacy: .public)"
-        )
-        reconcilePanelVisibility()
-    }
-
-    private func finishFullscreenIntentTransaction() {
-        fullscreenIntentTransaction = nil
-        fullscreenIntentTimeoutTimer?.invalidate()
-        fullscreenIntentTimeoutTimer = nil
-    }
-
-    private func orderOutPanelsForFullscreenPrediction() {
-
-        taskbarView?.taskbarContent.prepareForHiding()
-
-        noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
-        lastHideWasForFullscreen = true
-        orderDockSurfaceOut()
-    }
-
-    func beginFullscreenSpaceIntent(direction: SpaceSwitchDirection) {
-        guard fullscreenIntentRoutingEnabled,
-              fullscreenIntentTransaction == nil,
-              fullscreenSpaceIntentGeneration == nil,
-              !isSuspendedForPermissionLoss,
-              !visibilityState.hideReasons.contains(.fullscreen) else {
-            return
-        }
-        fullscreenIntentGeneration &+= 1
-        let generation = fullscreenIntentGeneration
-        fullscreenSpaceIntentGeneration = generation
-        fullscreenProbeGeneration &+= 1
-        visibilityState.beginFullscreenTransition(generation: generation)
-
-        diagnosticFullscreenSource = "space-intent-" + direction.rawValue
-
-        noteVisibilityChange(visible: false, source: diagnosticFullscreenSource)
-        lastHideWasForFullscreen = true
-        let fadingPanels = [dockPanel].compactMap { $0 }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.15
-            for panel in fadingPanels { panel.animator().alphaValue = 0 }
-        }, completionHandler: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard self.fullscreenSpaceIntentGeneration == generation else {
-                    for panel in fadingPanels { panel.alphaValue = 1 }
-                    return
-                }
-                self.orderOutPanelsForFullscreenPrediction()
-                for panel in fadingPanels { panel.alphaValue = 1 }
-            }
-        })
-        fullscreenIntentLogger.notice(
-            "space-pending generation=\(generation, privacy: .public) direction=\(direction.rawValue, privacy: .public)"
-        )
-
-        let timer = Timer(timeInterval: 2.0, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.cancelFullscreenSpaceArrowIntent(generation: generation, reason: "timeout")
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        fullscreenSpaceIntentTimer = timer
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.fullscreenSpaceIntentGeneration == generation else { return }
-            self.reconcilePanelVisibility()
-        }
-    }
-
-    private func cancelFullscreenSpaceArrowIntent(generation: UInt64, reason: String) {
-        guard fullscreenSpaceIntentGeneration == generation,
-              visibilityState.timeoutFullscreenTransition(generation: generation) else {
-            return
-        }
-        clearFullscreenSpaceArrowIntent()
-        fullscreenProbeGeneration &+= 1
-        diagnosticFullscreenSource = "space-intent-cancel-" + reason
-        fullscreenIntentLogger.notice(
-            "space-cancelled reason=\(reason, privacy: .public) generation=\(generation, privacy: .public)"
-        )
-        reconcilePanelVisibility()
-    }
-
-    func clearFullscreenSpaceArrowIntent() {
-        fullscreenSpaceIntentGeneration = nil
-        fullscreenSpaceIntentTimer?.invalidate()
-        fullscreenSpaceIntentTimer = nil
-        fullscreenSpaceIntentVerdictTimer?.invalidate()
-        fullscreenSpaceIntentVerdictTimer = nil
-    }
-
-    private func scheduleFullscreenSpaceIntentVerdict(generation: UInt64) {
-        guard fullscreenSpaceIntentVerdictTimer == nil else { return }
-        let timer = Timer(
-            timeInterval: FullscreenSpaceHoldDecision.postSpaceConfirmationDelay,
-            repeats: false
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.resolveFullscreenSpaceArrowIntent(generation: generation)
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        fullscreenSpaceIntentVerdictTimer = timer
-    }
-
-    private func resolveFullscreenSpaceArrowIntent(generation: UInt64) {
-        guard fullscreenSpaceIntentGeneration == generation else { return }
-        fullscreenSpaceIntentVerdictTimer = nil
-        if checkFullscreenViaCGSync() {
-            applyFullscreenVisibility(true, source: "space-intent-delayed-cg")
-            return
-        }
-        triggerAsyncFullscreenCheck(
-            isFinalSpaceIntentVerdict: true,
-            source: "space-intent-final-ax"
         )
     }
 
@@ -487,10 +240,7 @@ extension PanelCoordinator {
         pid: pid_t?,
         confirmationDelay: TimeInterval
     ) -> UInt64? {
-        guard FullscreenSpaceHoldDecision.shouldBegin(
-            isFullscreen: visibilityState.hideReasons.contains(.fullscreen),
-            hasInputIntent: fullscreenIntentTransaction != nil || fullscreenSpaceIntentGeneration != nil
-        ) else {
+        guard visibilityState.hideReasons.contains(.fullscreen) else {
             return nil
         }
 
@@ -557,41 +307,6 @@ extension PanelCoordinator {
         fullscreenSpaceHoldTimer?.invalidate()
         fullscreenSpaceHoldTimer = nil
         fullscreenSpaceHold = nil
-    }
-
-    func cancelFullscreenIntentIfContextChanged(activePID: pid_t? = nil) {
-        guard let transaction = fullscreenIntentTransaction else { return }
-        let currentPID = activePID ?? lastActiveApplicationPID
-        guard currentPID != transaction.pid || currentPanelScreenCGFrame() != transaction.screenCGFrame else {
-            return
-        }
-        cancelFullscreenIntent(generation: transaction.generation, reason: "context-changed")
-    }
-
-    private func isFullscreenIntentContextCurrent(_ transaction: FullscreenIntentTransaction) -> Bool {
-        NSRunningApplication(processIdentifier: transaction.pid)?.isActive == true
-            && currentPanelScreenCGFrame() == transaction.screenCGFrame
-    }
-
-    func handleFullscreenIntentContextChange(
-        _ change: FullscreenIntentMonitor.ContextChange
-    ) {
-        if case let .activeApplication(pid) = change {
-            lastActiveApplicationPID = pid
-        }
-        guard let transaction = fullscreenIntentTransaction else { return }
-        switch change {
-        case let .activeApplication(pid):
-            if pid != transaction.pid {
-                cancelFullscreenIntent(generation: transaction.generation, reason: "app-changed")
-            }
-        case .focusedWindow:
-            cancelFullscreenIntent(generation: transaction.generation, reason: "focus-changed")
-        case let .windowDestroyed(windowID):
-            if windowID == nil || windowID == transaction.focusedWindowID {
-                cancelFullscreenIntent(generation: transaction.generation, reason: "window-destroyed")
-            }
-        }
     }
 
     func currentPanelScreenCGFrame() -> CGRect? {

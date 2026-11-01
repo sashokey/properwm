@@ -27,7 +27,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     private var started = false
     private var isSuspended = false
-    private var fullscreenIntentMonitor: FullscreenIntentMonitor?
     private var topologyRefreshController: DisplayTopologyRefreshController?
 
     private var menuTrackingDepth = 0
@@ -68,7 +67,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         let snapshot = seedController.prepareForTopologyChange()
         rebuildUnits(reason: "start", connectedKeys: snapshot.identifiedDisplayUUIDs)
         observeMenuTracking()
-        reconcileFullscreenIntentMonitor()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersChanged),
@@ -80,10 +78,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     func suspendAndRelease() {
         guard !isSuspended else { return }
         isSuspended = true
-        fullscreenIntentMonitor?.stop()
-        fullscreenIntentMonitor = nil
         for unit in units {
-            unit.coordinator.setFullscreenIntentRouting(enabled: false)
             unit.coordinator.tearDown()
         }
         units = []
@@ -110,13 +105,11 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             if desiredSet.contains(unit.key ?? "") {
                 survivors[unit.key] = unit
             } else {
-                unit.coordinator.setFullscreenIntentRouting(enabled: false)
                 unit.coordinator.tearDown()
             }
         }
         units = desired.map { key in survivors[key] ?? makeUnit(key: key) }
         logger.info("units rebuilt reason=\(reason, privacy: .public) count=\(self.units.count, privacy: .public)")
-        pushPanelScreensToIntentMonitor()
     }
 
     private func makeUnit(key: String?) -> Unit {
@@ -130,27 +123,11 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             displayTopologyStore: displayTopologyStore
         )
         coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu
-        coordinator.onPanelScreenChanged = { [weak self] in self?.pushPanelScreensToIntentMonitor() }
         coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
             self?.closeAccessories(exceptFor: unit, opening: kind)
         }
         coordinator.start()
-        coordinator.setFullscreenIntentRouting(enabled: fullscreenIntentMonitor != nil)
         return Unit(key: key, coordinator: coordinator)
-    }
-
-
-
-    private func unitContainingMouse() -> Unit? {
-        let mouse = NSEvent.mouseLocation
-        return units.first { $0.coordinator.currentScreen?.frame.contains(mouse) == true }
-    }
-
-    private func unit(forDisplayUUID uuid: String) -> Unit? {
-        if let unit = units.first(where: { $0.key == uuid }) { return unit }
-        return units.first { unit in
-            unit.coordinator.currentScreen.flatMap { DisplayIdentity.uuidString(for: $0) } == uuid
-        }
     }
 
     @objc private func screenParametersChanged() {
@@ -163,7 +140,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         }
         rebuildUnits(reason: "screens", connectedKeys: snapshot.identifiedDisplayUUIDs)
         units.forEach { $0.coordinator.screenParametersChanged() }
-        pushPanelScreensToIntentMonitor()
     }
 
     private func makeTopologyRefreshController() -> DisplayTopologyRefreshController {
@@ -178,7 +154,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
                     connectedKeys: snapshot.identifiedDisplayUUIDs
                 )
                 self?.units.forEach { $0.coordinator.screenParametersChanged() }
-                self?.pushPanelScreensToIntentMonitor()
             },
             scheduleAfter: topologyRetryScheduler
         )
@@ -192,48 +167,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] {
         units.compactMap { $0.coordinator.windowLiftAvoidanceContext() }
-    }
-
-    private func reconcileFullscreenIntentMonitor() {
-        let enabled = FullscreenIntentDecision.isEnabled(
-            settingEnabled: settingsStore.fullscreenIntentEnabled,
-            environment: ProcessInfo.processInfo.environment
-        )
-        guard enabled, !isSuspended else {
-            fullscreenIntentMonitor?.stop()
-            fullscreenIntentMonitor = nil
-            units.forEach { $0.coordinator.setFullscreenIntentRouting(enabled: false) }
-            return
-        }
-        guard fullscreenIntentMonitor == nil else { return }
-        let monitor = FullscreenIntentMonitor(
-            onIntent: { [weak self] request in
-                self?.units.forEach { $0.coordinator.beginFullscreenIntent(request) }
-            },
-            onSpaceSwitchIntent: { [weak self] direction, displayUUID in
-                guard let self else { return }
-                let target = self.unit(forDisplayUUID: displayUUID) ?? self.unitContainingMouse() ?? self.units.first
-                target?.coordinator.beginFullscreenSpaceIntent(direction: direction)
-            },
-            onContextChange: { [weak self] change in
-                self?.units.forEach { $0.coordinator.handleFullscreenIntentContextChange(change) }
-            }
-        )
-        fullscreenIntentMonitor = monitor
-        monitor.updatePanelScreens(currentPanelScreenCGFrames)
-        monitor.start()
-        units.forEach { $0.coordinator.setFullscreenIntentRouting(enabled: true) }
-    }
-
-    private var currentPanelScreenCGFrames: [CGRect] {
-        units.compactMap { $0.coordinator.currentPanelScreenCGFrame() }
-            .reduce(into: [CGRect]()) { unique, frame in
-                if !unique.contains(frame) { unique.append(frame) }
-            }
-    }
-
-    private func pushPanelScreensToIntentMonitor() {
-        fullscreenIntentMonitor?.updatePanelScreens(currentPanelScreenCGFrames)
     }
 
     private func observeMenuTracking() {

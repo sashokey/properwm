@@ -4,7 +4,6 @@ import Foundation
 
 enum PanelVisibilityReason: Hashable {
     case fullscreen
-    case fullscreenTransitionPending
 }
 
 struct DiagnosticVisibilityChange: Equatable {
@@ -41,7 +40,6 @@ struct DiagnosticVisibilityHistory {
         reasons.map { reason in
             switch reason {
             case .fullscreen: return "fullscreen"
-            case .fullscreenTransitionPending: return "fullscreenTransitionPending"
             }
         }.sorted()
     }
@@ -62,10 +60,6 @@ enum FullscreenSpaceHoldDisposition: Equatable {
 enum FullscreenSpaceHoldDecision {
     static let postSpaceConfirmationDelay: TimeInterval = 0.12
     static let activationFallbackDelay: TimeInterval = 0.5
-
-    static func shouldBegin(isFullscreen: Bool, hasInputIntent: Bool) -> Bool {
-        isFullscreen && !hasInputIntent
-    }
 
     static func disposition(
         isFullscreenVerdict: Bool,
@@ -110,34 +104,11 @@ enum AllSpacesMembership {
 
 struct PanelVisibilityState: Equatable {
     var hideReasons: Set<PanelVisibilityReason> = []
-    private(set) var fullscreenTransitionGeneration: UInt64?
 
     var isVisible: Bool { hideReasons.isEmpty }
 
     mutating func setFullscreen(_ active: Bool) {
         setReason(.fullscreen, active: active)
-    }
-
-    mutating func beginFullscreenTransition(generation: UInt64) {
-        fullscreenTransitionGeneration = generation
-        hideReasons.insert(.fullscreenTransitionPending)
-    }
-
-    @discardableResult
-    mutating func confirmFullscreenTransition(generation: UInt64) -> Bool {
-        guard fullscreenTransitionGeneration == generation else { return false }
-        fullscreenTransitionGeneration = nil
-        hideReasons.remove(.fullscreenTransitionPending)
-        hideReasons.insert(.fullscreen)
-        return true
-    }
-
-    @discardableResult
-    mutating func timeoutFullscreenTransition(generation: UInt64) -> Bool {
-        guard fullscreenTransitionGeneration == generation else { return false }
-        fullscreenTransitionGeneration = nil
-        hideReasons.remove(.fullscreenTransitionPending)
-        return true
     }
 
     private mutating func setReason(_ reason: PanelVisibilityReason, active: Bool) {

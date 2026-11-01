@@ -5,7 +5,6 @@ import Foundation
 final class AppSettingsStore: ObservableObject {
     @Published private(set) var launchAtLogin: Bool
     let windowLiftEnabled = true
-    let fullscreenIntentEnabled = true
     private let defaults: UserDefaults
     private static let launchAtLoginKey = "properwm.launchAtLogin"
 

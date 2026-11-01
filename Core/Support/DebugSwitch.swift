@@ -16,8 +16,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case handoffActiveGrace = "DOCK_HANDOFF_ACTIVE_GRACE"
     case handoffActivePrediction = "DOCK_HANDOFF_ACTIVE_PREDICTION"
     case staleActiveGuard = "DOCK_STALE_ACTIVE_GUARD"
-    case spaceIntent = "DOCK_SPACE_INTENT"
-    case fullscreenIntent = "DOCK_FULLSCREEN_INTENT"
     case fullscreenSlsVerdict = "DOCK_FULLSCREEN_SLS_VERDICT"
     case overlayWindowWatch = "DOCK_OVERLAY_WINDOW_WATCH"
     case spaceMembershipRepair = "DOCK_SPACE_MEMBERSHIP_REPAIR"
@@ -31,7 +29,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case clickTrace = "DOCK_CLICK_TRACE"
     case hoverTrace = "DOCK_HOVER_TRACE"
     case labelProbe = "DOCK_LABEL_PROBE"
-    case spaceIntentTrace = "DOCK_SPACE_INTENT_TRACE"
     case windowLiftTrace = "DOCK_WINDOW_LIFT_TRACE"
     case simulateNoDestroy = "DOCK_SIMULATE_NO_DESTROY"
     case reconcileAxTimeoutMs = "DOCK_RECONCILE_AX_TIMEOUT_MS"
@@ -41,9 +38,9 @@ enum DebugSwitch: String, CaseIterable, Sendable {
 
     var kind: Kind {
         switch self {
-        case .eventAxAsync, .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .minimizeSettleGate, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .spaceIntent, .fullscreenIntent, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
+        case .eventAxAsync, .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .minimizeSettleGate, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
             return .killSwitch
-        case .displayTrace, .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .spaceIntentTrace, .windowLiftTrace, .simulateNoDestroy:
+        case .displayTrace, .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .windowLiftTrace, .simulateNoDestroy:
             return .trace
         case .reconcileAxTimeoutMs, .seedAxTimeoutMs, .inventoryLog, .panelLevel:
             return .value

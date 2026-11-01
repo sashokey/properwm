@@ -279,12 +279,12 @@ extension AppDelegate: PermissionEffectHandler {
     func startWatchdog() {
         stopWatchdog()
         permissionWatchdogGate.start()
-        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.schedulePermissionProbe()
             }
         }
-        timer.tolerance = 1
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         permissionWatchdogTimer = timer
     }
@@ -302,6 +302,9 @@ extension AppDelegate: PermissionEffectHandler {
             DispatchQueue.main.async { [weak self] in
                 guard let self,
                       self.permissionWatchdogGate.completeProbe(generation: generation) else { return }
+                if self.cachedAccessibilityTrusted != trusted {
+                    self.permissionLogger.notice("permission-trust-changed trusted=\(trusted, privacy: .public)")
+                }
                 self.cachedAccessibilityTrusted = trusted
                 self.permissionCoordinator?.sampleTrust(trusted)
             }

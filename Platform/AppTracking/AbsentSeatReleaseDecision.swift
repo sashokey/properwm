@@ -162,8 +162,6 @@ struct LiveAbsentSeatProber: AbsentSeatProbing {
         )
     }
 
-    // Own SkyLight loading rather than `WindowSpaceMembershipReader` / `ManagedSpaceLayoutReader`:
-    // those live in `FullscreenIntentMonitor.swift`, which the test target does not compile.
     private typealias MainConnectionIDFn = @convention(c) () -> Int32
     private typealias CopySpacesForWindowsFn = @convention(c) (Int32, Int32, CFArray) -> CFArray?
     private typealias CopyManagedDisplaySpacesFn = @convention(c) (Int32) -> CFArray?

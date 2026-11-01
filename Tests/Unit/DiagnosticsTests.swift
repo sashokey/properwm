@@ -67,14 +67,14 @@ final class DiagnosticSessionTests: XCTestCase {
         var history = DiagnosticVisibilityHistory()
         for source in ["ax", "green-button-prediction", "space-intent-right"] {
             XCTAssertNotNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: true,
-                visible: false, reasons: [.fullscreenTransitionPending], source: source))
+                visible: false, reasons: [.fullscreen], source: source))
             XCTAssertNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: false,
                 visible: false, reasons: [.fullscreen], source: "confirmation"))
             XCTAssertNotNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: false,
                 visible: true, reasons: [], source: "intent-cancel-timeout"))
         }
         XCTAssertEqual(history.changes.count, 6)
-        XCTAssertEqual(history.changes.first?.reasons, ["fullscreenTransitionPending"])
+        XCTAssertEqual(history.changes.first?.reasons, ["fullscreen"])
         for i in 0..<60 {
             history.noteVisibilityChange(unit: "loop", screen: "display", previousVisible: i % 2 != 0,
                 visible: i % 2 == 0, reasons: [], source: "timeout-recovery")

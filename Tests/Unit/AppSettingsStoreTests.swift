@@ -32,7 +32,6 @@ final class AppSettingsStoreTests: XCTestCase {
         defaults.set(2.0, forKey: "properwm.legacy.autoHide.edge.delay")
         let store = AppSettingsStore(defaults: defaults)
         XCTAssertTrue(store.windowLiftEnabled)
-        XCTAssertTrue(store.fullscreenIntentEnabled)
     }
 
     private func makeDefaults() -> UserDefaults {

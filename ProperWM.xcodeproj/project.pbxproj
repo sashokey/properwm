@@ -26,13 +26,7 @@
 		E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000004 /* DefaultsValueParsing.swift */; };
 		E90000000000000000002004 /* DefaultsValueParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000004 /* DefaultsValueParsing.swift */; };
-		F20000000000000000000001 /* FullscreenIntentDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* FullscreenIntentDecision.swift */; };
-		E26000000000000000000002 /* CopiedGestureEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26000000000000000000001 /* CopiedGestureEvent.swift */; };
-		F20000000000000000000002 /* FullscreenIntentMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* FullscreenIntentMonitor.swift */; };
 		F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0000000000000000000E0 /* OverlaySpaceHost.swift */; };
-		F20000000000000000000003 /* FullscreenIntentDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* FullscreenIntentDecision.swift */; };
-		E26000000000000000000003 /* CopiedGestureEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26000000000000000000001 /* CopiedGestureEvent.swift */; };
-		F20000000000000000000004 /* FullscreenIntentDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* FullscreenIntentDecisionTests.swift */; };
 		C30000000000000000000001 /* AppFallbackChipDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* AppFallbackChipDecision.swift */; };
 		C30000000000000000000002 /* AppFallbackChipDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* AppFallbackChipDecision.swift */; };
 		C30000000000000000000003 /* AppFallbackChipDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */; };
@@ -266,6 +260,8 @@
 		9FA394B44335E2ACB6F6213D = {isa = PBXBuildFile; fileRef = A00000000000000000000010; };
 		AFF1D586985CCB9CB3C032C5 = {isa = PBXBuildFile; fileRef = A00000000000000000000012; };
 		14C901A396C207524EDF6C6E = {isa = PBXBuildFile; fileRef = A00000000000000000009E03; };
+		41707825E99C4DA1064604F2 = {isa = PBXBuildFile; fileRef = 4D4ECA454548E7B95D098065; };
+		6532D14C5F087BF33902116A = {isa = PBXBuildFile; fileRef = 4D4ECA454548E7B95D098065; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -289,11 +285,7 @@
 		E90000000000000000000006 /* DockSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSnapshot.swift; sourceTree = "<group>"; };
 		E90000000000000000000003 /* FullscreenWindowClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenWindowClassifier.swift; sourceTree = "<group>"; };
 		E90000000000000000000004 /* DefaultsValueParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultsValueParsing.swift; sourceTree = "<group>"; };
-		F10000000000000000000010 /* FullscreenIntentDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentDecision.swift; sourceTree = "<group>"; };
-		E26000000000000000000001 /* CopiedGestureEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopiedGestureEvent.swift; sourceTree = "<group>"; };
-		F10000000000000000000011 /* FullscreenIntentMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentMonitor.swift; sourceTree = "<group>"; };
 		F1D0000000000000000000E0 /* OverlaySpaceHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySpaceHost.swift; sourceTree = "<group>"; };
-		F10000000000000000000012 /* FullscreenIntentDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenIntentDecisionTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000010 /* AppFallbackChipDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackChipDecision.swift; sourceTree = "<group>"; };
 		C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFallbackChipDecisionTests.swift; sourceTree = "<group>"; };
 		D10000000000000000000003 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
@@ -448,6 +440,7 @@
 		645980E95E1032661911676D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/Accessibility/WindowActionExecutor.swift"; sourceTree = SOURCE_ROOT; };
 		0447A468CF6A959D5E60683B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/OverlaySpaceHostTests.swift"; sourceTree = SOURCE_ROOT; };
 		A21A879D58AA513652B6EAAB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarDrawingTests.swift"; sourceTree = SOURCE_ROOT; };
+		4D4ECA454548E7B95D098065 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform/CoreGraphics/WindowSpaceReaders.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -478,6 +471,7 @@
 		A0000000000000000000001C = {
 			isa = PBXGroup;
 			children = (
+				4D4ECA454548E7B95D098065,
 				A21A879D58AA513652B6EAAB,
 				0447A468CF6A959D5E60683B,
 				645980E95E1032661911676D,
@@ -723,9 +717,6 @@
 			isa = PBXGroup;
 			children = (
 				E90000000000000000000003 /* FullscreenWindowClassifier.swift */,
-				F10000000000000000000010 /* FullscreenIntentDecision.swift */,
-				E26000000000000000000001 /* CopiedGestureEvent.swift */,
-				F10000000000000000000011 /* FullscreenIntentMonitor.swift */,
 				F1D0000000000000000000E0 /* OverlaySpaceHost.swift */,
 				F1B0000000000000000000C2 /* DisplayIdentity.swift */,
 				A00000000000000000000010 /* CoreGraphicsSource.swift */,
@@ -831,7 +822,6 @@
 			isa = PBXGroup;
 			children = (
 				E90000000000000000000008 /* DebugSwitchTests.swift */,
-				F10000000000000000000012 /* FullscreenIntentDecisionTests.swift */,
 				C30000000000000000000011 /* AppFallbackChipDecisionTests.swift */,
 				A00000000000000000000058 /* FinderP0Tests.swift */,
 				A0000000000000000000B060 /* PermissionOnboardingTests.swift */,
@@ -1022,6 +1012,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41707825E99C4DA1064604F2,
 				191673982C40DC4426AB092C,
 				CFF17899E7CD6F3FF3ECC379,
 				8B44AE2EBD3F2D407DE55F2C,
@@ -1044,9 +1035,6 @@
 				E90000000000000000001006 /* DockSnapshot.swift in Sources */,
 				E90000000000000000001003 /* FullscreenWindowClassifier.swift in Sources */,
 				E90000000000000000001004 /* DefaultsValueParsing.swift in Sources */,
-					F20000000000000000000001 /* FullscreenIntentDecision.swift in Sources */,
-					E26000000000000000000002 /* CopiedGestureEvent.swift in Sources */,
-					F20000000000000000000002 /* FullscreenIntentMonitor.swift in Sources */,
 					F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */,
 					C30000000000000000000001 /* AppFallbackChipDecision.swift in Sources */,
 					A00000000000000000001001 /* ProperWMApp.swift in Sources */,
@@ -1160,6 +1148,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6532D14C5F087BF33902116A,
 				F42245FEA95BAE0ADE9ED824,
 				B8DB1A1303F488BF81C82186,
 				CF3CE6A0B56FD449D386D9CD,
@@ -1188,9 +1177,6 @@
 				E90000000000000000002006 /* DockSnapshot.swift in Sources */,
 				E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */,
 				E90000000000000000002004 /* DefaultsValueParsing.swift in Sources */,
-				F20000000000000000000003 /* FullscreenIntentDecision.swift in Sources */,
-				E26000000000000000000003 /* CopiedGestureEvent.swift in Sources */,
-				F20000000000000000000004 /* FullscreenIntentDecisionTests.swift in Sources */,
 				C30000000000000000000002 /* AppFallbackChipDecision.swift in Sources */,
 				C30000000000000000000003 /* AppFallbackChipDecisionTests.swift in Sources */,
 				A0000000000000000000101F /* FinderP0Tests.swift in Sources */,

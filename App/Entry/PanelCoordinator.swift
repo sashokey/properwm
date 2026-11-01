@@ -17,16 +17,8 @@ final class PanelCoordinator: NSObject {
     var isSuspendedForPermissionLoss = false
     var displayTopologySubscription: AnyCancellable?
     let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "dock-panel")
-    let fullscreenIntentLogger = Logger(
-        subsystem: "io.github.sashokey.properwm",
-        category: "FullscreenIntent"
-    )
     var fullscreenReconcileTimer: Timer?
     var workspaceObserverTokens: [NSObjectProtocol] = []
-    var fullscreenIntentRoutingEnabled = false
-    var fullscreenIntentTimeoutTimer: Timer?
-    var fullscreenIntentGeneration: UInt64 = 0
-    var fullscreenIntentTransaction: FullscreenIntentTransaction?
     var fullscreenProbeGeneration: UInt64 = 0
     var fullscreenSpaceHoldGeneration: UInt64 = 0
     var fullscreenSpaceHold: FullscreenSpaceHold?
@@ -35,9 +27,6 @@ final class PanelCoordinator: NSObject {
         DebugSwitch.overlayWindowWatch.isEnabled(in: ProcessInfo.processInfo.environment)
     var overlayWindowWatchTimer: Timer?
     var overlayWindowWatchID: CGWindowID?
-    var fullscreenSpaceIntentGeneration: UInt64?
-    var fullscreenSpaceIntentTimer: Timer?
-    var fullscreenSpaceIntentVerdictTimer: Timer?
     var lastHideWasForFullscreen = false
     static let spaceMembershipRepairEnabled =
         DebugSwitch.spaceMembershipRepair.isEnabled(in: ProcessInfo.processInfo.environment)
@@ -48,7 +37,6 @@ final class PanelCoordinator: NSObject {
     var panelsAreVisible = true
     var diagnosticFullscreenSource = "not recorded"
     var diagnosticFullscreenVerdict: Bool?
-    var onPanelScreenChanged: (() -> Void)?
     var onAccessoryWillOpen: ((PanelCoordinator, AccessoryKind) -> Void)?
 
     enum AccessoryKind { case popup }
@@ -88,11 +76,8 @@ final class PanelCoordinator: NSObject {
 
     isolated deinit {
         fullscreenReconcileTimer?.invalidate()
-        fullscreenIntentTimeoutTimer?.invalidate()
         fullscreenSpaceHoldTimer?.invalidate()
         overlayWindowWatchTimer?.invalidate()
-        fullscreenSpaceIntentTimer?.invalidate()
-        fullscreenSpaceIntentVerdictTimer?.invalidate()
         taskbarView?.taskbarContent.prepareForHiding()
         workspaceObserverTokens.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -103,17 +88,11 @@ final class PanelCoordinator: NSObject {
         DiagnosticVisibilityRecorder.shared.history.remove(unit: stripSurfaceID)
         guard !isSuspendedForPermissionLoss else { return }
         isSuspendedForPermissionLoss = true
-        fullscreenIntentRoutingEnabled = false
-        if let transaction = fullscreenIntentTransaction {
-            cancelFullscreenIntent(generation: transaction.generation, reason: "teardown")
-        }
-        fullscreenIntentTimeoutTimer?.invalidate()
-        fullscreenIntentTimeoutTimer = nil
+        fullscreenProbeGeneration &+= 1
         fullscreenSpaceHoldTimer?.invalidate()
         fullscreenSpaceHoldTimer = nil
         fullscreenSpaceHold = nil
         endOverlayWindowWatch()
-        clearFullscreenSpaceArrowIntent()
         taskbarView?.taskbarContent.prepareForHiding()
         taskbarPresenter = nil
         dockContentHost = nil
