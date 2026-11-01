@@ -282,6 +282,7 @@
 		B4D1FE58B8FC3008E1365D79 /* WindowObservationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA4067789132FB82112EBAA /* WindowObservationSession.swift */; };
 		A4484509C9902899E4DED922 /* WindowObservationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA4067789132FB82112EBAA /* WindowObservationSession.swift */; };
 		052456AB85C2E06E83E3591F /* WindowObservationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */; };
+		630CDFF43F78216DD750E6A6 /* ProcessGenerationCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3CEFC4D966C928F440C7181 /* ProcessGenerationCacheTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -465,6 +466,7 @@
 		29AD4E878265E81FB03D3F4F /* PanelLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelLifecycleTests.swift; sourceTree = "<group>"; };
 		3CA4067789132FB82112EBAA /* WindowObservationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowObservationSession.swift; sourceTree = "<group>"; };
 		83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowObservationLifecycleTests.swift; sourceTree = "<group>"; };
+		C3CEFC4D966C928F440C7181 /* ProcessGenerationCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessGenerationCacheTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -847,6 +849,7 @@
 		A00000000000000000000057 /* Unit */ = {
 			isa = PBXGroup;
 			children = (
+				C3CEFC4D966C928F440C7181 /* ProcessGenerationCacheTests.swift */,
 				83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */,
 				29AD4E878265E81FB03D3F4F /* PanelLifecycleTests.swift */,
 				9BFA278A88FB042FB54DFD43 /* WindowRestorationTests.swift */,
@@ -1178,6 +1181,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				630CDFF43F78216DD750E6A6 /* ProcessGenerationCacheTests.swift in Sources */,
 				052456AB85C2E06E83E3591F /* WindowObservationLifecycleTests.swift in Sources */,
 				A4484509C9902899E4DED922 /* WindowObservationSession.swift in Sources */,
 				A5C4F3D3F0682560434054DA /* PermissionOnboardingView.swift in Sources */,

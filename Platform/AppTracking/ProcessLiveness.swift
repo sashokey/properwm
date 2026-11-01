@@ -61,30 +61,68 @@ final class ProcessGenerationCache<Value: Sendable>: Sendable {
     private struct Entry: Sendable {
         let startTime: timeval
         let value: Value
+        let sequence: UInt64
     }
 
-    private let entries = Mutex<[pid_t: Entry]>([:])
+    private struct Storage: Sendable {
+        var entries: [pid_t: Entry] = [:]
+        var sequence: UInt64 = 0
+    }
+
+    private let storage = Mutex(Storage())
+    private let capacity: Int
     private let startTime: @Sendable (pid_t) -> timeval?
 
-    init(startTime: @escaping @Sendable (pid_t) -> timeval? = ProcessLiveness.startTime(pid:)) {
+    init(capacity: Int = 512, startTime: @escaping @Sendable (pid_t) -> timeval? = ProcessLiveness.startTime(pid:)) {
+        self.capacity = max(0, capacity)
         self.startTime = startTime
     }
 
     func remember(_ value: Value, for pid: pid_t) {
-        guard let start = startTime(pid) else { return }
-        entries.withLock { $0[pid] = Entry(startTime: start, value: value) }
+        guard capacity > 0 else { return }
+        guard let start = startTime(pid) else {
+            storage.withLock { $0.entries[pid] = nil }
+            return
+        }
+        if storage.withLock({ $0.entries[pid] == nil }) { pruneExpired() }
+        storage.withLock { state in
+            state.sequence &+= 1
+            state.entries[pid] = Entry(startTime: start, value: value, sequence: state.sequence)
+            while state.entries.count > capacity, let oldest = state.entries.min(by: { $0.value.sequence < $1.value.sequence })?.key {
+                state.entries[oldest] = nil
+            }
+        }
     }
 
     func value(for pid: pid_t) -> Value? {
-        guard let start = startTime(pid) else { return nil }
-        return entries.withLock { values in
-            guard let entry = values[pid],
-                  entry.startTime.tv_sec == start.tv_sec,
-                  entry.startTime.tv_usec == start.tv_usec else {
-                values[pid] = nil
+        let start = startTime(pid)
+        return storage.withLock { state in
+            guard let start, let entry = state.entries[pid], Self.matches(entry.startTime, start) else {
+                state.entries[pid] = nil
                 return nil
             }
             return entry.value
         }
     }
+
+    private func pruneExpired() {
+        let entries = storage.withLock { $0.entries }
+        let expired = entries.filter { pid, entry in
+            guard let current = startTime(pid) else { return true }
+            return !Self.matches(entry.startTime, current)
+        }
+        storage.withLock { state in
+            for (pid, entry) in expired where state.entries[pid]?.sequence == entry.sequence {
+                state.entries[pid] = nil
+            }
+        }
+    }
+
+    private static func matches(_ lhs: timeval, _ rhs: timeval) -> Bool {
+        lhs.tv_sec == rhs.tv_sec && lhs.tv_usec == rhs.tv_usec
+    }
+
+    #if DEBUG
+    var countForTesting: Int { storage.withLock { $0.entries.count } }
+    #endif
 }
