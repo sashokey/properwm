@@ -2,8 +2,58 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Foundation
 
-/// Observes geometry changes for only the active app's focused window.
-/// AX reads used to retarget the focused element stay off the main thread.
+enum FocusedWindowRead: Sendable {
+    case window(AXElementKey)
+    case none
+    case unavailable
+}
+
+private final class FocusedGeometryBinding: @unchecked Sendable {
+    let session: any WindowObservationSession
+    private var window: AXElementKey?
+    private var applicationRegistered = false
+    private let names = [kAXWindowMovedNotification, kAXWindowResizedNotification, kAXUIElementDestroyedNotification]
+
+    init(session: any WindowObservationSession) { self.session = session }
+
+    func registerApplication(cancellation: OperationCancellation) -> Bool {
+        if applicationRegistered { return true }
+        var complete = true
+        for name in [kAXFocusedWindowChangedNotification, kAXWindowCreatedNotification] {
+            guard !cancellation.isCancelled else { return false }
+            if !Self.accepted(session.add(name, element: nil)) { complete = false }
+        }
+        applicationRegistered = complete
+        return complete
+    }
+
+    func replaceWindow(with next: AXElementKey?, cancellation: OperationCancellation) -> Bool {
+        guard !cancellation.isCancelled else { return false }
+        let appReady = registerApplication(cancellation: cancellation)
+        if let window {
+            for name in names {
+                guard !cancellation.isCancelled else { return false }
+                session.remove(name, element: window)
+            }
+            self.window = nil
+        }
+        guard !cancellation.isCancelled else { return false }
+        guard let next else { return appReady }
+        window = next
+        var complete = appReady
+        for name in names {
+            guard !cancellation.isCancelled else { return false }
+            if !Self.accepted(session.add(name, element: next)) { complete = false }
+        }
+        return complete
+    }
+
+    private static func accepted(_ error: AXError) -> Bool {
+        error == .success || error == .notificationAlreadyRegistered || error == .notificationUnsupported
+    }
+
+}
+
 @MainActor
 final class FrontmostWindowGeometryObserver {
     enum Event {
@@ -13,268 +63,197 @@ final class FrontmostWindowGeometryObserver {
         case windowDestroyed
     }
 
+    typealias Factory = AppWindowObserver.Factory
     var onEvent: ((Event) -> Void)?
-
-    private var observer: AXObserver?
-    private var appElement: AXUIElement?
-    private var focusedElement: AXUIElement?
+    private let makeSession: Factory
+    private let readFocused: @Sendable (pid_t) -> FocusedWindowRead
+    private let queue = DispatchQueue(label: "io.github.sashokey.properwm.focused-geometry", qos: .utility)
+    private let work = AsyncWorkScope()
+    private var binding: FocusedGeometryBinding?
     private var activePID: pid_t?
-    private var observationGeneration: UInt64 = 0
-    private var refreshTask: Task<Void, Never>?
-    private var needsTrailingRefresh = false
+    private var focusedWindow: AXElementKey?
+    private var starting = false
+    private var refreshing = false
+    private var needsRefresh = false
+    private var needsRetry = false
+    private var bindingInFlight = false
+    private var needsBinding = false
+    private var needsBindingRetry = false
+    private var bindingCancellation: OperationCancellation?
 
-    /// AXObserverAddNotification / RemoveNotification are cross-process mach round-trips: they block
-    /// the caller until the *observed* app answers. Registration used to run on the main thread, and
-    /// on an app switch (restoring a minimized window activates its app) it hit the app while it was
-    /// still busy finishing the un-minimize — parking the main thread ~300–400ms, so a chip's
-    /// press-release could not paint until the window's flight ended (owner 2026-09-13). Only the
-    /// blocking add/remove IPC moves here; observer creation, the run-loop source, and all `@MainActor`
-    /// bookkeeping stay on main. Serial so per-observer registration order is preserved (a remove of
-    /// the old focused element always precedes the add of the new one). Callbacks are unaffected — they
-    /// still fire on the main run loop via the observer's run-loop source. A late registration is
-    /// covered by window-lift's activation scan + 1s idle fallback.
-    nonisolated private static let registrationQueue = DispatchQueue(
-        label: "io.github.sashokey.properwm.frontmost-ax-registration"
-    )
-
-    isolated deinit {
-        stop()
+    init(makeSession: @escaping Factory = { AXWindowObservationSession(pid: $0, receive: $1) },
+         readFocused: @escaping @Sendable (pid_t) -> FocusedWindowRead = FrontmostWindowGeometryObserver.readFocusedWindow) {
+        self.makeSession = makeSession
+        self.readFocused = readFocused
     }
 
-    func start(pid: pid_t?) {
-        activate(pid: pid)
-    }
+    func start(pid: pid_t?) { activate(pid: pid) }
 
     func activate(pid: pid_t?) {
-        if activePID == pid, observer != nil {
+        if activePID == pid, binding != nil || starting {
             requestFocusedRefresh()
             return
         }
-
         stopObservation()
-        activePID = pid
-        observationGeneration &+= 1
         guard let pid else { return }
-
-        var newObserver: AXObserver?
-        guard AXObserverCreate(pid, Self.callback, &newObserver) == .success,
-              let newObserver else { return }
-
-        let app = AXUIElementCreateApplication(pid)
-        _ = AXUIElementSetMessagingTimeout(app, 0.1)
-        // App-level registration IPC off the main thread (see `registrationQueue`). The run-loop
-        // source is added on main *first* so callbacks are wired before the notifications land.
-        CFRunLoopAddSource(
-            CFRunLoopGetMain(),
-            AXObserverGetRunLoopSource(newObserver),
-            .commonModes
-        )
-        Self.registrationQueue.async { [self] in
-            let refcon = Unmanaged.passUnretained(self).toOpaque()
-            AXObserverAddNotification(
-                newObserver,
-                app,
-                kAXFocusedWindowChangedNotification as CFString,
-                refcon
-            )
-            AXObserverAddNotification(
-                newObserver,
-                app,
-                kAXWindowCreatedNotification as CFString,
-                refcon
-            )
+        activePID = pid
+        starting = true
+        work.restart()
+        let generation = work.generation
+        let receive: @Sendable (AXElementKey, String) -> Void = { [weak self] element, name in
+            Task { @MainActor [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.handleNotification(element, name: name)
+            }
         }
-        observer = newObserver
-        appElement = app
-        requestFocusedRefresh()
+        let makeSession = makeSession
+        let queue = queue
+        let cancellation = OperationCancellation()
+        work.launch { [weak self] generation in
+            let created = await AsyncWorkScope.performBlocking(on: queue, cancellation: cancellation) {
+                guard let session = makeSession(pid, receive), !cancellation.isCancelled else {
+                    return nil as (FocusedGeometryBinding, Bool)?
+                }
+                let binding = FocusedGeometryBinding(session: session)
+                return (binding, binding.registerApplication(cancellation: cancellation))
+            }
+            await MainActor.run { [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.starting = false
+                guard let (binding, registered) = created ?? nil else { return }
+                self.binding = binding
+                self.needsBindingRetry = !registered
+                binding.session.attach()
+                self.requestFocusedRefresh()
+            }
+        }
     }
 
     func stop() {
-        activePID = nil
-        observationGeneration &+= 1
-        refreshTask?.cancel()
-        refreshTask = nil
-        needsTrailingRefresh = false
         stopObservation()
         onEvent = nil
     }
 
     private func stopObservation() {
-        // Dropping the AXObserver removes *every* notification registered on it — the
-        // app-level ones (focused-window-changed / window-created) and the focused-element
-        // ones (moved / resized / destroyed) alike — so there is no need to first call the
-        // synchronous per-element AXObserverRemoveNotification here.
-        //
-        // That explicit teardown is a cross-process mach_msg to the element of the *previous*
-        // frontmost app. During an app switch — exactly what restoring a minimized window
-        // triggers (NSWorkspace.didActivateApplication → activate(pid:) → stopObservation) —
-        // the previous app is busy and the call parks the main thread ~300–400ms. Long enough
-        // that a chip's press-release animation cannot paint until the un-minimize flight ends,
-        // which reads as "the button only springs back once the window has flown out"
-        // (owner 2026-09-13, only on restore-from-minimized, never on minimize). The app-level
-        // notifications were already relying on observer-drop cleanup; the focused element now
-        // does the same. Callers that keep the observer alive still use unregisterFocusedElement.
-        if let observer {
-            CFRunLoopRemoveSource(
-                CFRunLoopGetMain(),
-                AXObserverGetRunLoopSource(observer),
-                .commonModes
-            )
-        }
-        observer = nil
-        appElement = nil
-        focusedElement = nil
+        bindingCancellation?.cancel()
+        work.stop()
+        binding?.session.detach()
+        binding = nil
+        bindingCancellation = nil
+        activePID = nil
+        focusedWindow = nil
+        starting = false
+        refreshing = false
+        needsRefresh = false
+        needsRetry = false
+        bindingInFlight = false
+        needsBinding = false
+        needsBindingRetry = false
     }
 
     private func requestFocusedRefresh() {
-        guard let pid = activePID else { return }
-        guard refreshTask == nil else {
-            needsTrailingRefresh = true
-            return
-        }
-
-        let generation = observationGeneration
-        refreshTask = Task.detached { [weak self] in
-            let element = Self.readFocusedWindow(pid: pid)
-            guard !Task.isCancelled else { return }
+        guard let pid = activePID, binding != nil else { return }
+        guard !refreshing else { needsRefresh = true; return }
+        refreshing = true
+        let readFocused = readFocused
+        let queue = queue
+        work.launch { [weak self] generation in
+            guard let result = await AsyncWorkScope.performBlocking(on: queue, operation: { readFocused(pid) }) else { return }
             await MainActor.run { [weak self] in
-                self?.finishFocusedRefresh(
-                    element,
-                    pid: pid,
-                    generation: generation
-                )
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.refreshing = false
+                self.needsRetry = false
+                switch result {
+                case let .window(element):
+                    self.updateFocusedWindow(element)
+                    self.onEvent?(.focusedWindowChanged)
+                case .none:
+                    self.updateFocusedWindow(nil)
+                case .unavailable:
+                    self.needsRetry = true
+                }
+                if self.needsRefresh {
+                    self.needsRefresh = false
+                    self.requestFocusedRefresh()
+                }
             }
         }
     }
 
-    private func finishFocusedRefresh(
-        _ element: AXUIElement?,
-        pid: pid_t,
-        generation: UInt64
-    ) {
-        refreshTask = nil
-        guard activePID == pid, observationGeneration == generation else {
-            if needsTrailingRefresh {
-                needsTrailingRefresh = false
-                requestFocusedRefresh()
+    func retryUnavailableObservation() {
+        if binding == nil, !starting, let activePID { activate(pid: activePID); return }
+        if needsRetry, !refreshing { requestFocusedRefresh() }
+        if needsBindingRetry, !bindingInFlight { beginBinding() }
+    }
+
+    private func updateFocusedWindow(_ next: AXElementKey?) {
+        guard next != focusedWindow else { return }
+        focusedWindow = next
+        bindingCancellation?.cancel()
+        if bindingInFlight { needsBinding = true }
+        else { beginBinding() }
+    }
+
+    private func beginBinding() {
+        guard let binding else { return }
+        bindingInFlight = true
+        let next = focusedWindow
+        let cancellation = OperationCancellation()
+        bindingCancellation = cancellation
+        let queue = queue
+        work.launch { [weak self] generation in
+            let registered = await AsyncWorkScope.performBlocking(on: queue, cancellation: cancellation) {
+                binding.replaceWindow(with: next, cancellation: cancellation)
             }
-            return
-        }
-
-        if let element {
-            registerFocusedElement(element)
-            // Activation/window-created can arrive before the new window finishes settling.
-            // Once the focused element is readable and bound, request one final coalesced scan.
-            onEvent?(.focusedWindowChanged)
-        } else {
-            unregisterFocusedElement(observer: observer)
-        }
-
-        if needsTrailingRefresh {
-            needsTrailingRefresh = false
-            requestFocusedRefresh()
+            await MainActor.run { [weak self] in
+                guard let self, self.work.isCurrent(generation) else { return }
+                self.bindingInFlight = false
+                self.bindingCancellation = nil
+                self.needsBindingRetry = registered != true
+                if self.needsBinding {
+                    self.needsBinding = false
+                    self.beginBinding()
+                }
+            }
         }
     }
 
-    private func registerFocusedElement(_ element: AXUIElement) {
-        guard let observer else { return }
-        if let focusedElement, CFEqual(focusedElement, element) { return }
-
-        unregisterFocusedElement(observer: observer)
-        // Element-level registration IPC off the main thread (see `registrationQueue`).
-        Self.registrationQueue.async { [self] in
-            let refcon = Unmanaged.passUnretained(self).toOpaque()
-            AXObserverAddNotification(
-                observer,
-                element,
-                kAXWindowMovedNotification as CFString,
-                refcon
-            )
-            AXObserverAddNotification(
-                observer,
-                element,
-                kAXWindowResizedNotification as CFString,
-                refcon
-            )
-            AXObserverAddNotification(
-                observer,
-                element,
-                kAXUIElementDestroyedNotification as CFString,
-                refcon
-            )
-        }
-        focusedElement = element
-    }
-
-    private func unregisterFocusedElement(observer: AXObserver?) {
-        guard let observer, let focusedElement else {
-            self.focusedElement = nil
-            return
-        }
-        // De-registration IPC off the main thread (see `registrationQueue`); capture the element by
-        // value so the queued work removes the right one even after `focusedElement` is reassigned.
-        let element = focusedElement
-        Self.registrationQueue.async {
-            AXObserverRemoveNotification(
-                observer,
-                element,
-                kAXWindowMovedNotification as CFString
-            )
-            AXObserverRemoveNotification(
-                observer,
-                element,
-                kAXWindowResizedNotification as CFString
-            )
-            AXObserverRemoveNotification(
-                observer,
-                element,
-                kAXUIElementDestroyedNotification as CFString
-            )
-        }
-        self.focusedElement = nil
-    }
-
-    private func handleNotification(_ name: String) {
-        if name == (kAXFocusedWindowChangedNotification as String) {
+    private func handleNotification(_ element: AXElementKey, name: String) {
+        if name == kAXFocusedWindowChangedNotification {
             onEvent?(.focusedWindowChanged)
             requestFocusedRefresh()
-        } else if name == (kAXWindowCreatedNotification as String) {
+        } else if name == kAXWindowCreatedNotification {
             onEvent?(.windowCreated)
             requestFocusedRefresh()
-        } else if name == (kAXWindowMovedNotification as String)
-            || name == (kAXWindowResizedNotification as String) {
-            onEvent?(.geometryChanged)
-        } else if name == (kAXUIElementDestroyedNotification as String) {
-            onEvent?(.windowDestroyed)
-            unregisterFocusedElement(observer: observer)
-            requestFocusedRefresh()
+        } else if element == focusedWindow {
+            if name == kAXWindowMovedNotification || name == kAXWindowResizedNotification {
+                onEvent?(.geometryChanged)
+            } else if name == kAXUIElementDestroyedNotification {
+                onEvent?(.windowDestroyed)
+                updateFocusedWindow(nil)
+                requestFocusedRefresh()
+            }
         }
     }
 
-    nonisolated private static func readFocusedWindow(pid: pid_t) -> AXUIElement? {
+    nonisolated private static func readFocusedWindow(pid: pid_t) -> FocusedWindowRead {
         let app = AXUIElementCreateApplication(pid)
-        _ = AXUIElementSetMessagingTimeout(app, 0.1)
+        AXUIElementSetMessagingTimeout(app, 0.1)
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            app,
-            kAXFocusedWindowAttribute as CFString,
-            &value
-        ) == .success,
-        let value,
-        // 跨进程 AX 返回值的类型由对方进程决定，实现有 bug 的 App 可能返回别的 CF 类型。
-        // 强制转换在那里会直接 trap，代价是整条任务条崩掉——先验类型再转。
-        CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return (value as! AXUIElement)
+        let error = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
+        if error == .noValue { return .none }
+        guard error == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .unavailable }
+        return .window(AXElementKey(e: value as! AXUIElement))
     }
 
-    private static let callback: AXObserverCallback = { _, _, notification, refcon in
-        guard let refcon else { return }
-        let monitor = Unmanaged<FrontmostWindowGeometryObserver>
-            .fromOpaque(refcon)
-            .takeUnretainedValue()
-        let name = notification as String
-        MainActor.assumeIsolated {
-            monitor.handleNotification(name)
-        }
+    #if DEBUG
+    var pendingWorkForTesting: [Task<Void, Never>] { work.pendingForTesting }
+    var isObservingForTesting: Bool { binding != nil }
+    #endif
+
+    isolated deinit {
+        bindingCancellation?.cancel()
+        binding?.session.detach()
+        work.stop()
     }
 }

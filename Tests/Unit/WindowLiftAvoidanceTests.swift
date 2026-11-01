@@ -1622,28 +1622,23 @@ final class WindowLiftAvoidanceTests: XCTestCase {
         )
     }
 
-    func testPollCadenceUsesSlowIdleAndPreservesFastTrackedIntervals() {
-        XCTAssertEqual(
-            WindowLiftAvoidance.PollCadence.interval(
-                hasSessions: false,
-                hasSuppressedFrames: false,
-                isRestoring: false
-            ),
-            1.0,
-            accuracy: 0.0001
-        )
-
-        for input in [(true, false, false), (false, true, false), (false, false, true)] {
-            XCTAssertEqual(
-                WindowLiftAvoidance.PollCadence.interval(
-                    hasSessions: input.0,
-                    hasSuppressedFrames: input.1,
-                    isRestoring: input.2
-                ),
-                WindowLiftAvoidance.globalDetectionInterval,
-                accuracy: 0.0001
-            )
-        }
+    func testPollCadenceBecomesIdleAfterTheBoundedSettlingWindow() {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let target = CGRect(x: 0, y: 34, width: 100, height: 66)
+        let writing = WindowLiftAvoidance.reduce(state: .idle,
+            event: .maximizedDetected(generation: 1, at: 100, nativeFrame: frame, targetFrame: target)).state
+        let lifted = WindowLiftAvoidance.reduce(state: writing,
+            event: .writeFinished(generation: 1, at: 100.5, actualFrame: target, reliftCount: 0)).state
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [], suppressions: [], at: 100), 1)
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [writing], suppressions: [], at: 100), 0.2)
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [lifted], suppressions: [], at: 101), 0.2)
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [lifted], suppressions: [], at: 102), 1)
+        let suppressed = WindowLiftAvoidance.Suppression(nativeFrame: frame, targetFrame: target,
+            origin: .applicationResponse(standoffRounds: 1, clearedAt: 100))
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [], suppressions: [suppressed], at: 100.5), 0.2)
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [], suppressions: [suppressed], at: 102), 1)
+        let manual = WindowLiftAvoidance.Suppression(nativeFrame: frame, targetFrame: target, origin: .userChange)
+        XCTAssertEqual(WindowLiftAvoidance.PollCadence.interval(states: [], suppressions: [manual], at: 102), 1)
     }
 
     func testEventPollCoalescerStartsLeadingAndOneTrailingPoll() {

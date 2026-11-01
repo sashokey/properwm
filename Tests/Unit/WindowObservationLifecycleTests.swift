@@ -8,6 +8,7 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
     let calls = Mutex<[Bool]>([])
     let windowCalls = Mutex(0)
     let removals = Mutex(0)
+    let transientFailures = Mutex(0)
     let registered = Mutex<[AXElementKey: Set<String>]>([:])
     let gate = DispatchSemaphore(value: 0)
     let blockWindows: Bool
@@ -20,6 +21,12 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
         if let element {
             windowCalls.withLock { $0 += 1 }
             if blockWindows { _ = gate.wait(timeout: .now() + 2) }
+            let failed = transientFailures.withLock { value in
+                guard value > 0 else { return false }
+                value -= 1
+                return true
+            }
+            if failed { return .cannotComplete }
             registered.withLock { $0[element, default: []].insert(notification) }
         }
         return .success
@@ -35,6 +42,145 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
 
 @MainActor
 final class WindowObservationLifecycleTests: XCTestCase {
+    func testGeometryRegistrationRetriesTransientFailureOnFallbackWithoutBusyLoop() async {
+        let fixture = ObservationFixture()
+        fixture.transientFailures.withLock { $0 = 1 }
+        let key = AXElementKey(e: AXUIElementCreateApplication(42))
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in fixture }, readFocused: { _ in .window(key) })
+        observer.start(pid: 42)
+        await waitUntil { fixture.windowCalls.withLock { $0 } == 3 }
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(fixture.registered.withLock { $0[key]?.count }, 2)
+        XCTAssertEqual(fixture.windowCalls.withLock { $0 }, 3)
+        observer.retryUnavailableObservation()
+        await waitUntil { fixture.registered.withLock { $0[key]?.count == 3 } }
+        for task in observer.pendingWorkForTesting { await task.value }
+        observer.retryUnavailableObservation()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(fixture.windowCalls.withLock { $0 }, 6)
+        observer.stop()
+    }
+
+    func testUnavailableFocusPreservesRegistrationAndRetriesOnlyUntilRecovery() async {
+        let session = ObservationFixture()
+        let old = AXElementKey(e: AXUIElementCreateApplication(42))
+        let next = AXElementKey(e: AXUIElementCreateApplication(43))
+        let response = Mutex(FocusedWindowRead.window(old))
+        let reads = Mutex(0)
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in session }, readFocused: { _ in
+            reads.withLock { $0 += 1 }
+            return response.withLock { $0 }
+        })
+        observer.start(pid: 42)
+        await waitUntil { session.registered.withLock { $0[old]?.count == 3 } }
+        response.withLock { $0 = .unavailable }
+        observer.activate(pid: 42)
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(session.registered.withLock { $0[old]?.count }, 3)
+        XCTAssertEqual(session.removals.withLock { $0 }, 0)
+        response.withLock { $0 = .window(next) }
+        observer.retryUnavailableObservation()
+        await waitUntil { session.registered.withLock { $0[next]?.count == 3 } }
+        for task in observer.pendingWorkForTesting { await task.value }
+        observer.retryUnavailableObservation()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(reads.withLock { $0 }, 3)
+        XCTAssertTrue(session.registered.withLock { $0[old]?.isEmpty == true })
+        observer.stop()
+    }
+
+    func testGeometryObserverStopsFurtherRegistrationAndRejectsOldCallbacksAfterSwitch() async {
+        let old = ObservationFixture(blockWindows: true)
+        let replacement = ObservationFixture()
+        let callbacks = Mutex<[@Sendable (AXElementKey, String) -> Void]>([])
+        let observer = FrontmostWindowGeometryObserver(makeSession: { pid, receive in
+            callbacks.withLock { $0.append(receive) }
+            return pid == 42 ? old : replacement
+        }, readFocused: { .window(AXElementKey(e: AXUIElementCreateApplication($0))) })
+        var geometryEvents = 0
+        observer.onEvent = { if case .geometryChanged = $0 { geometryEvents += 1 } }
+        observer.start(pid: 42)
+        await waitUntil { old.windowCalls.withLock { $0 } == 1 }
+        let pending = observer.pendingWorkForTesting
+        observer.activate(pid: 43)
+        old.gate.signal()
+        for task in pending { await task.value }
+        await waitUntil { replacement.windowCalls.withLock { $0 } == 3 }
+        XCTAssertEqual(old.windowCalls.withLock { $0 }, 1)
+        XCTAssertEqual(old.detachments, 1)
+        let receivers = callbacks.withLock { $0 }
+        XCTAssertEqual(receivers.count, 2)
+        receivers[0](AXElementKey(e: AXUIElementCreateApplication(42)), kAXWindowMovedNotification)
+        receivers[1](AXElementKey(e: AXUIElementCreateApplication(43)), kAXWindowMovedNotification)
+        await waitUntil { geometryEvents == 1 }
+        XCTAssertFalse(old.calls.withLock { $0.contains(true) })
+        XCTAssertFalse(replacement.calls.withLock { $0.contains(true) })
+        observer.stop()
+        XCTAssertEqual(replacement.detachments, 1)
+    }
+
+    func testGeometryObserverSkipsObsoleteStartupsQueuedBehindABlockedFactory() async {
+        let session = ObservationFixture()
+        let pids = Mutex<[pid_t]>([])
+        let gate = DispatchSemaphore(value: 0)
+        let observer = FrontmostWindowGeometryObserver(makeSession: { pid, _ in
+            pids.withLock { $0.append(pid) }
+            if pid == 42 { _ = gate.wait(timeout: .now() + 2) }
+            return session
+        }, readFocused: { _ in .none })
+        observer.start(pid: 42)
+        await waitUntil { pids.withLock { !$0.isEmpty } }
+        for pid in Int32(43)...62 { observer.activate(pid: pid) }
+        gate.signal()
+        await waitUntil { observer.isObservingForTesting }
+        XCTAssertEqual(pids.withLock { $0 }, [42, 62])
+        XCTAssertEqual(session.attachments, 1)
+        XCTAssertEqual(session.calls.withLock { $0.count }, 2)
+        observer.stop()
+    }
+
+    func testGeometryObserverStopDuringFocusedReadNeverRegistersTheLateWindow() async {
+        let session = ObservationFixture()
+        let reading = Mutex(false)
+        let gate = DispatchSemaphore(value: 0)
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in session }, readFocused: { pid in
+            reading.withLock { $0 = true }
+            _ = gate.wait(timeout: .now() + 2)
+            return .window(AXElementKey(e: AXUIElementCreateApplication(pid)))
+        })
+        observer.start(pid: 42)
+        await waitUntil { reading.withLock { $0 } }
+        let pending = observer.pendingWorkForTesting
+        observer.stop()
+        gate.signal()
+        for task in pending { await task.value }
+        XCTAssertEqual(session.windowCalls.withLock { $0 }, 0)
+        XCTAssertFalse(observer.isObservingForTesting)
+        XCTAssertEqual(session.detachments, 1)
+    }
+
+    func testGeometryObserverCoalescesFocusChangesAndReleasesOldWindow() async {
+        let session = ObservationFixture()
+        let old = AXElementKey(e: AXUIElementCreateApplication(42))
+        let next = AXElementKey(e: AXUIElementCreateApplication(43))
+        let focused = Mutex(old)
+        let reads = Mutex(0)
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in session }, readFocused: { _ in
+            reads.withLock { $0 += 1 }
+            return .window(focused.withLock { $0 })
+        })
+        observer.start(pid: 42)
+        await waitUntil { session.windowCalls.withLock { $0 } == 3 }
+        focused.withLock { $0 = next }
+        for _ in 0..<100 { observer.activate(pid: 42) }
+        await waitUntil { session.registered.withLock { $0[next]?.count == 3 } }
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertLessThanOrEqual(reads.withLock { $0 }, 3)
+        XCTAssertTrue(session.registered.withLock { $0[old]?.isEmpty == true })
+        XCTAssertEqual(session.removals.withLock { $0 }, 3)
+        observer.stop()
+    }
+
     private func waitUntil(_ predicate: () -> Bool) async {
         let deadline = ContinuousClock.now + .seconds(2)
         while !predicate(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }

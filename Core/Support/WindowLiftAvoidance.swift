@@ -2,7 +2,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 
-struct WindowLiftAvoidanceContext: Equatable {
+struct WindowLiftAvoidanceContext: Equatable, Sendable {
     /// AppKit global geometry used to calculate the lifted target frame.
     let geometry: WindowLiftAvoidance.Geometry
     /// CG/Quartz global geometry used by the front-to-back window scan.
@@ -45,14 +45,21 @@ enum WindowLiftAvoidance {
     enum PollCadence {
         static let idleInterval: TimeInterval = 1.0
 
-        static func interval(
-            hasSessions: Bool,
-            hasSuppressedFrames: Bool,
-            isRestoring: Bool
-        ) -> TimeInterval {
-            hasSessions || hasSuppressedFrames || isRestoring
-                ? globalDetectionInterval
-                : idleInterval
+        static func needsFastProbe(_ state: SessionState, at now: TimeInterval) -> Bool {
+            switch state {
+            case .idle: return false
+            case .writing: return true
+            case let .lifted(session): return now < session.settledAt + appReassertWindow
+            case let .abandoned(session): return now < session.abandonedAt + appReassertWindow
+            }
+        }
+
+        static func interval(states: [SessionState], suppressions: [Suppression], at now: TimeInterval) -> TimeInterval {
+            let settling = states.contains { needsFastProbe($0, at: now) } || suppressions.contains {
+                if case let .applicationResponse(_, clearedAt) = $0.origin { return now < clearedAt + appReassertWindow }
+                return false
+            }
+            return settling ? globalDetectionInterval : idleInterval
         }
     }
 
@@ -99,12 +106,12 @@ enum WindowLiftAvoidance {
     }
 
     /// cgWindowID 只在窗口仍存活的本轮会话内使用；控制器必须按 CG 全表定期 prune。
-    struct WindowKey: Hashable {
+    struct WindowKey: Hashable, Sendable {
         let pid: pid_t
         let cgWindowID: CGWindowID
     }
 
-    struct Geometry: Equatable {
+    struct Geometry: Equatable, Sendable {
         /// AppKit global coordinates (bottom-left origin).
         let screenFrame: CGRect
         let visibleFrame: CGRect

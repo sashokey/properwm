@@ -6,12 +6,12 @@ import os
 
 private let windowLiftAXMessagingTimeout: TimeInterval = 0.1
 
-struct WindowLiftCGCandidate: Equatable {
+struct WindowLiftCGCandidate: Equatable, Sendable {
     let key: WindowLiftAvoidance.WindowKey
     let quartzFrame: CGRect
 }
 
-struct WindowLiftCGScanResult {
+struct WindowLiftCGScanResult: Sendable {
     /// 每块屏（按传入的 `screenCGFrames` 下标）各自的前台大窗候选；没有的屏不在字典里。
     let candidatesByScreenIndex: [Int: WindowLiftCGCandidate]
     let onScreenFrames: [WindowLiftAvoidance.WindowKey: CGRect]
@@ -197,6 +197,26 @@ enum WindowLiftCGWindowProbe {
     }
 }
 
+protocol WindowLiftWindowProbing: Sendable {
+    func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
+                 includeLiveWindowKeys: Bool, includesTiles: Bool,
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult
+    func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect]
+}
+
+struct LiveWindowLiftProbe: WindowLiftWindowProbing {
+    func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
+                 includeLiveWindowKeys: Bool, includesTiles: Bool,
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+        WindowLiftCGWindowProbe.capture(on: contexts, excludingPID: excludingPID,
+            includeLiveWindowKeys: includeLiveWindowKeys, includesTiles: includesTiles, trackedKeys: trackedKeys)
+    }
+
+    func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect] {
+        WindowLiftCGWindowProbe.frames(for: keys)
+    }
+}
+
 @MainActor
 final class WindowLiftAvoidanceController {
     private typealias ManagedFrames = WindowRestorationFrames
@@ -269,7 +289,7 @@ final class WindowLiftAvoidanceController {
     private var restoreTask: Task<Void, Never>?
     private var writeTasks: [WindowLiftAvoidance.WindowKey: Task<Void, Never>] = [:]
     private var writeDrainTasks: [
-        WindowLiftAvoidance.WindowKey: [Task<Void, Never>]
+        WindowLiftAvoidance.WindowKey: [UUID: Task<Void, Never>]
     ] = [:]
     private var workspaceObservers: [NSObjectProtocol] = []
     private var geometryObserver: FrontmostWindowGeometryObserver?
@@ -281,7 +301,6 @@ final class WindowLiftAvoidanceController {
     private var lastTraceClassifications: [
         WindowLiftAvoidance.WindowKey: WindowLiftAvoidance.FrameClassification
     ] = [:]
-    /// 宿主上一次给出的上下文集合（每屏一份）。集合一变 = 还原全部已抬窗口、重扫（今天换屏行为的推广）。
     private var lastContexts: [WindowLiftAvoidanceContext] = []
     /// 每个会话归属的那块屏的上下文（多屏下各会话不同屏）。随 `states` 增删，探测时按它分别处理。
     private var sessionContexts: [WindowLiftAvoidance.WindowKey: WindowLiftAvoidanceContext] = [:]
@@ -312,6 +331,9 @@ final class WindowLiftAvoidanceController {
     /// 否则迟到的 rollback 会盖掉还原结果。
     private var pendingDrains: [Task<Void, Never>] = []
     private let isTrustedProbe: () -> Bool
+    private let windowProbe: any WindowLiftWindowProbing
+    private let uptime: @Sendable () -> TimeInterval
+    private var pendingRestorationDrains: [Task<Void, Never>] = []
 
     typealias RestoreWindow = @Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames, timeval?, Set<WindowLiftAvoidance.WindowKey>?, OperationCancellation) -> WindowRestorationOutcome
     private let restoreWindow: RestoreWindow
@@ -323,11 +345,15 @@ final class WindowLiftAvoidanceController {
              WindowRestorer(access: AXWindowRestorationAccess()).restore(key: key, frames: frames,
                  expectedStartTime: start, liveWindowKeys: live, cancellation: cancellation)
          },
-         restorationWindowKeys: @escaping @Sendable () -> Set<WindowLiftAvoidance.WindowKey>? = WindowLiftCGWindowProbe.liveWindowKeys) {
+         restorationWindowKeys: @escaping @Sendable () -> Set<WindowLiftAvoidance.WindowKey>? = WindowLiftCGWindowProbe.liveWindowKeys,
+         windowProbe: any WindowLiftWindowProbing = LiveWindowLiftProbe(),
+         uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.host = host
         self.isTrustedProbe = isTrustedProbe
         self.restoreWindow = restoreWindow
         self.restorationWindowKeys = restorationWindowKeys
+        self.windowProbe = windowProbe
+        self.uptime = uptime
     }
 
     // MARK: - 权限冻结
@@ -397,9 +423,11 @@ final class WindowLiftAvoidanceController {
             task.cancel()
             pendingDrains.append(task)
         }
-        for tasks in writeDrainTasks.values { pendingDrains.append(contentsOf: tasks) }
+        for tasks in writeDrainTasks.values { pendingDrains.append(contentsOf: tasks.values) }
         writeTasks.removeAll()
         writeDrainTasks.removeAll()
+        pendingDrains.append(contentsOf: pendingRestorationDrains)
+        pendingRestorationDrains.removeAll()
         restoreGeneration &+= 1
         if let restoreTask {
             restoreTask.cancel()
@@ -446,8 +474,9 @@ final class WindowLiftAvoidanceController {
     isolated deinit {
         stopMonitoring()
         for task in writeTasks.values { task.cancel() }
-        for tasks in writeDrainTasks.values { for task in tasks { task.cancel() } }
+        for tasks in writeDrainTasks.values { for task in tasks.values { task.cancel() } }
         restoreTask?.cancel()
+        for task in pendingRestorationDrains { task.cancel() }
     }
 
     func start(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -557,8 +586,11 @@ final class WindowLiftAvoidanceController {
 
     private func poll() {
         guard isEnabled, ensureTrustedOrFreeze() else { return }
+        updatePollTimerLifecycle()
+        updateTrackedProbeLifecycle()
+        geometryObserver?.retryUnavailableObservation()
         if !pendingRestorations.isEmpty, restoreTask == nil,
-           ProcessInfo.processInfo.systemUptime >= nextRestoreRetryAt {
+           uptime() >= nextRestoreRetryAt {
             launchRestoreTask(cancelledWrites: [])
         }
         let contexts = hostContexts()
@@ -574,14 +606,12 @@ final class WindowLiftAvoidanceController {
         let selfPID = pid_t(ProcessInfo.processInfo.processIdentifier)
         let includesTiles = includesTiles
         let trackedKeys = Set(states.keys)
+        let probe = windowProbe
         scanTask = Task.detached { [weak self] in
-            let result = WindowLiftCGWindowProbe.capture(
-                on: contexts,
-                excludingPID: selfPID,
-                includeLiveWindowKeys: tracked,
-                includesTiles: includesTiles,
-                trackedKeys: trackedKeys
-            )
+            guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
+                probe.capture(on: contexts, excludingPID: selfPID, includeLiveWindowKeys: tracked,
+                              includesTiles: includesTiles, trackedKeys: trackedKeys)
+            }) else { return }
             guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 self?.handleScanResult(
@@ -603,9 +633,7 @@ final class WindowLiftAvoidanceController {
         }
 
         let interval = WindowLiftAvoidance.PollCadence.interval(
-            hasSessions: !states.isEmpty,
-            hasSuppressedFrames: !suppressedFrames.isEmpty,
-            isRestoring: restoreTask != nil
+            states: Array(states.values), suppressions: Array(suppressedFrames.values), at: uptime()
         )
         guard pollTimer == nil || pollTimerInterval != interval else { return }
 
@@ -628,8 +656,6 @@ final class WindowLiftAvoidanceController {
         pollTimer = timer
         pollTimerInterval = interval
 
-        // The old fixed 0.2s timer always supplied one more convergence scan after a
-        // transient validation/session clear. Preserve that behavior when dropping to idle.
         if previousInterval == WindowLiftAvoidance.globalDetectionInterval,
            interval == WindowLiftAvoidance.PollCadence.idleInterval {
             Task { @MainActor [weak self] in self?.requestEventPoll() }
@@ -643,7 +669,7 @@ final class WindowLiftAvoidanceController {
     private func requestEventPoll() {
         guard isEnabled, !usesFastPollCadence else { return }
         let action = eventPollCoalescer.request(
-            at: ProcessInfo.processInfo.systemUptime,
+            at: uptime(),
             scanInFlight: scanInFlight
         )
         performEventPollAction(action, trailing: false)
@@ -652,7 +678,7 @@ final class WindowLiftAvoidanceController {
     private func finishEventPollAfterScan() {
         guard isEnabled, !usesFastPollCadence else { return }
         let action = eventPollCoalescer.scanCompleted(
-            at: ProcessInfo.processInfo.systemUptime
+            at: uptime()
         )
         performEventPollAction(action, trailing: true)
     }
@@ -680,7 +706,7 @@ final class WindowLiftAvoidanceController {
                     guard let self else { return }
                     self.eventPollTimer = nil
                     let action = self.eventPollCoalescer.cooldownFired(
-                        at: ProcessInfo.processInfo.systemUptime,
+                        at: uptime(),
                         scanInFlight: self.scanInFlight
                     )
                     self.performEventPollAction(action, trailing: true)
@@ -704,8 +730,13 @@ final class WindowLiftAvoidanceController {
         )
     }
 
+    private var fastProbeKeys: Set<WindowLiftAvoidance.WindowKey> {
+        let now = uptime()
+        return Set(states.compactMap { WindowLiftAvoidance.PollCadence.needsFastProbe($0.value, at: now) ? $0.key : nil })
+    }
+
     private func updateTrackedProbeLifecycle() {
-        guard isEnabled, !states.isEmpty, restoreTask == nil else {
+        guard isEnabled, !fastProbeKeys.isEmpty, restoreTask == nil else {
             stopTrackedProbe()
             return
         }
@@ -740,8 +771,7 @@ final class WindowLiftAvoidanceController {
             return
         }
 
-        sessionContexts = sessionContexts.filter { states[$0.key] != nil }
-        let keys = Set(states.keys)
+        let keys = fastProbeKeys
         guard !keys.isEmpty else {
             updateTrackedProbeLifecycle()
             return
@@ -751,8 +781,9 @@ final class WindowLiftAvoidanceController {
         let generation = trackedProbeGeneration
         nextGeneration &+= 1
         let observationGeneration = nextGeneration
+        let probe = windowProbe
         trackedProbeTask = Task.detached { [weak self] in
-            let frames = WindowLiftCGWindowProbe.frames(for: keys)
+            guard let frames = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: { probe.frames(for: keys) }) else { return }
             guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 self?.handleTrackedProbeResult(
@@ -780,7 +811,6 @@ final class WindowLiftAvoidanceController {
         guard restoreTask == nil else { return }
 
         for (key, quartzFrame) in quartzFrames {
-            // 会话归属的屏必须仍在集合里；不在（那块屏的条藏了 / 拔了）的由 reconcileContexts 已整体还原。
             guard let context = sessionContexts[key], contexts.contains(context) else { continue }
             _ = handleTrackedObservation(
                 quartzFrame,
@@ -832,7 +862,7 @@ final class WindowLiftAvoidanceController {
             state: state,
             event: .nonMaximizedObserved(
                 generation: observationGeneration,
-                at: ProcessInfo.processInfo.systemUptime,
+                at: uptime(),
                 frame: appKitFrame
             )
         )
@@ -852,23 +882,16 @@ final class WindowLiftAvoidanceController {
         return true
     }
 
-    /// 上下文**集合**一变（某块屏的条显隐 / 换档 / 拔插屏）→ 还原全部已抬窗口、下一轮重扫（≤0.2s 重抬）。
-    /// 这是单屏时代「换屏即还原」行为的推广；按屏做增量还原留待有人报「另一块屏的窗口跟着跳」时再做。
     private func reconcileContexts(_ contexts: [WindowLiftAvoidanceContext]) {
-        guard canMutateSessions() else { return }
-        guard contexts != lastContexts else { return }
-        observationWatermarks.removeAll()
-        clearAllSuppressions()
+        guard canMutateSessions(), contexts != lastContexts else { return }
         scanGeneration &+= 1
         scanTask?.cancel()
         scanTask = nil
         scanInFlight = false
-        updatePollTimerLifecycle()
-
-        if !lastContexts.isEmpty {
-            restoreSettledWindowsAndClearSessions()
-        }
+        let retired = Set(sessionContexts.compactMap { contexts.contains($0.value) ? nil : $0.key })
         lastContexts = contexts
+        if !retired.isEmpty { restoreWindowsAndClearSessions(retired) }
+        updatePollTimerLifecycle()
     }
 
     private func handleScanResult(
@@ -941,7 +964,7 @@ final class WindowLiftAvoidanceController {
             traceClassification(classification, for: candidate.key)
             switch suppressed.decision(
                 for: appKitFrame, geometry: context.geometry,
-                includesTiles: includesTiles, at: ProcessInfo.processInfo.systemUptime
+                includesTiles: includesTiles, at: uptime()
             ) {
             case .hold:
                 return false
@@ -976,7 +999,7 @@ final class WindowLiftAvoidanceController {
         if let carriedStandoffRounds, states[candidate.key] == nil {
             event = .detourReturnObserved(
                 generation: operationGeneration,
-                at: ProcessInfo.processInfo.systemUptime,
+                at: uptime(),
                 nativeFrame: appKitFrame,
                 targetFrame: targetFrame,
                 standoffRounds: carriedStandoffRounds
@@ -991,7 +1014,7 @@ final class WindowLiftAvoidanceController {
         } else {
             event = .maximizedDetected(
                 generation: operationGeneration,
-                at: ProcessInfo.processInfo.systemUptime,
+                at: uptime(),
                 nativeFrame: appKitFrame,
                 targetFrame: targetFrame
             )
@@ -1050,7 +1073,7 @@ final class WindowLiftAvoidanceController {
             // Read the era off the state the external frame is about to clear.
             let userEra = WindowLiftAvoidance.externalFrameIsUserEra(
                 state: states[candidate.key] ?? .idle,
-                at: ProcessInfo.processInfo.systemUptime
+                at: uptime()
             )
             clearManagedSession(
                 for: candidate.key,
@@ -1108,7 +1131,7 @@ final class WindowLiftAvoidanceController {
 
         let animate = usesAnimatedLift
         let reader = AXWindowReader()
-        var drains = writeDrainTasks.removeValue(forKey: key) ?? []
+        var drains = writeDrainTasks.removeValue(forKey: key).map { Array($0.values) } ?? []
         if let previousWriter = writeTasks.removeValue(forKey: key) {
             previousWriter.cancel()
             drains.append(previousWriter)
@@ -1986,7 +2009,7 @@ final class WindowLiftAvoidanceController {
             validationGenerations.removeValue(forKey: key)
         }
         writeTasks.removeValue(forKey: key)
-        let finishedAt = ProcessInfo.processInfo.systemUptime
+        let finishedAt = uptime()
 
         switch outcome {
         case .cancelled:
@@ -2156,41 +2179,37 @@ final class WindowLiftAvoidanceController {
     }
 
     private func restoreSettledWindowsAndClearSessions() {
+        restoreWindowsAndClearSessions(Set(states.keys).union(suppressedFrames.keys).union(writeTasks.keys).union(writeDrainTasks.keys))
+    }
+
+    private func restoreWindowsAndClearSessions(_ keys: Set<WindowLiftAvoidance.WindowKey>) {
         guard canMutateSessions() else { return }
-
-        let cancelledWrites = Array(writeTasks.values) + writeDrainTasks.values.flatMap { $0 }
-        for task in cancelledWrites { task.cancel() }
-        writeTasks.removeAll()
-        writeDrainTasks.removeAll()
-
-        // 待还原数据入列即归控制器所有，还原成功一项才移除——这样中途失权时
-        // 冻结机制接管得到这批数据，恢复授权后还能接着还。
-        for (key, state) in states {
-            guard let frames = managedFrames[key] else { continue }
-            switch state {
-            case .writing, .lifted, .abandoned:
+        var cancelledWrites: [Task<Void, Never>] = []
+        for key in keys {
+            if let task = writeTasks.removeValue(forKey: key) { task.cancel(); cancelledWrites.append(task) }
+            cancelledWrites.append(contentsOf: writeDrainTasks.removeValue(forKey: key).map { Array($0.values) } ?? [])
+            if let state = states[key], state != .idle, let frames = managedFrames[key] {
                 pendingRestorations[key] = frames
                 pendingRestorationStartTimes[key] = ProcessLiveness.startTime(pid: key.pid)
-            case .idle:
-                break
             }
+            states.removeValue(forKey: key)
+            sessionContexts.removeValue(forKey: key)
+            managedFrames.removeValue(forKey: key)
+            suppressedFrames.removeValue(forKey: key)
+            observationWatermarks.removeValue(forKey: key)
+            validationGenerations.removeValue(forKey: key)
+            lastTraceClassifications.removeValue(forKey: key)
         }
-
-        states.removeAll()
-        sessionContexts.removeAll()
-        managedFrames.removeAll()
-        clearAllSuppressions()
-        observationWatermarks.removeAll()
-        validationGenerations.removeAll()
-        lastTraceClassifications.removeAll()
         stopTrackedProbe()
         launchRestoreTask(cancelledWrites: cancelledWrites)
+        updateTrackedProbeLifecycle()
     }
 
     /// One pass over `pendingRestorations`, after `cancelledWrites` have drained. Scans and the
     /// tracked probe pause while it runs (`restoreTask`), so nothing re-lifts a window mid-restore.
     private func launchRestoreTask(cancelledWrites: [Task<Void, Never>]) {
-        guard !pendingRestorations.isEmpty || !cancelledWrites.isEmpty, restoreTask == nil else {
+        pendingRestorationDrains.append(contentsOf: cancelledWrites)
+        guard !pendingRestorations.isEmpty || !pendingRestorationDrains.isEmpty, restoreTask == nil else {
             updatePollTimerLifecycle()
             return
         }
@@ -2202,6 +2221,8 @@ final class WindowLiftAvoidanceController {
         let restoreWindow = restoreWindow
         let windowKeys = restorationWindowKeys
         let cancellation = OperationCancellation()
+        let cancelledWrites = pendingRestorationDrains
+        pendingRestorationDrains.removeAll()
         restoreTask = Task.detached { [weak self] in
             for task in cancelledWrites { await task.value }
             let deadline = ProcessInfo.processInfo.systemUptime + 2
@@ -2227,15 +2248,16 @@ final class WindowLiftAvoidanceController {
             await MainActor.run { [weak self] in
                 guard let self, self.restoreGeneration == generation else { return }
                 self.restoreTask = nil
-                self.nextRestoreRetryAt = ProcessInfo.processInfo.systemUptime + 5
+                self.nextRestoreRetryAt = self.uptime() + 5
                 if !self.pendingRestorations.isEmpty {
                     self.logger.error("window restoration pending count=\(self.pendingRestorations.count, privacy: .public)")
                 }
-                if self.pendingRestorations.keys.contains(where: { items[$0] == nil }) {
+                if !self.pendingRestorationDrains.isEmpty || self.pendingRestorations.keys.contains(where: { items[$0] == nil }) {
                     self.launchRestoreTask(cancelledWrites: [])
                     return
                 }
                 self.updatePollTimerLifecycle()
+                self.updateTrackedProbeLifecycle()
                 if self.isEnabled { self.poll() }
             }
         }
@@ -2243,6 +2265,36 @@ final class WindowLiftAvoidanceController {
     }
 
     #if DEBUG
+    func installSessionForTesting(key: WindowLiftAvoidance.WindowKey, context: WindowLiftAvoidanceContext,
+                                  frames: WindowRestorationFrames, state: WindowLiftAvoidance.SessionState,
+                                  writer: Task<Void, Never>? = nil) {
+        states[key] = state
+        managedFrames[key] = frames
+        sessionContexts[key] = context
+        writeTasks[key] = writer
+    }
+    func reconcileContextsForTesting(_ contexts: [WindowLiftAvoidanceContext]) { reconcileContexts(contexts) }
+    func enableMonitoringForTesting() {
+        isEnabled = true
+        refreshCadenceForTesting()
+    }
+    func refreshCadenceForTesting() {
+        updatePollTimerLifecycle()
+        updateTrackedProbeLifecycle()
+    }
+    func pollForTesting() { poll() }
+    func probeTrackedFramesForTesting() { probeTrackedFrames() }
+    func geometryEventForTesting() { requestEventPoll() }
+    func sessionForTesting(_ key: WindowLiftAvoidance.WindowKey) -> WindowLiftAvoidance.SessionState? { states[key] }
+    var pollIntervalForTesting: TimeInterval? { pollTimerInterval }
+    var trackedIntervalForTesting: TimeInterval? { trackedProbeTimer?.timeInterval }
+    var pendingWorkForTesting: [Task<Void, Never>] { [scanTask, trackedProbeTask, restoreTask].compactMap { $0 } }
+
+    func clearSessionForTesting(_ key: WindowLiftAvoidance.WindowKey) {
+        clearManagedSession(for: key, cancelWriter: true, reason: "test")
+    }
+    var retainedWriterCountForTesting: Int { writeDrainTasks.values.reduce(0) { $0 + $1.count } }
+
     func enqueueRestorationForTesting(key: WindowLiftAvoidance.WindowKey, frames: WindowRestorationFrames) {
         pendingRestorations[key] = frames
     }
@@ -2287,7 +2339,7 @@ final class WindowLiftAvoidanceController {
         }
         if cancelWriter, let writer = writeTasks.removeValue(forKey: key) {
             writer.cancel()
-            writeDrainTasks[key, default: []].append(writer)
+            retainCancelledWriter(writer, for: key)
         } else {
             writeTasks.removeValue(forKey: key)
         }
@@ -2309,7 +2361,7 @@ final class WindowLiftAvoidanceController {
                 nativeFrame: frames.nativeAppKit, targetFrame: frames.targetAppKit,
                 origin: .applicationResponse(
                     standoffRounds: previous.map(Self.standoffRounds(of:)) ?? 0,
-                    clearedAt: ProcessInfo.processInfo.systemUptime
+                    clearedAt: uptime()
                 )
             )
         default:
@@ -2325,12 +2377,20 @@ final class WindowLiftAvoidanceController {
         updatePollTimerLifecycle()
     }
 
-    private func clearSuppression(for key: WindowLiftAvoidance.WindowKey) {
-        suppressedFrames.removeValue(forKey: key)
+    private func retainCancelledWriter(_ writer: Task<Void, Never>, for key: WindowLiftAvoidance.WindowKey) {
+        let id = UUID()
+        writeDrainTasks[key, default: [:]][id] = writer
+        Task { @MainActor [weak self] in
+            await writer.value
+            guard let self else { return }
+            self.writeDrainTasks[key]?.removeValue(forKey: id)
+            if self.writeDrainTasks[key]?.isEmpty == true { self.writeDrainTasks.removeValue(forKey: key) }
+        }
     }
 
-    private func clearAllSuppressions() {
-        suppressedFrames.removeAll()
+    private func clearSuppression(for key: WindowLiftAvoidance.WindowKey) {
+        suppressedFrames.removeValue(forKey: key)
+        if states[key] == nil { sessionContexts.removeValue(forKey: key) }
     }
 
     private static func standoffRounds(of state: WindowLiftAvoidance.SessionState) -> Int {
