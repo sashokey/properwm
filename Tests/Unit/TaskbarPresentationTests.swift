@@ -61,4 +61,16 @@ final class TaskbarPresentationTests: XCTestCase {
         let layout = TaskbarButtonLayout(id: "group:editor", groupID: group.id, windowIDs: ["a", "b"], isCombined: true, frame: .zero)
         XCTAssertEqual(TaskbarContextMenuModel.actions(button: layout, group: group), [.closeWindows(["a", "b"]), .quitApplication])
     }
+
+    func testWindowsOnOtherSpacesAreExcludedFromCombinedGroupsAndCloseActions() {
+        let items = [item("a"), item("b", status: .minimized), item("fullscreen")]
+        let spaces = WindowSpaceSnapshot(layouts: ["left": SpaceLayoutSnapshot(orderedSpaceIDs: [1, 2], fullscreenSpaceIDs: [2], currentSpaceID: 1)],
+            memberships: Dictionary(uniqueKeysWithValues: items.map { ($0.spaceIdentity!, Set([$0.id == "fullscreen" ? 2 : 1])) }))
+        let result = TaskbarPresentation.groups(items: items, order: items.map(\.id),
+            filter: StripDisplayFilter(scope: "left", connectedUUIDs: ["left"], primaryUUID: "left"),
+            titles: [:], optimisticStates: [:], spaces: spaces, appName: { $0.appID })
+        XCTAssertEqual(result[0].windows.map(\.id), ["a", "b"])
+        let button = TaskbarButtonLayout(id: "group:editor", groupID: result[0].id, windowIDs: result[0].windows.map(\.id), isCombined: true, frame: .zero)
+        XCTAssertEqual(TaskbarContextMenuModel.actions(button: button, group: result[0]), [.closeWindows(["a", "b"]), .quitApplication])
+    }
 }

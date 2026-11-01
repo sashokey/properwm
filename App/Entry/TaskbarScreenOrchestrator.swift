@@ -16,6 +16,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     private let runtime: AppRuntime
     private let stripOrderStore: StripOrderStore
     private let displayTopologyStore: DisplayTopologyStore
+    private let spaceStore: TaskbarSpaceStore
     private let topologySnapshotProvider: @MainActor () -> ScreenTopologySnapshot
     private let startCoordinator: (PanelCoordinator) -> Bool
     private let topologyRetryScheduler: DisplayTopologyRefreshController.ScheduleAfter
@@ -35,6 +36,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         runtime: AppRuntime,
         stripOrderStore: StripOrderStore,
         displayTopologyStore: DisplayTopologyStore,
+        spaceStore: TaskbarSpaceStore = TaskbarSpaceStore(),
         topologySnapshotProvider: @escaping @MainActor () -> ScreenTopologySnapshot = {
             DisplayIdentity.topologySnapshot()
         },
@@ -48,6 +50,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
         self.displayTopologyStore = displayTopologyStore
+        self.spaceStore = spaceStore
         self.topologySnapshotProvider = topologySnapshotProvider
         self.topologyRetryScheduler = topologyRetryScheduler
         self.startCoordinator = startCoordinator
@@ -55,6 +58,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     isolated deinit {
+        spaceStore.stop()
         topologyRefreshController?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
@@ -65,6 +69,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         let seedController = makeTopologyRefreshController()
         topologyRefreshController = seedController
         let snapshot = seedController.prepareForTopologyChange()
+        spaceStore.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
         rebuildUnits(reason: "start", snapshot: snapshot)
         observeMenuTracking()
         NotificationCenter.default.addObserver(
@@ -78,6 +83,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     func suspendAndRelease() {
         guard !isSuspended else { return }
         isSuspended = true
+        spaceStore.stop()
         for unit in units {
             unit.coordinator.tearDown()
         }
@@ -119,7 +125,8 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             overlaySpaceHost: overlaySpaceHost,
             runtime: runtime,
             stripOrderStore: stripOrderStore,
-            displayTopologyStore: displayTopologyStore
+            displayTopologyStore: displayTopologyStore,
+            spaceStore: spaceStore
         )
         coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu
         coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
@@ -130,6 +137,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     @objc private func screenParametersChanged() {
+        spaceStore.refresh()
         let snapshot: ScreenTopologySnapshot
         if let seedController = topologyRefreshController {
             snapshot = seedController.prepareForTopologyChange()

@@ -20,6 +20,7 @@ struct TaskbarGroupPresentation: Equatable {
 enum TaskbarPresentation {
     static func groups(items: [StripItem], order: [String], filter: StripDisplayFilter,
                        titles: [String: String], optimisticStates: [String: OptimisticWindowState],
+                       spaces: WindowSpaceSnapshot = WindowSpaceSnapshot(),
                        appName: (StripItem) -> String) -> [TaskbarGroupPresentation] {
         let lookup = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var groupOrder: [String] = []
@@ -27,6 +28,7 @@ enum TaskbarPresentation {
         var names: [String: String] = [:]
         for id in order {
             guard let item = lookup[id], filter.shows(.window(displayUUID: item.displayUUID)) else { continue }
+            guard spaces.shows(item.spaceIdentity, on: filter.scope ?? filter.resolvedWindowDisplayUUID(item.displayUUID)) else { continue }
             let key = item.bundleIdentifier ?? item.appID
             let name = appName(item)
             if members[key] == nil { groupOrder.append(key) }

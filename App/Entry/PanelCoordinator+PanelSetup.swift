@@ -15,7 +15,7 @@ extension PanelCoordinator {
         dockPanel = panel
         taskbarPresenter = TaskbarPresenter(
             view: view, runtime: runtime, ordering: stripOrderStore,
-            topology: displayTopologyStore, displayUUID: fixedUnitDisplayUUID,
+            topology: displayTopologyStore, spaces: spaceStore, displayUUID: fixedUnitDisplayUUID,
             backgroundMenu: { [weak self] event, source in self?.onRequestTaskbarMenu?(event, source) },
             popupPresented: { [weak self] popup in
                 guard let self else { return }

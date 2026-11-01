@@ -29,8 +29,12 @@ struct StripDisplayFilter: Equatable {
         case .launcher:
             return true
         case .runningWithoutWindow(let key), .window(let key):
-            guard let key, connectedUUIDs.contains(key) else { return scope == primaryUUID }
-            return key == scope
+            return resolvedWindowDisplayUUID(key) == scope
         }
+    }
+
+    func resolvedWindowDisplayUUID(_ key: String?) -> String? {
+        guard let key, connectedUUIDs.contains(key) else { return primaryUUID }
+        return key
     }
 }

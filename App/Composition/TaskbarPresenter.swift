@@ -6,6 +6,7 @@ final class TaskbarPresenter {
     private let runtime: AppRuntime
     private let ordering: StripOrderStore
     private let topology: DisplayTopologyStore
+    private let spaces: TaskbarSpaceStore
     private let displayUUID: String?
     private weak var view: TaskbarView?
     private var subscriptions = Set<AnyCancellable>()
@@ -13,7 +14,7 @@ final class TaskbarPresenter {
     private var liveIDs: [String] = []
 
     init(view: TaskbarView, runtime: AppRuntime, ordering: StripOrderStore,
-         topology: DisplayTopologyStore, displayUUID: String?,
+         topology: DisplayTopologyStore, spaces: TaskbarSpaceStore, displayUUID: String?,
          backgroundMenu: @escaping (NSEvent, NSView) -> Void,
          popupPresented: @escaping (NSPanel) -> Void,
          contextMenuVisibilityChanged: @escaping (Bool) -> Void) {
@@ -21,6 +22,7 @@ final class TaskbarPresenter {
         self.runtime = runtime
         self.ordering = ordering
         self.topology = topology
+        self.spaces = spaces
         self.displayUUID = displayUUID
         view.taskbarContent.actions = TaskbarViewActions(
             toggle: { [weak runtime] in runtime?.toggle(windowID: $0) },
@@ -51,6 +53,7 @@ final class TaskbarPresenter {
         runtime.$heldLabelTitlesByChipID.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         ordering.$liveOrder.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         topology.$table.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
+        spaces.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         refresh()
     }
 
@@ -78,7 +81,8 @@ final class TaskbarPresenter {
                                         primaryUUID: topology.table.primaryUUID)
         let groups = TaskbarPresentation.groups(items: items, order: order, filter: filter,
                                                 titles: runtime.heldLabelTitlesByChipID,
-                                                optimisticStates: runtime.optimisticStatesByWindowID) { item in
+                                                optimisticStates: runtime.optimisticStatesByWindowID,
+                                                spaces: spaces.snapshot) { item in
             if let bundleID = item.bundleIdentifier { return AppDisplayNameResolver.displayName(for: bundleID) }
             return NSRunningApplication(processIdentifier: item.pid)?.localizedName ?? item.appID
         }

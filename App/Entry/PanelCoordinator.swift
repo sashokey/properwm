@@ -8,6 +8,7 @@ final class PanelCoordinator: NSObject {
     static let panelLevelOverride: NSWindow.Level? = DebugSwitch.panelLevel.value().flatMap(Int.init).map { NSWindow.Level(rawValue: $0) }
     let runtime: AppRuntime
     let stripOrderStore: StripOrderStore
+    let spaceStore: TaskbarSpaceStore
     var onRequestTaskbarMenu: ((NSEvent, NSView) -> Void)?
     var dockPanel: NSPanel?
     var dockContentHost: ManualPanelHost?
@@ -59,6 +60,7 @@ final class PanelCoordinator: NSObject {
          runtime: AppRuntime,
          stripOrderStore: StripOrderStore,
          displayTopologyStore: DisplayTopologyStore,
+         spaceStore: TaskbarSpaceStore = TaskbarSpaceStore(),
          screenProvider: @escaping @MainActor () -> [NSScreen] = { NSScreen.screens },
          mainScreenProvider: @escaping @MainActor () -> NSScreen? = { NSScreen.main }) {
         self.unitPlacement = placement
@@ -66,6 +68,7 @@ final class PanelCoordinator: NSObject {
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
         self.displayTopologyStore = displayTopologyStore
+        self.spaceStore = spaceStore
         self.screenProvider = screenProvider
         self.mainScreenProvider = mainScreenProvider
         super.init()

@@ -1,13 +1,6 @@
 import CoreGraphics
 import Foundation
 
-struct SpaceLayoutSnapshot: Equatable {
-    let orderedSpaceIDs: [Int]
-    let fullscreenSpaceIDs: Set<Int>
-    let currentSpaceID: Int
-    static let fullscreenSpaceType = 4
-}
-
 enum ManagedSpaceLayoutReader {
     private typealias MainConnectionIDFn = @convention(c) () -> Int32
     private typealias CopySpacesFn = @convention(c) (Int32) -> CFArray?
@@ -25,34 +18,59 @@ enum ManagedSpaceLayoutReader {
     }()
 
     static func layout(forDisplayUUID uuid: String) -> SpaceLayoutSnapshot? {
+        guard let layouts = layouts() else { return nil }
+        return layouts[uuid] ?? layouts["Main"]
+    }
+
+    static func layouts() -> [String: SpaceLayoutSnapshot]? {
         guard let symbols,
               let displays = symbols.copy(symbols.cid) as? [[String: Any]] else { return nil }
+        return parse(displays)
+    }
+
+    static func parse(_ displays: [[String: Any]]) -> [String: SpaceLayoutSnapshot]? {
+        guard !displays.isEmpty else { return nil }
+        var result: [String: SpaceLayoutSnapshot] = [:]
         for display in displays {
-            guard display["Display Identifier"] as? String == uuid,
+            guard let uuid = display["Display Identifier"] as? String,
                   let spaces = display["Spaces"] as? [[String: Any]],
                   let current = display["Current Space"] as? [String: Any],
-                  let currentID = spaceID(current) else { continue }
+                  let currentID = spaceID(current) else { return nil }
             var ordered: [Int] = []
             var fullscreen: Set<Int> = []
             for space in spaces {
-                guard let id = spaceID(space) else { continue }
+                guard let id = spaceID(space) else { return nil }
                 ordered.append(id)
                 if space["type"] as? Int == SpaceLayoutSnapshot.fullscreenSpaceType {
                     fullscreen.insert(id)
                 }
             }
-            guard !ordered.isEmpty else { return nil }
-            return SpaceLayoutSnapshot(
+            guard ordered.contains(currentID) else { return nil }
+            result[uuid] = SpaceLayoutSnapshot(
                 orderedSpaceIDs: ordered,
                 fullscreenSpaceIDs: fullscreen,
                 currentSpaceID: currentID
             )
         }
-        return nil
+        return result
     }
 
     private static func spaceID(_ dict: [String: Any]) -> Int? {
         (dict["ManagedSpaceID"] as? Int) ?? (dict["id64"] as? Int)
+    }
+}
+
+enum WindowSpaceObservation {
+    static func capture(_ requests: [WindowSpaceRequest]) -> WindowSpaceSnapshot? {
+        guard let layouts = ManagedSpaceLayoutReader.layouts() else { return nil }
+        var memberships: [WindowSpaceIdentity: Set<Int>] = [:]
+        for request in requests {
+            if let spaces = WindowSpaceMembershipReader.spaceIDs(forWindowNumber: Int(request.identity.windowID)) {
+                memberships[request.identity] = Set(spaces)
+            }
+        }
+        guard layouts == ManagedSpaceLayoutReader.layouts() else { return nil }
+        return WindowSpaceSnapshot(layouts: layouts, memberships: memberships)
     }
 }
 

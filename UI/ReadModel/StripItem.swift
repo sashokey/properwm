@@ -30,6 +30,10 @@ struct StripItem: Hashable {
     let actionWindowID: String
     let memberWindowIDs: [String]
 
+    var spaceIdentity: WindowSpaceIdentity? {
+        cgWindowID.map { WindowSpaceIdentity(itemID: id, pid: pid, windowID: $0) }
+    }
+
     init(members: [WindowRecord], sameAppCardCount: Int = 1) {
         let anchor = members.min { ($0.cgWindowID ?? .max) < ($1.cgWindowID ?? .max) } ?? members[0]
         let token = members[0].groupID
