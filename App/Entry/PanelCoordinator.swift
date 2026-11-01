@@ -133,16 +133,20 @@ final class PanelCoordinator: NSObject {
 
         guard let screen = panelCurrentScreen(panel: panel) else { return nil }
         let primaryScreenHeight = Self.quartzPrimaryScreenHeight
+        let visibleFrame = screen.visibleFrame
+        let topReservedHeight = max(screen.safeAreaInsets.top,
+            max(NSApplication.shared.mainMenu?.menuBarHeight ?? 0, NSStatusBar.system.thickness))
         let geometry = WindowLiftAvoidance.Geometry(
             screenFrame: screen.frame,
-            visibleFrame: screen.visibleFrame,
-            taskbarTop: screen.frame.minY + TaskbarMetrics.height
+            visibleFrame: visibleFrame,
+            taskbarTop: screen.frame.minY + TaskbarMetrics.height,
+            topReservedHeight: topReservedHeight
         )
         return WindowLiftAvoidanceContext(
             geometry: geometry,
             screenCGFrame: Self.toCGRect(screen),
             visibleCGFrame: WindowLiftAvoidance.quartzFrame(
-                fromAppKit: screen.visibleFrame,
+                fromAppKit: visibleFrame,
                 primaryScreenHeight: primaryScreenHeight
             ),
             primaryScreenHeight: primaryScreenHeight

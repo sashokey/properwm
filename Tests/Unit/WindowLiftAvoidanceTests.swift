@@ -28,6 +28,93 @@ final class WindowLiftAvoidanceTests: XCTestCase {
         XCTAssertEqual(adjusted.width, visibleFrame.width)
     }
 
+    func testChromeWindowReturningFromFullscreenRetainsMenuInsetWhileClearingTaskbar() throws {
+        let geometry = WindowLiftAvoidance.Geometry(
+            screenFrame: CGRect(x: 2560, y: 0, width: 2560, height: 1440),
+            visibleFrame: CGRect(x: 2560, y: 0, width: 2560, height: 1440),
+            taskbarTop: 32, topReservedHeight: 22)
+        let native = WindowLiftAvoidance.appKitFrame(
+            fromQuartz: CGRect(x: 2560, y: 30, width: 2560, height: 1410), primaryScreenHeight: 1440)
+        let adjusted = try XCTUnwrap(geometry.liftTargetFrame(for: native, includesTiles: false))
+        XCTAssertEqual(adjusted, CGRect(x: 2560, y: 34, width: 2560, height: 1376))
+        XCTAssertEqual(adjusted.maxY, native.maxY)
+        XCTAssertEqual(adjusted.minX, native.minX)
+        XCTAssertEqual(adjusted.width, native.width)
+    }
+
+    func testVisibleFrameChangesAroundFullscreenKeepTheSameMaximizedTarget() throws {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let native = CGRect(x: 0, y: 0, width: 2560, height: 1410)
+        for visible in [native, screen, native] {
+            let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: visible,
+                taskbarTop: 32, topReservedHeight: 22)
+            XCTAssertEqual(try XCTUnwrap(geometry.adjustedFrame(for: native)),
+                           CGRect(x: 0, y: 34, width: 2560, height: 1376))
+        }
+    }
+
+    func testBothFullVisibleHeightAndMenuReservedMaximizationStayEligible() throws {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: screen,
+            taskbarTop: 32, topReservedHeight: 22)
+        for height: CGFloat in [1410, 1440] {
+            let native = CGRect(x: 0, y: 0, width: 2560, height: height)
+            let adjusted = try XCTUnwrap(geometry.adjustedFrame(for: native))
+            XCTAssertEqual(adjusted.minY, 34)
+            XCTAssertEqual(adjusted.maxY, native.maxY)
+        }
+    }
+
+    func testMenuReservationDoesNotRelaxOtherEdgesOrAdmitShortWindows() {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: screen,
+            taskbarTop: 32, topReservedHeight: 22)
+        let rejected = [
+            CGRect(x: 13, y: 0, width: 2547, height: 1410),
+            CGRect(x: 0, y: 0, width: 2547, height: 1410),
+            CGRect(x: 0, y: 13, width: 2560, height: 1397),
+            CGRect(x: 0, y: 0, width: 2560, height: 1380),
+            CGRect(x: 0, y: 1300, width: 2560, height: 139)
+        ]
+        for frame in rejected {
+            XCTAssertFalse(geometry.fillsVisibleFrame(frame))
+            XCTAssertNil(geometry.liftTargetFrame(for: frame, includesTiles: false))
+        }
+    }
+
+    func testMenuReservationPreservesSideAndBottomDockClearance() throws {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let side = WindowLiftAvoidance.Geometry(screenFrame: screen,
+            visibleFrame: CGRect(x: 90, y: 0, width: 2470, height: 1440), taskbarTop: 32, topReservedHeight: 22)
+        XCTAssertEqual(try XCTUnwrap(side.adjustedFrame(for: CGRect(x: 90, y: 0, width: 2470, height: 1410))),
+                       CGRect(x: 90, y: 34, width: 2470, height: 1376))
+        let bottom = WindowLiftAvoidance.Geometry(screenFrame: screen,
+            visibleFrame: CGRect(x: 0, y: 90, width: 2560, height: 1350), taskbarTop: 32, topReservedHeight: 22)
+        let native = CGRect(x: 0, y: 90, width: 2560, height: 1320)
+        XCTAssertTrue(bottom.fillsVisibleFrame(native))
+        XCTAssertNil(bottom.adjustedFrame(for: native))
+    }
+
+    func testTopReservationRespectsCameraInsetAndNegativeScreenOrigin() throws {
+        let screen = CGRect(x: -1920, y: -200, width: 1920, height: 1080)
+        let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: screen,
+            taskbarTop: -168, topReservedHeight: 44)
+        let native = CGRect(x: -1920, y: -200, width: 1920, height: 1036)
+        let adjusted = try XCTUnwrap(geometry.adjustedFrame(for: native))
+        XCTAssertEqual(adjusted, CGRect(x: -1920, y: -166, width: 1920, height: 1002))
+        XCTAssertEqual(adjusted.maxY, native.maxY)
+    }
+
+    func testInvalidTopReservationDoesNotCreateAnAlternativeMaximizedFrame() {
+        let screen = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        for height: CGFloat in [0, -1, .infinity, .nan, 1441] {
+            let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: screen,
+                taskbarTop: 32, topReservedHeight: height)
+            XCTAssertFalse(geometry.fillsVisibleFrame(CGRect(x: 0, y: 0, width: 2560, height: 1410)))
+            XCTAssertTrue(geometry.fillsVisibleFrame(screen))
+        }
+    }
+
     func testSideSystemDockReservationIsPreserved() throws {
         let sideDockGeometry = WindowLiftAvoidance.Geometry(
             screenFrame: CGRect(x: 0, y: 0, width: 1512, height: 982),

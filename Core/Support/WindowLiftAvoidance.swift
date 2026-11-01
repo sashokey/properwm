@@ -109,15 +109,34 @@ enum WindowLiftAvoidance {
         let screenFrame: CGRect
         let visibleFrame: CGRect
         let taskbarTop: CGFloat
+        let topReservedHeight: CGFloat
+
+        init(screenFrame: CGRect, visibleFrame: CGRect, taskbarTop: CGFloat, topReservedHeight: CGFloat = 0) {
+            self.screenFrame = screenFrame
+            self.visibleFrame = visibleFrame
+            self.taskbarTop = taskbarTop
+            self.topReservedHeight = topReservedHeight
+        }
 
         func fillsVisibleFrame(
             _ frame: CGRect,
             tolerance: CGFloat = WindowLiftAvoidance.detectionTolerance
         ) -> Bool {
             guard mostlyBelongsToScreen(frame) else { return false }
+            if WindowLiftAvoidance.fillsVisibleFrame(frame, visible: visibleFrame, tolerance: tolerance) {
+                return true
+            }
+            guard topReservedHeight.isFinite,
+                  topReservedHeight > 0,
+                  topReservedHeight < screenFrame.height,
+                  WindowLiftAvoidance.isValid(frame: visibleFrame) else { return false }
+            let contentTop = min(visibleFrame.maxY, screenFrame.maxY - topReservedHeight)
+            guard contentTop > visibleFrame.minY else { return false }
+            let menuVisibleFrame = CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                width: visibleFrame.width, height: contentTop - visibleFrame.minY)
             return WindowLiftAvoidance.fillsVisibleFrame(
                 frame,
-                visible: visibleFrame,
+                visible: menuVisibleFrame,
                 tolerance: tolerance
             )
         }
