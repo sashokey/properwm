@@ -12,10 +12,11 @@ The suite covers:
 
 - Window identity, inventory admission, minimized/hidden retention, native tabs, activation, focus handoff, and permission recovery.
 - System-only initial permission prompting, continued waiting without a guide or repeated prompt, late grants, grants arriving during startup, and quitting before a grant. Confirmed runtime recovery and transient-install guides remain covered separately.
-- Display attribution, topology changes, fullscreen prediction, and maximized-window clearance.
+- Display attribution, topology changes, state-based fullscreen visibility, and maximized-window clearance.
 - Separate labeled buttons, content-sized short captions including the exact `.` reference, the measured 74-point compressed width for long captions, pixel rounding, combining under crowding, expansion after space returns, and accessible overflow.
-- Whole-application group moves selected by the dragged leading/trailing edge crossing the neighboring group midpoint, unequal widths and different grab positions, stable repeated pointer events, round trips without persistence, preserved member order, mouse-up outside, Escape cancellation, and windows/apps or available width changing during a drag.
+- Whole-application group moves selected by the dragged leading/trailing edge crossing the neighboring group midpoint, unequal widths and different grab positions, stable repeated pointer events, round trips without persistence, preserved member order, mouse-up outside, Escape cancellation within ProperWM, and windows/apps or available width changing during a drag.
 - No hover popup for separate buttons; icon/title lists for combined groups and overflow only.
+- Popup dismissal on its own window losing keyboard focus, own-view pointer/drag presence, and stale focus notifications from replaced panels.
 - Native AppKit context-menu items and action dispatch, exact-window activation and close actions, Close all windows for a combined group, and Quit as a separate application action.
 - File-drag hover activation, cancelled delays, stale targets, and list disposal.
 - Detached AppKit rendering and input routing through an injected popup presenter. These tests must never display windows over the user's desktop or request screen capture. Native mouse-tracking checks may attach views to a panel that is never ordered on screen. Detached image rendering checks control geometry and content; it does not establish WindowServer glass refraction or transparency against the real desktop.
@@ -40,11 +41,12 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Several windows of one app | Separate labeled buttons while space remains, adjacent in stable discovery order. |
 | Activate, minimize, restore, rename, close, create | Surviving siblings keep their order; a new window joins its app group. |
 | Crowding and freeing space | Long buttons shrink to the measured 74-point limit before combining. Short captions keep their content-sized widths. Groups separate again when space permits. |
-| Group dragging and cancellation | The whole group stays inside the 32-point bar even when the pointer leaves it. A wide group swaps with a narrow neighbor when its edge crosses that neighbor's midpoint, regardless of which member or side was grabbed. Its members cannot be reordered independently. Escape or release outside restores the original order. |
+| Group dragging and cancellation | The whole group stays inside the 32-point bar even when the pointer leaves it. A wide group swaps with a narrow neighbor when its edge crosses that neighbor's midpoint, regardless of which member or side was grabbed. Its members cannot be reordered independently. Release outside restores the original order. Esc is handled only when delivered to ProperWM; no keyboard events from other apps are observed. |
 | Separate-window click | Activate/restore the exact window; clicking the active window minimizes it. |
 | Separate-window hover | Neutral Apple selection color within the Windows button shape. Hover must not overpower active: similar fill, stronger active edge and 11-by-2-point underline; active hover increases fill, and held press darkens it. The lower inactive dot is 4 by 2; both sit one point above the button bottom. No solid accent-filled button or nested glass. Smooth transitions; immediate changes under Reduce Motion. No popup, tooltip, thumbnail, or extra title. |
 | Combined-group click/hover | Native Apple rows over public Liquid Glass, with the preserved 216-point width, 40-point rows, icon/title/close placement, and window order. No captured window images. |
 | Overflow | Remaining windows stay reachable through an icon/title list. |
+| Click outside a window list | A clicked list closes when its own panel loses keyboard focus; hover/drag lists use their own pointer-exit grace period. No mouse events from other apps are monitored. |
 | Individual context menu | Native macOS menu: Close window, then Quit. Closing a window does not quit the app. |
 | Combined context menu | Native macOS menu: Close all windows, then Quit. Window actions affect the represented display's group. |
 | Unsaved documents | Normal application confirmation is honored; Quit never force-terminates the target. |
@@ -57,11 +59,11 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | Hide status icon and restart | The icon disappears while taskbar operation continues; the choice survives application restart and login/reboot. |
 | Reopen the running app from Applications | The same status item reappears; its visible state is saved. No second taskbar instance or new document window appears. |
 | Open the taskbar menu while the icon is hidden | Hide Status Bar Icon stays enabled and checked. Selecting it restores the icon and clears the checkmark; selecting it again hides the icon. Opening or refreshing the menu alone does not change visibility. Open at Login and Quit remain independent. |
-| Maximize, restore, manual move/resize | Maximized windows avoid the 32-point bar; manual geometry remains respected. |
+| Maximize, restore, manual move/resize | Maximized windows avoid the 32-point bar; manual geometry remains respected. Repeated maximization at user pace reapplies the reserved height. Titlebar double-clicks are handled by the target app; ProperWM no longer infers a request to restore a smaller frame from global click counts. |
 | Two displays and moving windows | Each bar shows windows on that display; combining is calculated separately for its available width. |
 | Disconnect/reconnect, sleep/wake | No stale panels, duplicate buttons, or inaccessible windows after attribution settles. |
-| Fullscreen and Spaces transitions | The bar prehides without flashing and returns after the transition; pending popups/actions are cancelled. |
-| Accessibility revoked/restored | Panels and pending actions suspend safely; operation resumes after permission recovery. |
+| Fullscreen and Spaces transitions | The bar follows actual window/Space state and returns after the transition; pending popups/actions are cancelled. A brief appearance during the transition animation is possible because input-based prehiding has been removed. |
+| Accessibility revoked/restored | Panels and pending actions suspend safely; operation resumes after permission recovery. No global event tap or input monitor exists to retry or retain. Never revoke permission on the working desktop during automated tests. |
 | Native Dock | Its preferences and process remain untouched. |
 
 macOS 26 remains the deployment minimum without a dedicated compatibility matrix. Automated testing uses the newest hosted macOS available in GitHub Actions; physical Mac acceptance uses the newest installed macOS. Record OS, scale, display arrangement, version, source commit, steps, and observed results for failures.
