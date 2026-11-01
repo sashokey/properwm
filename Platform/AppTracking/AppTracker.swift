@@ -61,7 +61,6 @@ struct WindowEntry {
     /// 轮询 / tick 的 CG 遍历）看到的还是旧位置，不冻结就会把卡弹回来源屏再跳回去。
     /// `.distantFuture` = 钉死到它下次在 AX 里可见为止（AX 拿不到句柄、搬不动的离屏 / 幽灵窗口：
     /// 拖到别的条上就当「改住址」，CG 里那份旧坐标不作数）。
-    var displayUUIDHoldUntil: Date? = nil
     /// Absence fallback for a window hidden without a destroy notification (`AbsentSeatReleaseDecision`).
     var absentProbe: AbsentSeatProbeState? = nil
     var createdAt = Date()
@@ -184,10 +183,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private let processProvider: any AppTrackerProcessProviding
     private let cgSnapshotProvider: @Sendable () -> AppTrackerCGWindowSnapshot
     private let onScreenWindowIDsProvider: @Sendable () -> Set<CGWindowID>
-    private let eventAXAsyncEnabled: Bool
-    /// 周期对账（5s tick）的 AX 读超时。默认 100ms、限时后台批量读；nil（DOCK_RECONCILE_AX_TIMEOUT_MS=0）
-    /// 回退旧路径：主线程逐 pid 不限时同步读。DOCK_EVENT_AX_ASYNC=0 的同步兼容路径同样走旧路径。
-    private let periodicReconcileTimeout: TimeInterval?
+    private let periodicReconcileTimeout: TimeInterval
     /// 周期对账跳读门控（DOCK_RECONCILE_SKIP=0 关闭）。只作用于批读路径；旧同步路径不受影响。
     private let reconcileSkipEnabled: Bool
     private let uptimeProvider: () -> TimeInterval
@@ -280,7 +276,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         onScreenWindowIDsProvider: @escaping @Sendable () -> Set<CGWindowID> = {
             AppTrackerCGWindowSnapshot.captureOnScreenWindowIDs()
         },
-        eventAXAsyncEnabled: Bool = DebugSwitch.eventAxAsync.isEnabled(in: ProcessInfo.processInfo.environment),
         periodicAXTimeoutMS: Int = Int(DebugSwitch.reconcileAxTimeoutMs.value(in: ProcessInfo.processInfo.environment) ?? "") ?? 100,
         reconcileSkipEnabled: Bool = DebugSwitch.reconcileSkip.isEnabled(in: ProcessInfo.processInfo.environment),
         scanGateEnabled: Bool = DebugSwitch.scanGate.isEnabled(in: ProcessInfo.processInfo.environment),
@@ -298,13 +293,12 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         self.processProvider = processProvider
         self.cgSnapshotProvider = cgSnapshotProvider
         self.onScreenWindowIDsProvider = onScreenWindowIDsProvider
-        self.eventAXAsyncEnabled = eventAXAsyncEnabled
-        self.periodicReconcileTimeout = periodicAXTimeoutMS > 0 ? TimeInterval(periodicAXTimeoutMS) / 1000.0 : nil
+        self.periodicReconcileTimeout = TimeInterval(max(1, periodicAXTimeoutMS)) / 1000.0
         self.reconcileSkipEnabled = reconcileSkipEnabled
         self.scanGateEnabled = scanGateEnabled
         self.frontmostCacheEnabled = frontmostCacheEnabled
         self.cgSnapshotReuseEnabled = cgSnapshotReuseEnabled
-        self.absentSeatReleaseEnabled = absentSeatReleaseEnabled && eventAXAsyncEnabled
+        self.absentSeatReleaseEnabled = absentSeatReleaseEnabled
         self.absentSeatProber = absentSeatProber
         self.uptimeProvider = uptimeProvider
     }
@@ -448,7 +442,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         cgSnapshot: AppTrackerCGWindowSnapshot,
         now: Date,
         source: InventoryReconcileSource,
-        preloadedEligible: [AXWindowSnapshot]? = nil,
+        preloadedEligible: [AXWindowSnapshot],
         preloadedReadOutcome: InventoryAXReadOutcome? = nil,
         preloadedReadMode: InventoryReconcileReadMode? = nil,
         rawAXCgIDs: Set<CGWindowID>? = nil,
@@ -460,27 +454,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let cgPidIDs = cgSnapshot.windowIDsByPID[pid] ?? []
         // 影子标签池按【上一轮】的快照判定：最小化爆发瞬间所有标签涌进 AX，本轮现算池子会是空的。
         let shadowPool = app.shadowTabCgIDs
-        let eligible: [AXWindowSnapshot]
-        let axReadOutcome: InventoryAXReadOutcome
-        if let preloaded = preloadedEligible {
-            eligible = preloaded
-            axReadOutcome = preloadedReadOutcome ?? .success(count: preloaded.count)
-        } else {
-            switch reader.windowReadResult(forPID: pid) {
-            case .success(let windows):
-                axReadOutcome = .success(count: windows.count)
-                eligible = windows.filter {
-                    isEligible(
-                        $0,
-                        application: eligibilityApplication(for: app),
-                        cgSnapshot: cgSnapshot
-                    )
-                }
-            case .unread(let error):
-                axReadOutcome = .unread(errorCode: error.rawValue)
-                eligible = []
-            }
-        }
+        let eligible = preloadedEligible
+        let axReadOutcome = preloadedReadOutcome ?? .success(count: preloadedEligible.count)
+
         if axReadOutcome.kind == .unread {
             // An unread AX round is unknown, never evidence of absence. In particular it must not
             // start grace periods, update the shadow-tab pool, or advance phantom healing.
@@ -488,8 +464,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 pid: pid,
                 bundleID: app.bundleIdentifier,
                 source: source,
-                readMode: preloadedReadMode ?? .untimed,
-                usedPreloadedAX: preloadedEligible != nil,
+                readMode: preloadedReadMode ?? .timed,
+                usedPreloadedAX: true,
                 errorCode: axReadOutcome.errorCode ?? AXError.failure.rawValue
             )))
             gateStates[pid]?.lastReadWasUnread = true
@@ -500,7 +476,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 pid: pid,
                 source: source,
                 now: now,
-                usedPreloadedAX: preloadedEligible != nil,
+                usedPreloadedAX: true,
                 axReadOutcome: axReadOutcome
             )
             : nil
@@ -530,32 +506,16 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         // 继承）；本次以 min=false 现身也算——幽灵座位永远凑不齐这个标记（自愈判定的头号门槛）。
         func make(token: String, _ s: AXWindowSnapshot, previousTitle: String? = nil,
                   history: Set<CGWindowID> = [], wasEverVisible: Bool = false,
-                  previousDisplayUUID: String? = nil, previousHoldUntil: Date? = nil) -> WindowEntry {
-            // 归属键只在可见时跟着帧走；最小化 / 隐藏沿用上一座位的值（冻结在最后可见的屏）；
-            // 跨屏拖窗的乐观键在冻结期内也不动；钉死的（`.distantFuture`）要等这次 AX 真读到可见帧才放开。
+                  previousDisplayUUID: String? = nil) -> WindowEntry {
             let visible = !s.isMinimized && !app.isHidden
             let fresh = visible ? WindowDisplayAttribution.displayUUID(for: s.bounds, table: displayTable) : nil
-            let sticky = previousHoldUntil == .distantFuture
-            let held = !sticky && (previousHoldUntil.map { $0 > now } ?? false)
-            let displayUUID: String?
-            let holdUntil: Date?
-            if sticky {
-                displayUUID = fresh ?? previousDisplayUUID
-                holdUntil = fresh == nil ? previousHoldUntil : nil
-            } else if held {
-                displayUUID = previousDisplayUUID
-                holdUntil = previousHoldUntil
-            } else {
-                displayUUID = fresh ?? previousDisplayUUID
-                holdUntil = nil
-            }
+            let displayUUID = fresh ?? previousDisplayUUID
             return WindowEntry(cgWindowID: s.cgWindowID!, token: token,
                                title: s.titleRead.resolvedTitle(previousTitle: previousTitle),
                                bounds: s.bounds, isMinimized: s.isMinimized, isFocused: s.isFocusedWindow,
                                everSeenVisible: wasEverVisible || !s.isMinimized,
                                formerCgIDs: history.subtracting([s.cgWindowID!]).intersection(cgIDs),
                                displayUUID: displayUUID,
-                               displayUUIDHoldUntil: holdUntil,
                                createdAt: createdAtByToken[token] ?? now)
         }
         // 某 frame 当前有几个老座位认领（>1 = 窗口重叠歧义，切标签顶替时跳过，保守不误并）
@@ -592,11 +552,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     episodeID: &seat.absenceEpisodeID
                 )
                 // X 仍可见。检查「拖当前标签出去」：X 移到了新 frame，旧 frame 上来了别的合格窗口 Y。
-                // **跨屏搬窗冻结期内不撕**（`displayUUIDHoldUntil` 有效 / 钉死）：那次移帧是我们自己写的，
-                // 座位必须跟着 X 走——否则座位留在旧帧改认 Y、还继承刚写成目标屏的键和冻结，X 落到 Pass B
-                // 新建座位：两张卡都在目标条，冻结一过旧座位又跳回来源屏（owner 2026-09-03，多标签访达）。
-                let moveHeld = seat.displayUUIDHoldUntil.map { $0 == .distantFuture || $0 > now } ?? false
-                if let seatKey, fk(snapX.bounds) != seatKey, !moveHeld,
+                if let seatKey, fk(snapX.bounds) != seatKey,
                    let Y = eligible.first(where: { s in
                        guard let c = s.cgWindowID, c != X, !usedEligible.contains(c) else { return false }
                        return fk(s.bounds) == seatKey
@@ -604,8 +560,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     // 座位留旧 frame、顶替成 Y，token 不变。X 被赶出成独立窗口 → 【不】记入历史
                     place(make(token: seat.token, Y, history: seat.formerCgIDs,
                                wasEverVisible: seat.everSeenVisible,
-                               previousDisplayUUID: seat.displayUUID,
-                               previousHoldUntil: seat.displayUUIDHoldUntil))
+                               previousDisplayUUID: seat.displayUUID))
                     usedEligible.insert(yc)
                     subscribeWindow(pid: pid, element: Y.element, cgWindowID: yc, context: reconcileContext)   // 接手新 activeCgID 必须订阅，理由见下面顶替分支
                     tearOutCgIDs.insert(X)
@@ -625,8 +580,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     place(make(token: seat.token, snapX, previousTitle: seat.title,
                                history: seat.formerCgIDs,
                                wasEverVisible: seat.everSeenVisible,
-                               previousDisplayUUID: seat.displayUUID,
-                               previousHoldUntil: seat.displayUUIDHoldUntil))
+                               previousDisplayUUID: seat.displayUUID))
                     usedEligible.insert(X)
                     // A continuing seat re-subscribes too: after an order-out/order-in blink the window
                     // answers with a new AX element and the old one's notifications never fire again —
@@ -653,8 +607,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     if !isTombstoned(X) { history.insert(X) }
                     place(make(token: seat.token, Y, history: history,
                                wasEverVisible: seat.everSeenVisible,
-                               previousDisplayUUID: seat.displayUUID,
-                               previousHoldUntil: seat.displayUUIDHoldUntil))
+                               previousDisplayUUID: seat.displayUUID))
                     usedEligible.insert(yc)
                     // 接手的 Y 必须在这里订阅每窗口通知（destroy/min/demin/title 只在接手 activeCgID 的三处订阅：新建座位、顶替、拖出替换）。
                     // 否则 Y 关掉时没有 destroy 通知 → 没有 tombstone；Ghostty 关掉的窗口还赖在 CG 全列表里，
@@ -1301,14 +1254,12 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     /// tick would move the seat and the minimize would then freeze it on the wrong display.
     private func refreshDisplayAttributionFromCG(_ cgSnapshot: AppTrackerCGWindowSnapshot) -> Bool {
         guard !cgSnapshot.boundsByWindowID.isEmpty, !displayTable.displays.isEmpty else { return false }
-        let now = Date()
         var changed = false
         var pending: [CGWindowID: String] = [:]
         for pid in appOrder {
             guard let app = apps[pid], !app.isHidden else { continue }
             for cgID in app.windowOrder {
                 guard let seat = app.windowsByID[cgID], !seat.isMinimized,
-                      !(seat.displayUUIDHoldUntil.map { $0 > now } ?? false),
                       let rect = cgSnapshot.boundsByWindowID[cgID],
                       let key = WindowDisplayAttribution.displayUUID(for: rect, table: displayTable),
                       key != seat.displayUUID else { continue }
@@ -1328,13 +1279,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     /// （投影层会把指向已拔屏的键落到主屏）。不读 AX、不拍 CG。
     private func handleScreenParametersChanged() {
         displayTable = displayTableProvider()
-        let now = Date()
         var changed = false
         for pid in appOrder {
             guard let app = apps[pid], !app.isHidden else { continue }
             for cgID in app.windowOrder {
                 guard let seat = app.windowsByID[cgID], !seat.isMinimized,
-                      !(seat.displayUUIDHoldUntil.map { $0 > now } ?? false),
                       let key = WindowDisplayAttribution.displayUUID(for: seat.bounds, table: displayTable),
                       key != seat.displayUUID else { continue }
                 apps[pid]?.windowsByID[cgID]?.displayUUID = key
@@ -1342,69 +1291,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             }
         }
         if changed { rebuildSnapshot(onScreenCGIDs: lastOnScreenCGIDs) }
-    }
-
-    /// 跨屏拖窗（`AppRuntime.moveWindow`）的乐观更新：用户动作直接写归属键并发布，卡当场跳到目标条，
-    /// 不等下一次读。`.brief` 冻结 `displayMoveHold` 这么久（AX 写帧在动作队列上飞，期间落地的读还看着旧位置）；
-    /// `.untilVisible` 钉死到它下次在 AX 里可见（AX 拿不到句柄的离屏 / 幽灵窗口：拖动 = 改住址）；
-    /// 写失败由调用方用旧键 `.none` 回滚（真值随后由 AX / CG 读校正）。只认在册座位。
-    static let displayMoveHold: TimeInterval = 1.5
-
-    enum DisplayKeyHold { case none, brief, untilVisible }
-
-    /// 「在运行但没窗口」的兜底卡 / 运行中的保留占位被拖到另一块屏的条上：这个 bundle 下所有进程的
-    /// 「窗口最后在哪块屏」都改成那块屏并发布（同一 bundle 的兜底卡只有一张，按 bundle 记才不会换 pid 就丢）。
-    func noteNoWindowHome(bundleID: String, displayUUID: String) {
-        guard !bundleID.isEmpty else { return }
-        var changed = false
-        var matched = 0
-        for pid in appOrder where apps[pid]?.bundleIdentifier == bundleID {
-            matched += 1
-            guard apps[pid]?.lastWindowDisplayUUID != displayUUID else { continue }
-            apps[pid]?.lastWindowDisplayUUID = displayUUID
-            changed = true
-        }
-        if Self.displayTraceEnabled {
-            displayTraceLogger.info("noteNoWindowHome bundle=\(bundleID, privacy: .public) to=\(displayUUID, privacy: .public) matchedPIDs=\(matched) changed=\(changed)")
-        }
-        if changed { rebuildSnapshot(onScreenCGIDs: lastOnScreenCGIDs) }
-    }
-
-    /// 跨屏拖窗的 AX 写帧失败后的裁决：窗口此刻在屏上（用户看得见的真窗口）→ 回滚到来源屏；
-    /// 不在屏上（离屏 / 幽灵座位）→ 没东西可搬，当「改住址」钉死到目标屏。
-    enum FailedMoveVerdict: Equatable { case rolledBack, pinnedToTarget, seatGone }
-
-    @discardableResult
-    func resolveFailedWindowMove(pid: pid_t, cgWindowID: CGWindowID, target: String, previous: String?) -> FailedMoveVerdict {
-        guard apps[pid]?.windowsByID[cgWindowID] != nil else { return .seatGone }
-        if lastOnScreenCGIDs.contains(cgWindowID) {
-            noteWindowMoved(pid: pid, cgWindowID: cgWindowID, displayUUID: previous, hold: .none)
-            return .rolledBack
-        }
-        noteWindowMoved(pid: pid, cgWindowID: cgWindowID, displayUUID: target, hold: .untilVisible)
-        return .pinnedToTarget
-    }
-
-    private static let displayTraceEnabled = DebugSwitch.displayTrace.isEnabled(in: ProcessInfo.processInfo.environment)
-    private let displayTraceLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "display-trace")
-
-    @discardableResult
-    func noteWindowMoved(pid: pid_t, cgWindowID: CGWindowID, displayUUID: String?, hold: DisplayKeyHold = .brief) -> Bool {
-        guard let seat = apps[pid]?.windowsByID[cgWindowID] else { return false }
-        let holdUntil: Date?
-        switch hold {
-        case .none: holdUntil = nil
-        case .brief: holdUntil = Date().addingTimeInterval(Self.displayMoveHold)
-        case .untilVisible: holdUntil = .distantFuture
-        }
-        apps[pid]?.windowsByID[cgWindowID]?.displayUUIDHoldUntil = holdUntil
-        if Self.displayTraceEnabled {
-            displayTraceLogger.info("noteWindowMoved pid=\(pid) cg=\(cgWindowID) \(seat.displayUUID ?? "nil", privacy: .public) → \(displayUUID ?? "nil", privacy: .public) hold=\(String(describing: hold), privacy: .public)")
-        }
-        guard seat.displayUUID != displayUUID else { return true }
-        apps[pid]?.windowsByID[cgWindowID]?.displayUUID = displayUUID
-        rebuildSnapshot(onScreenCGIDs: lastOnScreenCGIDs)
-        return true
     }
 
     // MARK: - Seed
@@ -1710,6 +1596,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
         if AXIsProcessTrusted() {
             let obs = AppWindowObserver(pid: pid)
+            obs.onSubscriptionAttempt = { [weak self] report in
+                self?.recordSubscriptionAttempt(report, context: nil, flushID: nil)
+            }
             obs.onWindowCreated = { [weak self] pid in self?.handleWindowCreated(pid: pid) }
             obs.onWindowDestroyed = { [weak self] pid, cgID in self?.handleWindowDestroyed(pid: pid, cgWindowID: cgID) }
             obs.onWindowMinimized = { [weak self] pid, cgID in self?.handleWindowMinimized(pid: pid, cgWindowID: cgID) }
@@ -1724,7 +1613,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         }
 
         if enumerateImmediately {
-            enumerateWindows(for: pid, source: source)
+            scheduleEventRead(pid: pid, source: source)
         }
     }
 
@@ -1842,14 +1731,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     // MARK: - Window Enumeration
 
-    private func enumerateWindows(for pid: pid_t, source: InventoryReconcileSource) {
-        guard apps[pid] != nil else { return }
-        let cgSnapshot = cgSnapshotProvider()
-        if reconcileSeats(pid: pid, cgSnapshot: cgSnapshot, now: Date(), source: source) {
-            rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs)
-        }
-    }
-
     private func isEligible(
         _ snap: AXWindowSnapshot,
         application: AppTrackerWindowEligibility.Application,
@@ -1908,8 +1789,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         switch observer.registerWindow(element, cgWindowID: cgWindowID) {
         case .none:
             return
-        case .attempted(let report):
-            recordSubscriptionAttempt(report, context: context, flushID: nil)
+        case .scheduled:
+            return
         case .retryDue(let candidate):
             retryCandidates.append(candidate)
             guard !retryFlushScheduled else { return }
@@ -1935,19 +1816,19 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let choice = WindowSubscriptionRetryScheduler.pick(candidates) { candidate in
             observers[candidate.pid]?.isRetryValid(candidate) ?? false
         }
-        let report = choice.picked.flatMap { observers[$0.pid]?.performRetry($0) }
-        guard inventoryLog.isEnabled else { return }
-        inventoryLog.record(.subscriptionRetryFlush(InventorySubscriptionRetryFlushPayload(
-            flushID: flushID,
-            candidates: candidates.map {
-                InventorySubscriptionRetryCandidateEntry(pid: $0.pid, cgWindowID: $0.cgWindowID)
-            },
-            skippedInvalid: choice.skippedInvalid,
-            executedPID: report?.pid,
-            executedCgWindowID: report?.cgWindowID,
-            durationMs: report?.durationMs
-        )))
-        if let report { recordSubscriptionAttempt(report, context: nil, flushID: flushID) }
+        guard let picked = choice.picked, let observer = observers[picked.pid] else { return }
+        observer.performRetry(picked) { [weak self] report in
+            guard let self, self.work.isActive else { return }
+            if self.inventoryLog.isEnabled {
+                self.inventoryLog.record(.subscriptionRetryFlush(InventorySubscriptionRetryFlushPayload(
+                    flushID: flushID,
+                    candidates: candidates.map { InventorySubscriptionRetryCandidateEntry(pid: $0.pid, cgWindowID: $0.cgWindowID) },
+                    skippedInvalid: choice.skippedInvalid, executedPID: report.pid,
+                    executedCgWindowID: report.cgWindowID, durationMs: report.durationMs
+                )))
+                self.recordSubscriptionAttempt(report, context: nil, flushID: flushID)
+            }
+        }
     }
 
     private func recordSubscriptionAttempt(
@@ -2050,10 +1931,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func scheduleEventRead(pid: pid_t, source: InventoryReconcileSource) {
         guard work.isActive, apps[pid] != nil else { return }
-        guard eventAXAsyncEnabled else {
-            enumerateWindows(for: pid, source: source)
-            return
-        }
         if pendingEventReads[pid] != nil {
             // Coalesce any burst while a read is in flight into exactly one read using the latest
             // event source. Completion consumes and clears this slot before starting it.
@@ -2355,29 +2232,13 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func scheduleFrontmostPoll(pid: pid_t) {
         guard apps[pid] != nil else { return }
-
-        // Keep the 0.5s cadence, but never perform the full AXWindows read on the main actor.
-        // Slow frontmost apps previously blocked SwiftUI animation for 200-400ms every tick.
-        if eventAXAsyncEnabled {
-            scheduleEventRead(pid: pid, source: .frontmostPoll)
-            return
-        }
-
-        // 单座位模型下：标签窗口切标签 = 座位 activeCgID 被顶替，reconcileSeats 即时收敛。
-        // 前台 app 每 0.5s 跑一次,切标签/最小化/拽出都能秒级反映(不再依赖 AX 事件可靠性)。
-        let cgSnapshot = cgSnapshotProvider()
-        var changed = reconcileSeats(pid: pid, cgSnapshot: cgSnapshot, now: Date(), source: .frontmostPoll)
-        // on-screen 变了(切了标签)也强制刷新一次,兜住座位指纹没变但可见标签换了的边角。
-        let onScreen = cgSnapshot.onScreenWindowIDs
-        if onScreen != lastOnScreenCGIDs { changed = true }
-        if changed { rebuildSnapshot(onScreenCGIDs: onScreen) }
+        scheduleEventRead(pid: pid, source: .frontmostPoll)
     }
 
     private func reconcile() {
         guard AXIsProcessTrusted() else { return }
         purgeStaleTombstones()
         refreshFrontmostCache()
-        let now = Date()
         var changed = false
 
         // Remove entries for processes that no longer exist. This handles multi-process apps where
@@ -2416,21 +2277,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         // 多屏 ④：所有可见座位按本轮 CG bounds 换屏（跳读的 pid 也覆盖到）。
         if !cgSnapshot.captureFailed, refreshDisplayAttributionFromCG(cgSnapshot) { changed = true }
 
-        if let timeout = periodicReconcileTimeout, eventAXAsyncEnabled {
-            // 死进程清扫的删除立即上屏，不等批读落地。
-            if changed { rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs) }
-            // Due absence probes ride single-pid reads; the batch then skips those pids (in flight).
-            for pid in appOrder where pendingEventReads[pid] == nil && hasDueAbsenceProbe(pid: pid) {
-                scheduleEventRead(pid: pid, source: .absenceProbe)
-            }
-            schedulePeriodicBatchRead(cgSnapshot: cgSnapshot, timeout: timeout)
-        } else {
-            // 旧路径（DOCK_RECONCILE_AX_TIMEOUT_MS=0 或 DOCK_EVENT_AX_ASYNC=0）：主线程逐 pid 不限时同步读。
-            for pid in appOrder {
-                if reconcileSeats(pid: pid, cgSnapshot: cgSnapshot, now: now, source: .periodicReconcile) { changed = true }
-            }
-            if changed { rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs) }
+        if changed { rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs) }
+        for pid in appOrder where pendingEventReads[pid] == nil && hasDueAbsenceProbe(pid: pid) {
+            scheduleEventRead(pid: pid, source: .absenceProbe)
         }
+        schedulePeriodicBatchRead(cgSnapshot: cgSnapshot, timeout: periodicReconcileTimeout)
         scanNonAdmittedApps(cgSnapshot: cgSnapshot)
     }
 
@@ -3050,7 +2901,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     ) {
         schedulePeriodicBatchRead(
             cgSnapshot: cgSnapshot,
-            timeout: timeoutOverride ?? periodicReconcileTimeout ?? 0.1
+            timeout: timeoutOverride ?? periodicReconcileTimeout
         )
     }
     #endif

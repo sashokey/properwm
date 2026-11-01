@@ -203,7 +203,6 @@ final class AppTrackerAbsentSeatTests: XCTestCase {
             reader: reader ?? FixedReader(.success([axWindow(main)])),
             processProvider: FixedProcessProvider(),
             cgSnapshotProvider: { snapshot },
-            eventAXAsyncEnabled: true,
             absentSeatReleaseEnabled: enabled,
             absentSeatProber: prober,
             uptimeProvider: { clock.value }

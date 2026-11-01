@@ -3,7 +3,6 @@ import Foundation
 enum DebugSwitch: String, CaseIterable, Sendable {
     enum Kind: Sendable { case killSwitch, trace, value }
 
-    case eventAxAsync = "DOCK_EVENT_AX_ASYNC"
     case reconcileSkip = "DOCK_RECONCILE_SKIP"
     case scanGate = "DOCK_SCAN_GATE"
     case frontmostCache = "DOCK_FRONTMOST_CACHE"
@@ -23,7 +22,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case windowLiftAnim = "DOCK_WINDOW_LIFT_ANIM"
     case windowLiftTiles = "DOCK_WINDOW_LIFT_TILES"
     case titleSettle = "DOCK_TITLE_SETTLE"
-    case displayTrace = "DOCK_DISPLAY_TRACE"
     case chipProbe = "DOCK_CHIP_PROBE"
     case clickTrace = "DOCK_CLICK_TRACE"
     case hoverTrace = "DOCK_HOVER_TRACE"
@@ -37,9 +35,9 @@ enum DebugSwitch: String, CaseIterable, Sendable {
 
     var kind: Kind {
         switch self {
-        case .eventAxAsync, .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
+        case .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
             return .killSwitch
-        case .displayTrace, .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .windowLiftTrace, .simulateNoDestroy:
+        case .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .windowLiftTrace, .simulateNoDestroy:
             return .trace
         case .reconcileAxTimeoutMs, .seedAxTimeoutMs, .inventoryLog, .panelLevel:
             return .value

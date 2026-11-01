@@ -55,7 +55,6 @@
 		B10000000000000000000118 /* TaskbarScreenPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000117 /* TaskbarScreenPlacement.swift */; };
 		B1000000000000000000011D /* TaskbarDisplaySet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000011C /* TaskbarDisplaySet.swift */; };
 		B10000000000000000000131 /* WindowDisplayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000130 /* WindowDisplayAttribution.swift */; };
-		B1000000000000000000013F /* WindowDisplayMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013E /* WindowDisplayMove.swift */; };
 		B10000000000000000000134 /* StripDisplayFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000133 /* StripDisplayFilter.swift */; };
 		B10000000000000000000137 /* DisplayTopologyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000136 /* DisplayTopologyStore.swift */; };
 		D90000000000000000000102 /* ScreenTopologySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000002 /* ScreenTopologySnapshot.swift */; };
@@ -67,7 +66,6 @@
 		B10000000000000000000119 /* TaskbarScreenPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000117 /* TaskbarScreenPlacement.swift */; };
 		B1000000000000000000011E /* TaskbarDisplaySet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000011C /* TaskbarDisplaySet.swift */; };
 		B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000130 /* WindowDisplayAttribution.swift */; };
-		B10000000000000000000140 /* WindowDisplayMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013E /* WindowDisplayMove.swift */; };
 		B10000000000000000000135 /* StripDisplayFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000133 /* StripDisplayFilter.swift */; };
 		A0000000000000000000FF41 /* WindowDisplayTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */; };
 		A00000000000000000009051 /* PanelVisibilityState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000009030 /* PanelVisibilityState.swift */; };
@@ -206,7 +204,6 @@
 		B1000000000000000000011B /* TaskbarScreenPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000011A /* TaskbarScreenPlacementTests.swift */; };
 		B10000000000000000000120 /* TaskbarDisplaySetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000011F /* TaskbarDisplaySetTests.swift */; };
 		B10000000000000000000139 /* WindowDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000138 /* WindowDisplayAttributionTests.swift */; };
-		B10000000000000000000142 /* WindowDisplayMoveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000141 /* WindowDisplayMoveTests.swift */; };
 		B1000000000000000000013B /* StripDisplayFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013A /* StripDisplayFilterTests.swift */; };
 		B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */; };
 		D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */; };
@@ -282,6 +279,9 @@
 		3D6F8FADD13C415338102877 /* AppDisplayNameResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000019B1 /* AppDisplayNameResolver.swift */; };
 		9BC4B9DFF1E5466F8E8E30B7 /* AppIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA000000000000000000001 /* AppIconResolver.swift */; };
 		A5C4F3D3F0682560434054DA /* PermissionOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A000000000000000000000F1 /* PermissionOnboardingView.swift */; };
+		B4D1FE58B8FC3008E1365D79 /* WindowObservationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA4067789132FB82112EBAA /* WindowObservationSession.swift */; };
+		A4484509C9902899E4DED922 /* WindowObservationSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA4067789132FB82112EBAA /* WindowObservationSession.swift */; };
+		052456AB85C2E06E83E3591F /* WindowObservationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -353,7 +353,6 @@
 		B1000000000000000000011A /* TaskbarScreenPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarScreenPlacementTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000011F /* TaskbarDisplaySetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarDisplaySetTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000138 /* WindowDisplayAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayAttributionTests.swift; sourceTree = "<group>"; };
-		B10000000000000000000141 /* WindowDisplayMoveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayMoveTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000013A /* StripDisplayFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripDisplayFilterTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTrackerDisplayAttributionTests.swift; sourceTree = "<group>"; };
 		A00000000000000000009750 /* NonConstrainingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NonConstrainingPanel.swift; sourceTree = "<group>"; };
@@ -426,7 +425,6 @@
 		B10000000000000000000117 /* TaskbarScreenPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarScreenPlacement.swift; sourceTree = "<group>"; };
 		B1000000000000000000011C /* TaskbarDisplaySet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarDisplaySet.swift; sourceTree = "<group>"; };
 		B10000000000000000000130 /* WindowDisplayAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayAttribution.swift; sourceTree = "<group>"; };
-		B1000000000000000000013E /* WindowDisplayMove.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowDisplayMove.swift; sourceTree = "<group>"; };
 		B10000000000000000000133 /* StripDisplayFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripDisplayFilter.swift; sourceTree = "<group>"; };
 		B10000000000000000000136 /* DisplayTopologyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyStore.swift; sourceTree = "<group>"; };
 		D90000000000000000000002 /* ScreenTopologySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTopologySnapshot.swift; sourceTree = "<group>"; };
@@ -465,6 +463,8 @@
 		57B94E785AF38D2E7F601224 /* WindowRestoration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowRestoration.swift; sourceTree = "<group>"; };
 		9BFA278A88FB042FB54DFD43 /* WindowRestorationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowRestorationTests.swift; sourceTree = "<group>"; };
 		29AD4E878265E81FB03D3F4F /* PanelLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelLifecycleTests.swift; sourceTree = "<group>"; };
+		3CA4067789132FB82112EBAA /* WindowObservationSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowObservationSession.swift; sourceTree = "<group>"; };
+		83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowObservationLifecycleTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -618,7 +618,6 @@
 				D90000000000000000000002 /* ScreenTopologySnapshot.swift */,
 				D90000000000000000000004 /* DisplayTopologyRefreshController.swift */,
 				B10000000000000000000130 /* WindowDisplayAttribution.swift */,
-				B1000000000000000000013E /* WindowDisplayMove.swift */,
 				B10000000000000000000133 /* StripDisplayFilter.swift */,
 				B72000000000000000000003 /* AppDisplayNameCache.swift */,
 				C90000000000000000000005 /* ClickLatencyTrace.swift */,
@@ -730,6 +729,7 @@
 		A00000000000000000000030 /* Accessibility */ = {
 			isa = PBXGroup;
 				children = (
+				3CA4067789132FB82112EBAA /* WindowObservationSession.swift */,
 				57B94E785AF38D2E7F601224 /* WindowRestoration.swift */,
 					A00000000000000000000054 /* AXWindowReader.swift */,
 				C90000000000000000000003 /* AXElementCache.swift */,
@@ -847,6 +847,7 @@
 		A00000000000000000000057 /* Unit */ = {
 			isa = PBXGroup;
 			children = (
+				83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */,
 				29AD4E878265E81FB03D3F4F /* PanelLifecycleTests.swift */,
 				9BFA278A88FB042FB54DFD43 /* WindowRestorationTests.swift */,
 				8CBB0AC11DD52E99C8910062 /* WindowCommandLifecycleTests.swift */,
@@ -886,7 +887,6 @@
 				D90000000000000000000007 /* DisplayTopologyRefreshControllerTests.swift */,
 				D90000000000000000000008 /* DisplayTopologyStoreTests.swift */,
 				B10000000000000000000138 /* WindowDisplayAttributionTests.swift */,
-				B10000000000000000000141 /* WindowDisplayMoveTests.swift */,
 				B1000000000000000000013A /* StripDisplayFilterTests.swift */,
 				B1000000000000000000013C /* AppTrackerDisplayAttributionTests.swift */,
 				A00000000000000000000E210 /* WindowTitleSettleTests.swift */,
@@ -1040,6 +1040,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B4D1FE58B8FC3008E1365D79 /* WindowObservationSession.swift in Sources */,
 				03918A10BB77C62AD4509354 /* WindowRestoration.swift in Sources */,
 				1D46B3B09FE6C4C5472EDCC1 /* FullscreenProbeWorker.swift in Sources */,
 				A743A300D71A4ECC56200BD7 /* WindowActionQueue.swift in Sources */,
@@ -1099,7 +1100,6 @@
 					B10000000000000000000118 /* TaskbarScreenPlacement.swift in Sources */,
 					B1000000000000000000011D /* TaskbarDisplaySet.swift in Sources */,
 					B10000000000000000000131 /* WindowDisplayAttribution.swift in Sources */,
-					B1000000000000000000013F /* WindowDisplayMove.swift in Sources */,
 					B10000000000000000000134 /* StripDisplayFilter.swift in Sources */,
 					B72000000000000000000001 /* AppDisplayNameCache.swift in Sources */,
 					C90000000000000000000006 /* ClickLatencyTrace.swift in Sources */,
@@ -1178,6 +1178,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				052456AB85C2E06E83E3591F /* WindowObservationLifecycleTests.swift in Sources */,
+				A4484509C9902899E4DED922 /* WindowObservationSession.swift in Sources */,
 				A5C4F3D3F0682560434054DA /* PermissionOnboardingView.swift in Sources */,
 				9BC4B9DFF1E5466F8E8E30B7 /* AppIconResolver.swift in Sources */,
 				3D6F8FADD13C415338102877 /* AppDisplayNameResolver.swift in Sources */,
@@ -1255,7 +1257,6 @@
 					D90000000000000000000204 /* DisplayTopologyRefreshController.swift in Sources */,
 					D90000000000000000000209 /* DisplayTopologyStore.swift in Sources */,
 				B10000000000000000000132 /* WindowDisplayAttribution.swift in Sources */,
-				B10000000000000000000140 /* WindowDisplayMove.swift in Sources */,
 				B10000000000000000000135 /* StripDisplayFilter.swift in Sources */,
 				B72000000000000000000002 /* AppDisplayNameCache.swift in Sources */,
 				C9000000000000000000000C /* ClickLatencyTrace.swift in Sources */,
@@ -1316,7 +1317,6 @@
 					D90000000000000000000207 /* DisplayTopologyRefreshControllerTests.swift in Sources */,
 					D90000000000000000000208 /* DisplayTopologyStoreTests.swift in Sources */,
 					B10000000000000000000139 /* WindowDisplayAttributionTests.swift in Sources */,
-					B10000000000000000000142 /* WindowDisplayMoveTests.swift in Sources */,
 					B1000000000000000000013B /* StripDisplayFilterTests.swift in Sources */,
 					B1000000000000000000013D /* AppTrackerDisplayAttributionTests.swift in Sources */,
 					A00000000000000000000E202 /* WindowTitleSettle.swift in Sources */,

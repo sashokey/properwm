@@ -325,7 +325,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        let tracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let tracker = AppTracker(inventoryLog: inventoryLog)
         let absence = Date(timeIntervalSince1970: 10)
         let episode = UUID()
         tracker.installFixtureForTesting(makeApp(
@@ -373,7 +373,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        let tracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let tracker = AppTracker(inventoryLog: inventoryLog)
         tracker.installFixtureForTesting(makeApp(shadowIDs: [88, 89]))
         let cgSnapshot = AppTrackerCGWindowSnapshot(
             allWindowIDs: [cgWindowID, 88, 89],
@@ -413,7 +413,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testUnidentifiedSnapshotDoesNotReleaseCGPresentSeat() {
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
         let cgSnapshot = AppTrackerCGWindowSnapshot(
             allWindowIDs: [cgWindowID],
@@ -447,7 +447,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        let tracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let tracker = AppTracker(inventoryLog: inventoryLog)
         tracker.installFixtureForTesting(makeApp(seatToken: "existing-seat"))
         let cgSnapshot = AppTrackerCGWindowSnapshot(
             allWindowIDs: [cgWindowID, sideWindowID],
@@ -507,7 +507,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testRetainedSeatReappearsWithSameTokenAndHeldTitle() {
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
         let cgSnapshot = AppTrackerCGWindowSnapshot(
             allWindowIDs: [cgWindowID],
@@ -546,7 +546,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        let tracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let tracker = AppTracker(inventoryLog: inventoryLog)
         tracker.installFixtureForTesting(makeApp())
 
         _ = tracker.reconcileFixtureForTesting(
@@ -590,8 +590,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             inventoryLog: inventoryLog,
             reader: reader,
             processProvider: FixedAppTrackerProcessProvider(pid: pid),
-            cgSnapshotProvider: { cgSnapshot },
-            eventAXAsyncEnabled: true
+            cgSnapshotProvider: { cgSnapshot }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -618,7 +617,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             maxFileSize: 1_000_000,
             archiveCount: 1
         ))
-        let tracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let tracker = AppTracker(inventoryLog: inventoryLog)
         tracker.installFixtureForTesting(makeApp())
 
         _ = reconcile(
@@ -650,14 +649,14 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             archiveCount: 1
         ))
 
-        let knownEmptyTracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let knownEmptyTracker = AppTracker(inventoryLog: inventoryLog)
         knownEmptyTracker.installFixtureForTesting(makeApp())
         _ = reconcile(
             knownEmptyTracker,
             eligible: [makeSnapshot(cgWindowID: cgWindowID, titleRead: .empty)]
         )
 
-        let knownValueTracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let knownValueTracker = AppTracker(inventoryLog: inventoryLog)
         knownValueTracker.installFixtureForTesting(makeApp())
         _ = reconcile(
             knownValueTracker,
@@ -665,7 +664,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
         )
 
         let replacementID: CGWindowID = 88
-        let replacementTracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let replacementTracker = AppTracker(inventoryLog: inventoryLog)
         replacementTracker.installFixtureForTesting(makeApp())
         _ = reconcile(
             replacementTracker,
@@ -674,7 +673,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
         )
 
         let newWindowID: CGWindowID = 99
-        let newSeatTracker = AppTracker(inventoryLog: inventoryLog, eventAXAsyncEnabled: true)
+        let newSeatTracker = AppTracker(inventoryLog: inventoryLog)
         newSeatTracker.installFixtureForTesting(makeApp())
         _ = reconcile(
             newSeatTracker,
@@ -695,7 +694,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testSameWindowKnownEmptyTitleClearsKnownTitle() {
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
 
         _ = reconcile(tracker, eligible: [makeSnapshot(cgWindowID: cgWindowID, titleRead: .empty)])
@@ -704,7 +703,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testSameWindowKnownTitleUpdatesKnownTitle() {
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
 
         _ = reconcile(
@@ -717,7 +716,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
 
     func testTabReplacementDoesNotInheritUnreadTitle() {
         let replacementID: CGWindowID = 88
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
 
         _ = reconcile(
@@ -733,7 +732,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
 
     func testTearOutReplacementDoesNotInheritUnreadTitle() {
         let replacementID: CGWindowID = 88
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
         let originalBounds = CGRect(x: 10, y: 20, width: 500, height: 400)
         let movedBounds = CGRect(x: 700, y: 20, width: 500, height: 400)
@@ -756,7 +755,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
 
     func testNewSeatDoesNotInheritUnreadTitle() {
         let newWindowID: CGWindowID = 99
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
 
         _ = reconcile(
@@ -781,8 +780,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             reader: reader,
             processProvider: FixedAppTrackerProcessProvider(pid: pid),
             cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: true
+            onScreenWindowIDsProvider: { [] }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -805,8 +803,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             reader: reader,
             processProvider: FixedAppTrackerProcessProvider(pid: pid),
             cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: true
+            onScreenWindowIDsProvider: { [] }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -826,8 +823,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             reader: reader,
             processProvider: FixedAppTrackerProcessProvider(pid: pid),
             cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: true
+            onScreenWindowIDsProvider: { [] }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -846,8 +842,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             reader: reader,
             processProvider: FixedAppTrackerProcessProvider(pid: pid),
             cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: true
+            onScreenWindowIDsProvider: { [] }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -867,8 +862,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
             reader: reader,
             processProvider: processProvider,
             cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: true
+            onScreenWindowIDsProvider: { [] }
         )
         tracker.installFixtureForTesting(makeApp())
 
@@ -881,25 +875,8 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
         XCTAssertNotNil(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindowID])
     }
 
-    func testAsyncKillSwitchUsesSynchronousReader() {
-        let reader = ControlledAppTrackerReader(result: .unread(.cannotComplete), blocksTimedReads: false)
-        let tracker = AppTracker(
-            reader: reader,
-            processProvider: FixedAppTrackerProcessProvider(pid: pid),
-            cgSnapshotProvider: { Self.emptyCGSnapshot() },
-            onScreenWindowIDsProvider: { [] },
-            eventAXAsyncEnabled: false
-        )
-        tracker.installFixtureForTesting(makeApp())
-
-        tracker.scheduleEventReadForTesting(pid: pid, source: .focusChanged)
-
-        XCTAssertEqual(reader.untimedReadCount, 1)
-        XCTAssertFalse(tracker.hasPendingEventReadForTesting(pid: pid))
-    }
-
     func testEquivalentSnapshotRebuildPublishesOnlyOnce() {
-        let tracker = AppTracker(eventAXAsyncEnabled: true)
+        let tracker = AppTracker()
         tracker.installFixtureForTesting(makeApp())
         var publicationCount = 0
         let subscription = tracker.$snapshot.dropFirst().sink { _ in publicationCount += 1 }

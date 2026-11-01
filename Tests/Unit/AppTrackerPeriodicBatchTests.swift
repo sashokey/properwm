@@ -18,8 +18,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         ])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
         tracker.installFixtureForTesting(makeApp(pid: pidB, cgWindowID: cgWindowB))
@@ -46,8 +45,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: reader,
             processProvider: BatchFixedProcessProvider(),
-            cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot },
-            eventAXAsyncEnabled: true
+            cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot }
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
 
@@ -71,8 +69,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         )
         let tracker = AppTracker(
             reader: reader,
-            processProvider: provider,
-            eventAXAsyncEnabled: true
+            processProvider: provider
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
 
@@ -90,8 +87,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let reader = PeriodicBatchReader(resultsByPID: [pidA: .unread(.cannotComplete)])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         var app = makeApp(pid: pidA, cgWindowID: cgWindowA)
         app.windowsByID[cgWindowA]?.isMinimized = true
@@ -118,8 +114,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         ])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
         tracker.setObserverActiveForTesting(pid: pidA, active: true)
@@ -142,8 +137,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: reader,
             processProvider: BatchFixedProcessProvider(),
-            cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot },
-            eventAXAsyncEnabled: true
+            cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot }
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
         tracker.setObserverActiveForTesting(pid: pidA, active: true)
@@ -166,8 +160,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         ])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
         tracker.setObserverActiveForTesting(pid: pidA, active: true)
@@ -194,8 +187,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let reader = PeriodicBatchReader(resultsByPID: [pidA: .success([])])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         var app = makeApp(pid: pidA, cgWindowID: cgWindowA)
         app.windowsByID[cgWindowA]?.isMinimized = true
@@ -222,7 +214,6 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: reader,
             processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true,
             uptimeProvider: { uptime.value }
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
@@ -244,8 +235,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let reader = PeriodicBatchReader(resultsByPID: [pidA: .unread(.cannotComplete)])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
         tracker.setObserverActiveForTesting(pid: pidA, active: true)
@@ -262,8 +252,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
     func testFrontmostCacheDrivesActiveHighlightWithoutWorkspaceQuery() {
         let tracker = AppTracker(
             reader: PeriodicBatchReader(resultsByPID: [:]),
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
 
@@ -282,7 +271,6 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: PeriodicBatchReader(resultsByPID: [:]),
             processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true,
             frontmostCacheEnabled: false
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
@@ -312,7 +300,6 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
             processProvider: BatchFixedProcessProvider(),
             cgSnapshotProvider: { counters.noteCapture(); return snapshot },
             onScreenWindowIDsProvider: { counters.noteProbe(); return probeBox.value },
-            eventAXAsyncEnabled: true,
             cgSnapshotReuseEnabled: reuseEnabled,
             uptimeProvider: { box?.value ?? 1000 }
         )
@@ -422,7 +409,6 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
             processProvider: BatchFixedProcessProvider(),
             cgSnapshotProvider: { counters.noteCapture(); return table.value },
             onScreenWindowIDsProvider: { counters.noteProbe(); return onScreen },
-            eventAXAsyncEnabled: true,
             cgSnapshotReuseEnabled: true,
             uptimeProvider: { 1000 }
         )
@@ -457,8 +443,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         ])
         let tracker = AppTracker(
             reader: reader,
-            processProvider: BatchFixedProcessProvider(),
-            eventAXAsyncEnabled: true
+            processProvider: BatchFixedProcessProvider()
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
 
@@ -487,8 +472,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: reader,
             processProvider: BatchFixedProcessProvider(),
-            cgSnapshotProvider: { emptyCG },
-            eventAXAsyncEnabled: true
+            cgSnapshotProvider: { emptyCG }
         )
         tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
 
@@ -523,8 +507,7 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         let tracker = AppTracker(
             reader: reader,
             processProvider: BatchFixedProcessProvider(),
-            cgSnapshotProvider: { bothInCG },
-            eventAXAsyncEnabled: true
+            cgSnapshotProvider: { bothInCG }
         )
         var app = makeApp(pid: pidA, cgWindowID: hidden)
         app.windowsByID[minimized] = WindowEntry(

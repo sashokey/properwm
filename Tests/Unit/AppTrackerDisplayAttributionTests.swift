@@ -195,120 +195,7 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
         XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
     }
 
-    /// 跨屏拖窗的乐观更新：键当场改并发布；冻结期内 AX / CG 读到的旧位置不把它弹回去，回滚不冻结。
-    func testNoteWindowMovedPublishesAndHoldsAgainstStaleReads() {
-        let tracker = makeTracker()
-        tracker.installFixtureForTesting(makeApp(displayUUID: "A"))
-        tracker.rebuildSnapshotForTesting()
-
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B"))
-        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-\(cgWindow)")]?.displayUUID, "B")
-
-        // 冻结期内：AX 读到的帧还在 A → 不动；CG 遍历同样不动。
-        let changed = tracker.reconcileFixtureForTesting(
-            pid: pid, cgSnapshot: cgSnapshot(), now: Date(),
-            eligible: [makeSnapshot(bounds: frameOnA, isMinimized: false)],
-            readOutcome: .success(count: 1)
-        )
-        XCTAssertFalse(changed)
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
-        XCTAssertFalse(tracker.refreshDisplayAttributionFromCGForTesting(cgSnapshot: cgSnapshot(bounds: [cgWindow: frameOnA])))
-
-        // 冻结期过后（读的 now 在 hold 之后）：真值校正回 A。
-        let later = Date().addingTimeInterval(AppTracker.displayMoveHold + 1)
-        let corrected = tracker.reconcileFixtureForTesting(
-            pid: pid, cgSnapshot: cgSnapshot(), now: later,
-            eligible: [makeSnapshot(bounds: frameOnA, isMinimized: false)],
-            readOutcome: .success(count: 1)
-        )
-        XCTAssertTrue(corrected)
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "A")
-
-        // 回滚（hold: .none）立刻生效且不冻结。
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B"))
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "A", hold: .none))
-        XCTAssertFalse(tracker.refreshDisplayAttributionFromCGForTesting(cgSnapshot: cgSnapshot(bounds: [cgWindow: frameOnB])))
-        XCTAssertTrue(tracker.refreshDisplayAttributionFromCGForTesting(cgSnapshot: cgSnapshot(bounds: [cgWindow: frameOnB])))
-        XCTAssertFalse(tracker.noteWindowMoved(pid: pid, cgWindowID: 999, displayUUID: "B"), "不在册的座位不认")
-    }
-
-    /// AX 拿不到句柄的离屏 / 幽灵窗口：拖到别的条上 = 改住址，键钉死到它下次在 AX 里可见——
-    /// CG 里的旧坐标、屏参数重算都不作数；AX 真读到可见帧才按帧走并放开。
-    func testUntilVisibleHoldSurvivesCGAndStaleReadsUntilAXShowsTheWindow() {
-        let tracker = makeTracker()
-        tracker.installFixtureForTesting(makeApp(displayUUID: "A"))
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B", hold: .untilVisible))
-
-        XCTAssertFalse(tracker.refreshDisplayAttributionFromCGForTesting(cgSnapshot: cgSnapshot(bounds: [cgWindow: frameOnA])))
-        tracker.screenParametersChangedForTesting()
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
-
-        // 很久以后 AX 仍没读到它可见（最小化态）→ 仍钉着（最小化标志本身变了算变化，与键无关）。
-        let later = Date().addingTimeInterval(3600)
-        _ = tracker.reconcileFixtureForTesting(
-            pid: pid, cgSnapshot: cgSnapshot(), now: later,
-            eligible: [makeSnapshot(bounds: frameOnA, isMinimized: true)],
-            readOutcome: .success(count: 1)
-        )
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
-
-        // AX 读到可见帧在 A → 按帧走、放开钉子。
-        XCTAssertTrue(tracker.reconcileFixtureForTesting(
-            pid: pid, cgSnapshot: cgSnapshot(), now: later,
-            eligible: [makeSnapshot(bounds: frameOnA, isMinimized: false)],
-            readOutcome: .success(count: 1)
-        ))
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "A")
-        XCTAssertNil(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUIDHoldUntil)
-    }
-
-    /// 跨屏搬窗冻结期内座位跟着被搬的窗口走，不被旧帧上的别的窗口「撕」走：否则旧座位继承刚写成 B 的键，
-    /// 被搬的窗口另建座位 → 两张卡都在 B、冻结一过旧的又跳回 A（owner 2026-09-03，多标签访达）。
-    func testMoveHoldKeepsTheSeatOnTheMovedWindowInsteadOfTearingItOut() {
-        let tracker = makeTracker()
-        // 夹具座位用 s9：新建座位的序号计数器从 s1 起，否则和夹具 token 撞名、断言分不出谁是谁。
-        tracker.installFixtureForTesting(makeApp(displayUUID: "A", token: "tabgrp-\(pid)-s9"))
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B"))
-        let other: CGWindowID = 92
-        let cg = AppTrackerCGWindowSnapshot(
-            allWindowIDs: [cgWindow, other], onScreenWindowIDs: [cgWindow, other],
-            windowIDsByPID: [pid: [cgWindow, other]], alphaByWindowID: [:], boundsByWindowID: [:]
-        )
-        _ = tracker.reconcileFixtureForTesting(
-            pid: pid, cgSnapshot: cg, now: Date(),
-            eligible: [makeSnapshot(bounds: frameOnB, isMinimized: false),
-                       makeSnapshot(bounds: frameOnA, isMinimized: false, cgWindowID: other)],
-            readOutcome: .success(count: 2)
-        )
-        let app = tracker.fixtureAppForTesting(pid: pid)
-        XCTAssertEqual(app?.windowsByID[cgWindow]?.token, "tabgrp-\(pid)-s9", "座位跟着被搬的窗口")
-        XCTAssertEqual(app?.windowsByID[cgWindow]?.displayUUID, "B")
-        XCTAssertNotEqual(app?.windowsByID[other]?.token, "tabgrp-\(pid)-s9", "旧帧上的窗口自成座位")
-        XCTAssertEqual(app?.windowsByID[other]?.displayUUID, "A")
-    }
-
-    /// AX 写帧失败后的裁决：窗口在屏上 → 回滚；不在屏上 → 钉死到目标屏；座位不在册 → 不动。
-    func testFailedMoveRollsBackOnScreenWindowsAndPinsOffScreenOnes() {
-        let tracker = makeTracker()
-        tracker.installFixtureForTesting(makeApp(displayUUID: "A"))
-
-        tracker.rebuildSnapshotForTesting(onScreenCGIDs: [cgWindow])
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B"))
-        XCTAssertEqual(tracker.resolveFailedWindowMove(pid: pid, cgWindowID: cgWindow, target: "B", previous: "A"), .rolledBack)
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "A")
-        XCTAssertNil(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUIDHoldUntil)
-
-        tracker.rebuildSnapshotForTesting(onScreenCGIDs: [])
-        XCTAssertTrue(tracker.noteWindowMoved(pid: pid, cgWindowID: cgWindow, displayUUID: "B"))
-        XCTAssertEqual(tracker.resolveFailedWindowMove(pid: pid, cgWindowID: cgWindow, target: "B", previous: "A"), .pinnedToTarget)
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUID, "B")
-        XCTAssertEqual(tracker.fixtureAppForTesting(pid: pid)?.windowsByID[cgWindow]?.displayUUIDHoldUntil, .distantFuture)
-
-        XCTAssertEqual(tracker.resolveFailedWindowMove(pid: pid, cgWindowID: 999, target: "B", previous: "A"), .seatGone)
-    }
-
-    /// 「在运行但没窗口」的兜底卡落在窗口最后所在的屏；拖到别的条上（`noteNoWindowHome`）改它。
-    func testFallbackCardRemembersLastWindowDisplayAndAcceptsANewHome() {
+    func testFallbackCardRemembersLastWindowDisplay() {
         let tracker = makeTracker()
         tracker.installFixtureForTesting(makeApp(bounds: frameOnB, displayUUID: "B"))
         tracker.rebuildSnapshotForTesting()
@@ -322,10 +209,7 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
         let fallbackID = WindowID(rawValue: "app-com.example.fixture")
         XCTAssertEqual(tracker.snapshot.windows[fallbackID]?.displayUUID, "B")
 
-        tracker.noteNoWindowHome(bundleID: "com.example.fixture", displayUUID: "A")
-        XCTAssertEqual(tracker.snapshot.windows[fallbackID]?.displayUUID, "A")
-        tracker.noteNoWindowHome(bundleID: "com.other", displayUUID: "B")
-        XCTAssertEqual(tracker.snapshot.windows[fallbackID]?.displayUUID, "A", "别的 bundle 不受影响")
+
     }
 
     // MARK: - Fixtures
@@ -342,7 +226,6 @@ final class AppTrackerDisplayAttributionTests: XCTestCase {
         return AppTracker(
             reader: DisplayAttributionNoopReader(),
             processProvider: DisplayAttributionFixedProcessProvider(),
-            eventAXAsyncEnabled: true,
             displayTableProvider: tableProvider ?? { table }
         )
     }
