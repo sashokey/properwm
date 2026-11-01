@@ -251,6 +251,47 @@ enum WindowLiftAvoidance {
         }
     }
 
+    struct Suppression: Equatable {
+        enum Origin: Equatable {
+            case untilNative
+            case userChange
+            case applicationResponse(standoffRounds: Int, clearedAt: TimeInterval)
+        }
+
+        enum Decision: Equatable {
+            case hold
+            case restart
+            case reassert(standoffRounds: Int)
+        }
+
+        let nativeFrame: CGRect
+        let targetFrame: CGRect
+        let origin: Origin
+
+        func decision(
+            for frame: CGRect,
+            geometry: Geometry,
+            includesTiles: Bool,
+            at: TimeInterval
+        ) -> Decision {
+            let isNative = frameClassification(
+                of: frame, nativeFrame: nativeFrame, targetFrame: targetFrame
+            ) == .native
+            if case let .applicationResponse(rounds, clearedAt) = origin {
+                guard isNative || geometry.isLiftEligible(frame, includesTiles: includesTiles) else {
+                    return .hold
+                }
+                return !isNative || isDetourReturn(clearedAt: clearedAt, at: at)
+                    ? .reassert(standoffRounds: rounds) : .restart
+            }
+            guard isNative || geometry.suppressionReleasesOnNewFrame(
+                frame, suppressedNative: nativeFrame,
+                userEra: origin == .userChange, includesTiles: includesTiles
+            ) else { return .hold }
+            return .restart
+        }
+    }
+
     static func fillsVisibleFrame(
         _ frame: CGRect,
         visible: CGRect,

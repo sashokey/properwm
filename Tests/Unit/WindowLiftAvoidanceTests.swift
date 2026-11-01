@@ -1740,3 +1740,149 @@ final class WindowLiftAvoidanceTests: XCTestCase {
         XCTAssertNil(WindowLiftAvoidance.owningContextIndex(for: .zero, screenCGFrames: [left]))
     }
 }
+
+
+extension WindowLiftAvoidanceTests {
+    private var fullscreenReturnGeometry: WindowLiftAvoidance.Geometry {
+        WindowLiftAvoidance.Geometry(
+            screenFrame: CGRect(x: 2560, y: 0, width: 2560, height: 1440),
+            visibleFrame: CGRect(x: 2560, y: 0, width: 2560, height: 1440),
+            taskbarTop: 32, topReservedHeight: 22
+        )
+    }
+
+    func testFullscreenReturnThenMaximizeReleasesSuppressionWithItsRetryBudget() throws {
+        let geometry = fullscreenReturnGeometry
+        let returnedFrame = CGRect(x: 2560, y: 10, width: 2560, height: 1378)
+        let firstTarget = try XCTUnwrap(geometry.liftTargetFrame(for: returnedFrame, includesTiles: true))
+        XCTAssertEqual(firstTarget, CGRect(x: 2560, y: 34, width: 2560, height: 1354))
+        let started = WindowLiftAvoidance.reduce(state: .idle, event: .maximizedDetected(
+            generation: 1, at: 10, nativeFrame: returnedFrame, targetFrame: firstTarget
+        ))
+        let settled = WindowLiftAvoidance.reduce(state: started.state, event: .writeFinished(
+            generation: 1, at: 10.6, actualFrame: firstTarget, reliftCount: 0
+        ))
+        XCTAssertFalse(WindowLiftAvoidance.externalFrameIsUserEra(state: settled.state, at: 10.84))
+        let transitionFrame = CGRect(x: 2560, y: 17, width: 2560, height: 1382)
+        let cleared = WindowLiftAvoidance.reduce(state: settled.state, event: .nonMaximizedObserved(
+            generation: 2, at: 10.84, frame: transitionFrame
+        ))
+        XCTAssertEqual(cleared, .init(state: .idle, action: .clear))
+        let suppression = WindowLiftAvoidance.Suppression(
+            nativeFrame: returnedFrame, targetFrame: firstTarget,
+            origin: .applicationResponse(standoffRounds: 0, clearedAt: 10.84)
+        )
+        let maximized = CGRect(x: 2560, y: 0, width: 2560, height: 1410)
+        XCTAssertEqual(suppression.decision(for: maximized, geometry: geometry, includesTiles: true, at: 10.9),
+                       .reassert(standoffRounds: 0))
+        let target = try XCTUnwrap(geometry.liftTargetFrame(for: maximized, includesTiles: true))
+        XCTAssertEqual(target, CGRect(x: 2560, y: 34, width: 2560, height: 1376))
+        let recovered = WindowLiftAvoidance.reduce(state: cleared.state, event: .detourReturnObserved(
+            generation: 3, at: 10.9, nativeFrame: maximized, targetFrame: target, standoffRounds: 0
+        ))
+        XCTAssertEqual(recovered.action,
+                       .write(targetFrame: target, rollbackFrame: maximized, generation: 3, isRelift: false))
+    }
+
+    func testSuppressedMaximizedGeometryCanChangeWhenTilesAreDisabled() throws {
+        let geometry = fullscreenReturnGeometry
+        let native = geometry.visibleFrame
+        let suppression = WindowLiftAvoidance.Suppression(
+            nativeFrame: native,
+            targetFrame: try XCTUnwrap(geometry.liftTargetFrame(for: native, includesTiles: false)),
+            origin: .applicationResponse(standoffRounds: 1, clearedAt: 100)
+        )
+        XCTAssertEqual(suppression.decision(
+            for: CGRect(x: 2560, y: 0, width: 2560, height: 1410),
+            geometry: geometry, includesTiles: false, at: 100.3
+        ), .reassert(standoffRounds: 1))
+    }
+
+    func testChangedGeometryRetainsReassertionBudgetEvenAfterTheTimeWindow() throws {
+        let geometry = fullscreenReturnGeometry
+        let native = CGRect(x: 2560, y: 10, width: 2560, height: 1378)
+        let suppression = WindowLiftAvoidance.Suppression(
+            nativeFrame: native,
+            targetFrame: try XCTUnwrap(geometry.liftTargetFrame(for: native, includesTiles: true)),
+            origin: .applicationResponse(standoffRounds: 1, clearedAt: 100)
+        )
+        XCTAssertEqual(suppression.decision(
+            for: CGRect(x: 2560, y: 0, width: 2560, height: 1410),
+            geometry: geometry, includesTiles: true, at: 130
+        ), .reassert(standoffRounds: 1))
+        XCTAssertEqual(suppression.decision(for: native, geometry: geometry, includesTiles: true, at: 100.2),
+                       .reassert(standoffRounds: 1))
+        XCTAssertEqual(suppression.decision(for: native, geometry: geometry, includesTiles: true, at: 130), .restart)
+    }
+
+    func testGeometryChangesCannotResetTheReassertionLimit() throws {
+        let geometry = fullscreenReturnGeometry
+        let frames = [
+            CGRect(x: 2560, y: 10, width: 2560, height: 1378),
+            CGRect(x: 2560, y: 0, width: 2560, height: 1410),
+            CGRect(x: 2560, y: 0, width: 2560, height: 1440)
+        ]
+        var previous = frames[0]
+        var rounds = 0
+        for index in 1...6 {
+            let frame = frames[index % frames.count]
+            let suppression = WindowLiftAvoidance.Suppression(
+                nativeFrame: previous,
+                targetFrame: try XCTUnwrap(geometry.liftTargetFrame(for: previous, includesTiles: true)),
+                origin: .applicationResponse(standoffRounds: rounds, clearedAt: Double(index * 10))
+            )
+            let decision = suppression.decision(
+                for: frame, geometry: geometry, includesTiles: true, at: Double(index * 10 + 5)
+            )
+            guard case let .reassert(carriedRounds) = decision else {
+                return XCTFail("Changed eligible geometry must preserve the accumulated retry budget")
+            }
+            XCTAssertEqual(carriedRounds, rounds)
+            let transition = WindowLiftAvoidance.reduce(state: .idle, event: .detourReturnObserved(
+                generation: UInt64(index), at: Double(index * 10 + 5), nativeFrame: frame,
+                targetFrame: try XCTUnwrap(geometry.liftTargetFrame(for: frame, includesTiles: true)),
+                standoffRounds: carriedRounds
+            ))
+            if index == 1 {
+                guard case let .writing(attempt) = transition.state else { return XCTFail("Expected bounded recovery") }
+                rounds = attempt.standoffRounds
+            } else {
+                XCTAssertEqual(transition.action, .abandon(.reliftLimitReached))
+                guard case let .abandoned(session) = transition.state else { return XCTFail("Expected retry cap") }
+                rounds = session.standoffRounds
+                XCTAssertEqual(rounds, WindowLiftAvoidance.maximumStandoffRounds)
+                XCTAssertEqual(session.nativeFrame, frame)
+            }
+            previous = frame
+        }
+    }
+
+    func testApplicationResponseDoesNotReleaseForFloatingOrAlreadyAdjustedFrames() throws {
+        let geometry = fullscreenReturnGeometry
+        let native = CGRect(x: 2560, y: 10, width: 2560, height: 1378)
+        let target = try XCTUnwrap(geometry.liftTargetFrame(for: native, includesTiles: true))
+        let suppression = WindowLiftAvoidance.Suppression(
+            nativeFrame: native, targetFrame: target,
+            origin: .applicationResponse(standoffRounds: 0, clearedAt: 100)
+        )
+        for frame in [target, CGRect(x: 2800, y: 200, width: 900, height: 600), .zero,
+                      CGRect(x: 0, y: 0, width: 2560, height: 1410)] {
+            XCTAssertEqual(suppression.decision(for: frame, geometry: geometry, includesTiles: true, at: 100.2), .hold)
+        }
+    }
+
+    func testChangedGeometryDoesNotReleasePermissionFreezeSuppression() throws {
+        let geometry = fullscreenReturnGeometry
+        let native = CGRect(x: 2560, y: 10, width: 2560, height: 1378)
+        let suppression = WindowLiftAvoidance.Suppression(
+            nativeFrame: native,
+            targetFrame: try XCTUnwrap(geometry.liftTargetFrame(for: native, includesTiles: true)),
+            origin: .untilNative
+        )
+        XCTAssertEqual(suppression.decision(for: native, geometry: geometry, includesTiles: true, at: 100), .restart)
+        XCTAssertEqual(suppression.decision(
+            for: CGRect(x: 2560, y: 0, width: 2560, height: 1410),
+            geometry: geometry, includesTiles: true, at: 100
+        ), .hold)
+    }
+}

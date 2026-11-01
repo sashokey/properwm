@@ -6,6 +6,7 @@ import XCTest
 
 private final class RestorationFixture: WindowRestorationAccess {
     let writes = Mutex(0)
+    let writtenFrames = Mutex<[CGRect]>([])
     let current: CGRect?
     let result: AXWindowFrameWriteResult
     let start: timeval?
@@ -24,6 +25,7 @@ private final class RestorationFixture: WindowRestorationAccess {
     func frame(_ handle: Int) -> CGRect? { onRead(); return current }
     func write(_ frame: CGRect, to handle: Int, matching current: CGRect) -> AXWindowFrameWriteResult {
         writes.withLock { $0 += 1 }
+        writtenFrames.withLock { $0.append(frame) }
         return result
     }
 }
@@ -54,6 +56,23 @@ final class WindowRestorationTests: XCTestCase {
     func testConfirmedWriteCompletesRestoration() {
         let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
         XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+    }
+
+    func testRestorationUsesTheNewGeometryAfterFullscreenReturnRecovery() {
+        let native = CGRect(x: 2560, y: 0, width: 2560, height: 1410)
+        let target = CGRect(x: 2560, y: 34, width: 2560, height: 1376)
+        let recoveredFrames = WindowRestorationFrames(
+            nativeAppKit: native, targetAppKit: target, primaryScreenHeight: 1440
+        )
+        let expectedNative = CGRect(x: 2560, y: 30, width: 2560, height: 1410)
+        let access = RestorationFixture(
+            current: CGRect(x: 2560, y: 30, width: 2560, height: 1376),
+            result: .success(actualFrame: expectedNative)
+        )
+        XCTAssertEqual(WindowRestorer(access: access).restore(
+            key: key, frames: recoveredFrames, expectedStartTime: nil, liveWindowKeys: [key]
+        ), .handled)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [expectedNative])
     }
 
     func testMovedOrReusedWindowsAreNeverWritten() {

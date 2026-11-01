@@ -9,6 +9,22 @@ struct WindowRestorationFrames: Sendable {
     let primaryScreenHeight: CGFloat
 }
 
+extension WindowRestorationFrames {
+    init(nativeAppKit: CGRect, targetAppKit: CGRect, primaryScreenHeight: CGFloat) {
+        self.init(
+            nativeAppKit: nativeAppKit,
+            targetAppKit: targetAppKit,
+            nativeQuartz: WindowLiftAvoidance.quartzFrame(
+                fromAppKit: nativeAppKit, primaryScreenHeight: primaryScreenHeight
+            ),
+            targetQuartz: WindowLiftAvoidance.quartzFrame(
+                fromAppKit: targetAppKit, primaryScreenHeight: primaryScreenHeight
+            ),
+            primaryScreenHeight: primaryScreenHeight
+        )
+    }
+}
+
 enum WindowRestorationOutcome: Equatable, Sendable {
     case handled
     case retry
