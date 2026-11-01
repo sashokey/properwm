@@ -1508,13 +1508,7 @@ final class WindowLiftAvoidanceTests: XCTestCase {
             ),
             [dead]
         )
-        XCTAssertEqual(
-            WindowLiftAvoidance.prunedStates(
-                states,
-                liveWindowKeys: [live, reusedByOtherProcess]
-            ),
-            [live: "live"]
-        )
+
     }
 
     func testOlderGlobalDeadSnapshotCannotOverrideNewerTrackedObservation() {

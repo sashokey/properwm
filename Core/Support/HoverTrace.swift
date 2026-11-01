@@ -58,25 +58,6 @@ enum HoverTrace {
         )
     }
 
-    /// 外部拖放（从访达拖进来）的每一次回调。**临时诊断**：2026-09-08 owner 报「拖应用进条时
-    /// 光标上的加号一直闪」，而闪烁只可能来自 `dropUpdated` 返回的落点操作在交替。这一行把
-    /// 「会话进出 / 剪贴板判定 / 两个落点 / 返回的操作 / 空档序号」摆在同一条时间线上，
-    /// 让「是我们在振荡还是系统角标自己在动」变成可判定的。查清后删掉。
-    static func externalDrop(phase: String, x: CGFloat, isApp: Bool,
-                             target: String, fileTarget: String,
-                             operation: String, ghostIndex: Int?,
-                             frozenWidth: CGFloat?, stripRect: CGRect) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"extdrop\",\"phase\":\(quote(phase))," +
-            "\"x\":\(round(x * 10) / 10),\"isApp\":\(isApp)," +
-            "\"target\":\(quote(target)),\"fileTarget\":\(quote(fileTarget))," +
-            "\"op\":\(quote(operation)),\"ghost\":\(ghostIndex.map(String.init) ?? "null")," +
-            "\"frozen\":\(frozenWidth.map { String(r1($0)) } ?? "null")," +
-            "\"rectX\":\(r1(stripRect.minX)),\"rectW\":\(r1(stripRect.width))}"
-        )
-    }
-
     /// 主线程卡顿：预定 8ms 触发，实际晚了 `lateMs`。只记超过 12ms 的，免得自己刷屏。
     /// 60Hz 下一帧 16.7ms，所以 >16.7 基本等于至少掉一帧。
     static func mainLoopStall(lateMs: Double) {
@@ -146,13 +127,6 @@ enum HoverTrace {
         Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"width\",\"who\":\(quote(who)),\"w\":\(round(width * 10) / 10)}")
     }
 
-    /// 面板 frame 全等 → 整组动画被跳过。**这条是上面那条浪费真的被堵住的证据**，
-    /// 光看 `relayout` 次数看不出来（短路发生在下游的 `setFrames` 里）。
-    static func framesUnchanged() {
-        guard isEnabled else { return }
-        Writer.shared.append("{\"t\":\(stamp()),\"kind\":\"framesSkipped\"}")
-    }
-
     /// 用户动作的时间窗标记。没有它，日志里一堆卡顿不知道该算在谁头上。
     static func action(_ kind: String, phase: String) {
         guard widthProbesEnabled else { return }
@@ -160,54 +134,6 @@ enum HoverTrace {
     }
 
     // MARK: - 拖拽（owner 2026-08-18 报「从抽屉拖进任务条不容易挤开别的图标 / 会出现两个影子」）
-
-    /// 抽屉图标拖向任务条时，**每一次光标位置更新**都记一行判定现场。
-    ///
-    /// 这条存在的理由和 `pointer` 一样：转正判定是一串 `guard`，任何一条不过就静默返回，
-    /// 从外面看全是「没反应」。没有这一行只能靠猜是几何、是模式、还是落点。
-    /// `enter` / `clearlyOut` 是那个迟滞框的两个布尔，`mode` 是 `DrawerDragOutMode`。
-    static func drawerToStrip(x: CGFloat, y: CGFloat,
-                              strip: CGRect,
-                              enter: Bool, clearlyOut: Bool,
-                              mode: String, converted: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"d2s\",\"x\":\(r1(x)),\"y\":\(r1(y))," +
-            "\"sx\":\(r1(strip.minX)),\"sy\":\(r1(strip.minY))," +
-            "\"sw\":\(r1(strip.width)),\"sh\":\(r1(strip.height))," +
-            "\"enter\":\(enter),\"out\":\(clearlyOut),\"mode\":\(quote(mode)),\"conv\":\(converted)}"
-        )
-    }
-
-    /// 转正 / 回滚那一刻的落点暂存。**`target` 为 null = 整块落到 live 区末尾**——
-    /// 而转正期间任务条宽度是冻结的，落末尾往往被裁在可视区外，看起来就是「什么都没发生」。
-    static func drawerToStripStage(bundleID: String, target: String?, after: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"d2sStage\",\"bid\":\(quote(bundleID))," +
-            "\"target\":\(target.map(quote) ?? "null"),\"after\":\(after)}"
-        )
-    }
-
-    /// 转正态下「载体画哪张卡」与「条上隐藏哪张卡」各是谁。
-    /// 两者**必须同时有值**，否则条上那张卡不透明地画着、手里又拎着一个 = 两个影子。
-    static func carrierRepresentative(rep: String?, hidden: String?) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"carrierRep\"," +
-            "\"rep\":\(rep.map(quote) ?? "null"),\"hidden\":\(hidden.map(quote) ?? "null")}"
-        )
-    }
-
-    /// 转正后的整块连续重排：这一次有没有找到落点目标。`target` 为 null = 光标没压在任何一张
-    /// live 卡上（在条外、在消息区/文件夹区、或在卡与卡之间），于是**整块原地不动**。
-    static func stripBlockReorder(target: String?, after: Bool, why: String) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"blockReorder\",\"target\":\(target.map(quote) ?? "null")," +
-            "\"after\":\(after),\"why\":\(quote(why))}"
-        )
-    }
 
     /// 起拖那一帧各步花了多久（owner 2026-08-18 报「选中图标拖动的第一帧有卡顿」）。
     /// `carrierCreated` = 这次是不是现建的载体面板——建面板要连带起一棵 SwiftUI 宿主树，
@@ -220,32 +146,6 @@ enum HoverTrace {
             "{\"t\":\(stamp()),\"kind\":\"dragStart\",\"ms\":\(round(totalMs * 10) / 10)," +
             "\"carrierMs\":\(round(carrierMs * 10) / 10),\"created\":\(carrierCreated)," +
             "\"prepared\":\(prepared)}"
-        )
-    }
-
-    /// 拍一张载体位图花了多久、拍出多大。
-    ///
-    /// 起拖那一刻是在主线程上同步拍的，所以它直接算进「第一帧卡不卡」。spike 实测中位 0.59ms、
-    /// P95 0.87ms（预算 8ms），真机上要是超了，就把快照挪到 `chipPressGesture` 的 mouse-down
-    /// 时机预拍。`w`/`h` 是含外扩的逻辑尺寸；`ok:false` = 渲染失败，那次拖动会被直接拒掉。
-    static func carrierSnapshot(ms: Double, width: CGFloat, height: CGFloat, ok: Bool) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"snapshot\",\"ms\":\(round(ms * 10) / 10)," +
-            "\"w\":\(r1(width)),\"h\":\(r1(height)),\"ok\":\(ok)}"
-        )
-    }
-
-    /// 起拖路径上的异常时刻。
-    ///
-    /// 载体改成位图之后，「条上那张卡什么时候藏」不再是一场赛跑（`beginDrag` 同步把位图摆在
-    /// 卡槽原位），所以原来的 `slotHidden` / `carrierDrawn` 两个时刻没有了。现在只剩一个取值：
-    /// `noSnapshot` —— 位图没拍出来，那次拖动被直接拒掉（宁可不拖，也不能拎着空气）。
-    static func dragHandoff(_ what: String, msSinceBegin: Double) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"handoff\",\"what\":\(quote(what))," +
-            "\"ms\":\(round(msSinceBegin * 10) / 10)}"
         )
     }
 
@@ -271,24 +171,6 @@ enum HoverTrace {
         )
     }
 
-    /// 抽屉里的消息应用往消息区拖：**每 tick 记一条**，对照 `d2s`。
-    /// `stop` 是卡在了哪一条 guard（`ok` = 这一 tick 真的释放了），`zone` 是算出来的消息区范围
-    /// （`fallback` 表示消息区当时是空的、退回了条头 56pt 那个兜底框）。
-    /// `inSnapshot` / `running` **必须同时记**：授权释放看的是窗口清单（`runtime.snapshot`），
-    /// 而消息区可见性和图标下面那个运行点看的是 `RunningApplicationStore`（NSWorkspace 进程投影）。
-    /// 两者不是同一个真相源，分歧正是「图标明明有运行点、却拖不进消息区」的嫌疑所在。
-    static func drawerToMessaging(bid: String, x: CGFloat, y: CGFloat, zone: CGRect?, fallback: Bool,
-                                  mode: String, inSnapshot: Bool, running: Bool,
-                                  inZone: Bool, released: Bool, stop: String) {
-        guard isEnabled else { return }
-        let z = zone.map { "[\(r1($0.minX)),\(r1($0.minY)),\(r1($0.width)),\(r1($0.height))]" } ?? "null"
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"d2m\",\"bid\":\"\(bid)\",\"x\":\(r1(x)),\"y\":\(r1(y)),\"zone\":\(z),"
-            + "\"fallback\":\(fallback),\"mode\":\"\(mode)\",\"snap\":\(inSnapshot),\"run\":\(running),"
-            + "\"inZone\":\(inZone),\"released\":\(released),\"stop\":\"\(stop)\"}"
-        )
-    }
-
     /// 飞行途中的**改终点**。落点锚点在飞行期间还会继续更新（卡槽/网格的让位动画没跑完），
     /// `retargetLandingIfNeeded` 会跟着改终点重发动画。改得太远，用户看到的就是一条折线
     /// （owner 2026-08-20：「先飘到目标位置偏右，再去到目标位置」）。
@@ -299,16 +181,6 @@ enum HoverTrace {
             "{\"t\":\(stamp()),\"kind\":\"landingRetarget\",\"from\":[\(r1(from.x)),\(r1(from.y))],"
             + "\"to\":[\(r1(to.x)),\(r1(to.y))],\"prev\":[\(r1(previous.x)),\(r1(previous.y))],"
             + "\"shift\":\(r1(hypot(to.x - previous.x, to.y - previous.y)))}"
-        )
-    }
-
-    /// **不变量自检**：条上那格已经空了，副本却不在屏幕上 —— 这一刻用户看到的就是「图标凭空消失」。
-    /// 把「偶尔会出现」变成一条可以事后统计的记录，不用再靠截图猜。
-    static func carrierGap(reason: String, alpha: Double, hostX: CGFloat, hostY: CGFloat) {
-        guard isEnabled else { return }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"GAP\",\"why\":\(quote(reason))," +
-            "\"alpha\":\(round(alpha * 100) / 100),\"hx\":\(r1(hostX)),\"hy\":\(r1(hostY))}"
         )
     }
 
@@ -341,17 +213,6 @@ enum HoverTrace {
         Writer.shared.append(
             "{\"t\":\(stamp()),\"kind\":\"landing\",\"from\":[\(r1(from.x)),\(r1(from.y))]," +
             "\"to\":\(target),\"src\":\(quote(source))}"
-        )
-    }
-
-    /// An outside drag's image swapped over the drawer: the source frame and its icon (receiver
-    /// coordinates), the pointer, and the cell frame asked for.
-    static func dragImageSwap(source: CGRect, icon: CGRect?, pointer: CGPoint, target: CGRect, validItems: Int) {
-        guard isEnabled else { return }
-        func rect(_ r: CGRect) -> String { "[\(r1(r.minX)),\(r1(r.minY)),\(r1(r.width)),\(r1(r.height))]" }
-        Writer.shared.append(
-            "{\"t\":\(stamp()),\"kind\":\"extswap\",\"source\":\(rect(source)),\"icon\":\(icon.map(rect) ?? "null")," +
-            "\"pointer\":[\(r1(pointer.x)),\(r1(pointer.y))],\"target\":\(rect(target)),\"valid\":\(validItems)}"
         )
     }
 

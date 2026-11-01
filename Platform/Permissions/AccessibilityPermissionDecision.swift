@@ -82,11 +82,6 @@ enum PermissionOnboardingState: Equatable {
 
 // MARK: - 运行期丢失防抖
 
-/// 运行期权限丢失的防抖判定。
-///
-/// 它只决定**用户可见的停运时机**（收起任务条、弹恢复引导）。
-/// 最大化避让的快照保护**不靠它**：有会话/待还原状态时那边仍每 0.2s 轮询一次，
-/// 这里 5s 一次，中间的空窗由 `WindowLiftAvoidanceController` 在 `poll()` 里自检兜住。
 struct PermissionLossDetector: Equatable {
     enum Verdict: Equatable {
         /// 权限正常。

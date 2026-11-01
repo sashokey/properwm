@@ -9,19 +9,6 @@ enum WindowDisplayTitle {
         return title == "ProperWM" ? String(localized: "Taskbar") : title
     }
 
-    static func trimmingAppNameSuffix(_ title: String, appName: String) -> String {
-        let app = appName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !app.isEmpty, title.hasSuffix(app), title != app else { return title }
-
-        var head = Substring(title).dropLast(app.count)
-        guard let separator = separators.first(where: { head.hasSuffix($0) }) else { return title }
-        head = head.dropLast(separator.count)
-
-        let remainder = head.trimmingCharacters(in: .whitespacesAndNewlines)
-        return remainder.isEmpty ? title : remainder
-    }
-
-    private static let separators = [" - ", " — ", " – ", " | ", " · ", "-", "—", "–", "|"]
 }
 
 struct StripItem: Hashable {

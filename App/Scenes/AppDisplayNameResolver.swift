@@ -4,13 +4,6 @@ import CoreServices
 @MainActor
 enum AppDisplayNameResolver {
     private static let displayNameCache = AppDisplayNameCache()
-    private static let nameRegistry = AppNameRegistry(
-        bundleNamesLoader: bundleDerivedNames(for:),
-        runningNameLoader: { bundleID in
-            NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-                .first?.localizedName
-        }
-    )
     private static let workspaceObservers: [NSObjectProtocol] = {
         let center = NSWorkspace.shared.notificationCenter
         let names: [Notification.Name] = [
@@ -22,12 +15,9 @@ enum AppDisplayNameResolver {
                 guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
                     as? NSRunningApplication,
                       let bundleID = app.bundleIdentifier else { return }
-                let localized = app.localizedName
                 MainActor.assumeIsolated {
                     invalidateDisplayName(for: bundleID)
-                    if name == NSWorkspace.didLaunchApplicationNotification, let localized {
-                        nameRegistry.observe(name: localized, for: bundleID)
-                    }
+
                 }
             }
         }
@@ -38,7 +28,6 @@ enum AppDisplayNameResolver {
         return displayNameCache.value(for: bundleID) {
             if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
                let name = running.localizedName, !name.isEmpty {
-                nameRegistry.observe(name: name, for: bundleID)   // 顺手记进注册表，白拿
                 return name
             }
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
@@ -74,32 +63,6 @@ enum AppDisplayNameResolver {
 
     static func invalidateDisplayName(for bundleID: String) {
         displayNameCache.invalidate(bundleID: bundleID)
-        nameRegistry.invalidate(bundleID: bundleID)
     }
 
-    static func titleMatchesAppName(_ title: String, bundleID: String) -> Bool {
-        _ = workspaceObservers
-        return nameRegistry.matches(title: title, bundleID: bundleID)
-    }
-
-    static func knownAppNames(for bundleID: String) -> Set<String> {
-        _ = workspaceObservers
-        return nameRegistry.knownNames(for: bundleID)
-    }
-
-    nonisolated private static func bundleDerivedNames(for bundleID: String) -> Set<String> {
-        var names: Set<String> = []
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            let bundle = Bundle(url: url)
-            for dict in [bundle?.localizedInfoDictionary, bundle?.infoDictionary] {
-                for key in ["CFBundleDisplayName", "CFBundleName"] {
-                    if let name = dict?[key] as? String, !name.isEmpty {
-                        names.insert(AppNameRegistry.normalize(name))
-                    }
-                }
-            }
-            names.insert(AppNameRegistry.normalize(url.deletingPathExtension().lastPathComponent))
-        }
-        return names
-    }
 }

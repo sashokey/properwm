@@ -22,15 +22,12 @@ enum AppIconResolver {
             }
         },
         didCheck: { entries in
-            var invalidated = false
             for entry in entries {
                 guard let current = cache[entry.key], current.path == entry.path,
                       current.stamp != entry.stamp else { continue }
                 cache.removeValue(forKey: entry.key)
                 logger.debug("图标变了：\(entry.key, privacy: .public)")
-                invalidated = true
             }
-            if invalidated { AppIconRevision.shared.advance() }
         }
     )
 

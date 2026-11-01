@@ -29,18 +29,6 @@ struct AppIconStamp: Equatable, Sendable {
 }
 
 @MainActor
-final class AppIconRevision: ObservableObject {
-    static let shared = AppIconRevision()
-    @Published private(set) var revision: Int = 0
-
-    private init() {}
-
-    func advance() {
-        revision += 1
-    }
-}
-
-@MainActor
 final class AppIconFreshnessChecker {
     struct Entry: Sendable {
         let key: String

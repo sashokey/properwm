@@ -21,9 +21,6 @@ enum WindowLiftAvoidance {
     static let verificationTolerance: CGFloat = 2
     static let clearance: CGFloat = 2
     static let animationDuration: TimeInterval = 0.5
-    /// The user-zoom-toggle restore (maximized → remembered frame): shorter than the lift, close to
-    /// the system's own zoom animation, so the undo reads as one motion after the system's bulge.
-    /// An interpolation plan, not a bound — each frame's AX round-trips add on top.
     static let animationFramesPerSecond: Double = 30
     static let globalDetectionInterval: TimeInterval = 0.2
     static let trackedSessionProbeInterval: TimeInterval = 0.05
@@ -931,13 +928,6 @@ enum WindowLiftAvoidance {
         deadWindowKeys(tracked: tracked, live: live).filter {
             observationGeneration > (observationWatermarks[$0] ?? 0)
         }
-    }
-
-    static func prunedStates<Value>(
-        _ states: [WindowKey: Value],
-        liveWindowKeys: Set<WindowKey>
-    ) -> [WindowKey: Value] {
-        states.filter { liveWindowKeys.contains($0.key) }
     }
 
     // MARK: - Coordinate conversion
