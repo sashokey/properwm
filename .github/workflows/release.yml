@@ -148,13 +148,13 @@ jobs:
               body: [
                 process.env.RELEASE_NOTES,
                 'Apple Silicon app for macOS 26 or later. Ad-hoc signed; not notarized.',
-                'The app ZIP and its SHA-256 checksum are attached.',
+                'The installable app ZIP is attached.',
                 "Source is available through GitHub's standard Source code archives for this release tag.",
                 'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo
                   + '/blob/' + context.sha + '/TESTING.md'
               ].filter(Boolean).join('\n\n')
             });
-            for (const name of [...names, 'SHA256SUMS.txt']) {
+            for (const name of names) {
               await github.rest.repos.uploadReleaseAsset({
                 ...context.repo, release_id: release.id, name,
                 headers: { 'content-type': name.endsWith('.zip') ? 'application/zip' : 'text/plain' },

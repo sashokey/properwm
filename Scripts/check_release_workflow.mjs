@@ -80,7 +80,7 @@ function fixture({ draft = true, corrupt = false, failUpload = false, notes, con
     uploadReleaseAsset: async request => {
       calls.push(['upload', request]);
       uploaded++;
-      if (failUpload && request.name === 'SHA256SUMS.txt') throw new Error('upload failed');
+      if (failUpload && request.name === 'ProperWM-0.1.0.zip') throw new Error('upload failed');
     },
     updateRelease: async request => { calls.push(['publish', request]); }
   } } };
@@ -99,21 +99,22 @@ function fixture({ draft = true, corrupt = false, failUpload = false, notes, con
   return { calls, run: () => publish(github, context, core, require, process) };
 }
 
-test('draft upload attaches only the app and its checksum to the exact commit', async () => {
+test('draft upload attaches only the verified application archive to the exact commit', async () => {
   const f = fixture();
   await f.run();
-  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload']);
+  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload']);
   assert.equal(f.calls[0][1].draft, true);
   assert.equal(f.calls[0][1].prerelease, true);
   assert.equal(f.calls[0][1].target_commitish, context.sha);
   assert.deepEqual(f.calls.slice(1).map(call => call[1].name),
-    ['ProperWM-0.1.0.zip', 'SHA256SUMS.txt']);
+    ['ProperWM-0.1.0.zip']);
+  assert.deepEqual(f.calls[1][1].data, Buffer.from('archive-0'));
 });
 
 test('publication happens only after all uploads succeed', async () => {
   const f = fixture({ draft: false });
   await f.run();
-  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'upload', 'publish']);
+  assert.deepEqual(f.calls.map(call => call[0]), ['create', 'upload', 'publish']);
   assert.equal(f.calls.at(-1)[1].draft, false);
 });
 
