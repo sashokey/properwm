@@ -26,6 +26,7 @@ final class TaskbarButtonView: NSButton {
     var onDragMoved: ((NSEvent) -> Void)?
     var onEndDrag: ((NSEvent?, Bool) -> Void)?
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    @objc dynamic var indicatorProgress: CGFloat = 0 { didSet { updateIndicator() } }
     let selectionView = NSBox()
     let iconView = NSImageView()
     let titleLabel = NSTextField(labelWithString: "")
@@ -100,7 +101,7 @@ final class TaskbarButtonView: NSButton {
         let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((contentBounds.height - height) / 2),
                                width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset), height: height)
         titleLabel.frame = titleLabel.frame(forAlignmentRect: titleRect)
-        if indicator.frame != indicatorFrame { indicator.frame = indicatorFrame }
+        updateIndicator()
         groupIndicator.frame = CGRect(x: bounds.maxX - 3, y: 3, width: 2, height: 22)
     }
 
@@ -206,9 +207,25 @@ final class TaskbarButtonView: NSButton {
     }
 
     private var indicatorFrame: CGRect {
-        let width: CGFloat = isActiveWindow ? 11 : 4
+        let width: CGFloat = 4 + 7 * indicatorProgress
         return CGRect(x: TaskbarMetrics.iconInset + (TaskbarMetrics.iconSize - width) / 2,
                       y: 25, width: width, height: 2)
+    }
+
+    override class func defaultAnimation(forKey key: NSAnimatablePropertyKey) -> Any? {
+        key == "indicatorProgress" ? CABasicAnimation() : super.defaultAnimation(forKey: key)
+    }
+
+    private func updateIndicator() {
+        if indicator.frame != indicatorFrame { indicator.frame = indicatorFrame }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            if indicatorProgress <= 0 { indicator.fillColor = .secondaryLabelColor }
+            else if indicatorProgress >= 1 { indicator.fillColor = .controlAccentColor }
+            else {
+                indicator.fillColor = NSColor.secondaryLabelColor.blended(withFraction: indicatorProgress,
+                                                                         of: .controlAccentColor) ?? .controlAccentColor
+            }
+        }
     }
 
     private func updateAppearance(animated: Bool) {
@@ -236,17 +253,13 @@ final class TaskbarButtonView: NSButton {
             let separator = NSColor.separatorColor
             selectionView.borderColor = separator.withAlphaComponent(separator.alphaComponent * borderEmphasis)
         }
-        indicator.fillColor = isActiveWindow ? .controlAccentColor : .secondaryLabelColor
         let duration = animated && !reduceMotion() ? TaskbarMotion.buttonTransition : 0
+        let progress: CGFloat = isActiveWindow ? 1 : 0
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
-            if duration > 0 {
-                selectionView.animator().alphaValue = opacity
-                indicator.animator().frame = indicatorFrame
-            } else {
-                selectionView.alphaValue = opacity
-                indicator.frame = indicatorFrame
-            }
+            selectionView.animator().alphaValue = opacity
+            animator().indicatorProgress = progress
+            if duration == 0 { indicatorProgress = progress }
         }
     }
 }

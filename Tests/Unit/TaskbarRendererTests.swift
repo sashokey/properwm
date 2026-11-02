@@ -988,6 +988,152 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(button.indicator.frame.size, CGSize(width: 4, height: 2))
     }
 
+    private func animatedIndicator(appearance: NSAppearance.Name) throws -> (NSPanel, TaskbarButtonView) {
+        _ = NSApplication.shared
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 280, height: 56),
+                            styleMask: .borderless, backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 280, height: 56))
+        panel.contentView = content
+        let button = TaskbarButtonView(frame: CGRect(x: 10, y: 2, width: 140, height: 28))
+        button.appearance = NSAppearance(named: appearance)
+        button.reduceMotion = { false }
+        content.addSubview(button)
+        button.layoutSubtreeIfNeeded()
+        panel.display()
+        CATransaction.flush()
+        return (panel, button)
+    }
+
+    private func indicatorPixels(_ button: TaskbarButtonView, scale: CGFloat) throws -> (frame: CGRect, color: NSColor) {
+        CATransaction.flush()
+        let presentation = try XCTUnwrap(button.indicator.layer?.presentation())
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(40 * scale),
+                                                   pixelsHigh: Int(4 * scale), bitsPerSample: 8,
+                                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        context.cgContext.scaleBy(x: scale, y: scale)
+        context.cgContext.translateBy(x: presentation.frame.minX, y: 1)
+        presentation.render(in: context.cgContext)
+        let columns = (0..<bitmap.pixelsWide).filter { x in
+            (0..<bitmap.pixelsHigh).contains { y in (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 }
+        }
+        let first = try XCTUnwrap(columns.first)
+        let last = try XCTUnwrap(columns.last)
+        let color = try XCTUnwrap(bitmap.colorAt(x: Int(14 * scale), y: Int(2 * scale))?.usingColorSpace(.sRGB))
+        return (CGRect(x: CGFloat(first) / scale, y: 1, width: CGFloat(last - first + 1) / scale, height: 2), color)
+    }
+
+    private func indicatorTransition(_ button: TaskbarButtonView, active: Bool, scale: CGFloat) async throws -> [(frame: CGRect, color: NSColor)] {
+        let targetWidth: CGFloat = active ? 11 : 4
+        let targetColor: NSColor = active ? .controlAccentColor : .secondaryLabelColor
+        button.isActiveWindow = active
+        var samples: [(frame: CGRect, color: NSColor)] = []
+        let deadline = ContinuousClock.now + .seconds(1)
+        repeat {
+            button.needsLayout = true
+            button.layoutSubtreeIfNeeded()
+            samples.append(try indicatorPixels(button, scale: scale))
+            if button.indicator.frame.width == targetWidth && button.indicator.fillColor == targetColor { break }
+            try await Task.sleep(for: .milliseconds(3))
+        } while ContinuousClock.now < deadline
+        XCTAssertEqual(button.indicator.frame.width, targetWidth)
+        XCTAssertEqual(button.indicator.fillColor, targetColor)
+        return samples
+    }
+
+    func testRenderedIndicatorExpandsAndContractsAroundTheIconWithoutSliding() async throws {
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
+            for scale: CGFloat in [1, 2] {
+                let (panel, button) = try animatedIndicator(appearance: appearance)
+                defer { panel.close() }
+                for active in [true, false] {
+                    let startWidth: CGFloat = active ? 4 : 11
+                    let endWidth: CGFloat = active ? 11 : 4
+                    let start = try indicatorPixels(button, scale: scale)
+                    XCTAssertEqual(start.frame.width, startWidth, accuracy: 1 / scale)
+                    let samples = try await indicatorTransition(button, active: active, scale: scale)
+                    let widths = samples.map(\.frame.width)
+                    for sample in samples {
+                        XCTAssertEqual(sample.frame.midX, 14, accuracy: 0.5 / scale,
+                                       "Rendered center at active=\(active), scale=\(scale)")
+                        XCTAssertGreaterThanOrEqual(sample.frame.minX, 8.5 - 0.5 / scale)
+                        XCTAssertLessThanOrEqual(sample.frame.maxX, 19.5 + 0.5 / scale)
+                    }
+                    XCTAssertEqual(try XCTUnwrap(widths.first), startWidth, accuracy: 1 / scale)
+                    XCTAssertEqual(try XCTUnwrap(widths.last), endWidth, accuracy: 1 / scale)
+                    XCTAssertTrue(widths.contains { $0 > 4 + 0.5 / scale && $0 < 11 - 0.5 / scale })
+                    for (previous, next) in zip(widths, widths.dropFirst()) {
+                        if active { XCTAssertGreaterThanOrEqual(next, previous) }
+                        else { XCTAssertLessThanOrEqual(next, previous) }
+                    }
+                }
+                XCTAssertFalse(panel.isVisible)
+            }
+        }
+    }
+
+    func testRenderedIndicatorChangesColorDuringTheCenteredExpansion() async throws {
+        for appearance: NSAppearance.Name in [.aqua, .darkAqua] {
+            let (panel, button) = try animatedIndicator(appearance: appearance)
+            defer { panel.close() }
+            let gray = try indicatorPixels(button, scale: 2).color
+            let samples = try await indicatorTransition(button, active: true, scale: 2)
+            let initial = try XCTUnwrap(samples.first).color
+            let blue = try XCTUnwrap(samples.last).color
+            func distance(_ a: NSColor, _ b: NSColor) -> CGFloat {
+                abs(a.redComponent - b.redComponent) + abs(a.greenComponent - b.greenComponent)
+                    + abs(a.blueComponent - b.blueComponent) + abs(a.alphaComponent - b.alphaComponent)
+            }
+            XCTAssertLessThan(distance(initial, gray), 0.05)
+            XCTAssertTrue(samples.contains { distance($0.color, gray) > 0.05 && distance($0.color, blue) > 0.05 })
+            XCTAssertGreaterThan(distance(blue, gray), 0.1)
+            XCTAssertFalse(panel.isVisible)
+        }
+    }
+
+    func testRenderedIndicatorRetargetsFromItsCurrentSizeWithoutAJump() async throws {
+        let (panel, button) = try animatedIndicator(appearance: .darkAqua)
+        defer { panel.close() }
+        button.isActiveWindow = true
+        let deadline = ContinuousClock.now + .seconds(1)
+        while button.indicator.frame.width <= 5, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(3))
+        }
+        let before = try indicatorPixels(button, scale: 2)
+        XCTAssertGreaterThan(button.indicator.frame.width, 4)
+        XCTAssertLessThan(button.indicator.frame.width, 11)
+        let samples = try await indicatorTransition(button, active: false, scale: 2)
+        XCTAssertEqual(try XCTUnwrap(samples.first).frame.width, before.frame.width, accuracy: 0.5)
+        for sample in samples {
+            XCTAssertEqual(sample.frame.midX, 14, accuracy: 0.25)
+            XCTAssertLessThanOrEqual(sample.frame.width, before.frame.width + 0.5)
+        }
+        XCTAssertEqual(try XCTUnwrap(samples.last).frame.width, 4, accuracy: 0.5)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testReduceMotionCancelsAnInFlightIndicatorTransition() async throws {
+        let (panel, button) = try animatedIndicator(appearance: .aqua)
+        defer { panel.close() }
+        button.isActiveWindow = true
+        let deadline = ContinuousClock.now + .seconds(1)
+        while button.indicator.frame.width <= 5, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(3))
+        }
+        button.reduceMotion = { true }
+        button.isActiveWindow = false
+        for _ in 0..<5 {
+            let pixels = try indicatorPixels(button, scale: 2)
+            XCTAssertEqual(pixels.frame.midX, 14, accuracy: 0.25)
+            XCTAssertEqual(pixels.frame.width, 4, accuracy: 0.5)
+            XCTAssertEqual(button.indicator.fillColor, .secondaryLabelColor)
+            try await Task.sleep(for: .milliseconds(30))
+        }
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testOverflowUsesANativeSymbolButtonAtTheExistingSize() throws {
         let button = TaskbarButtonView(frame: CGRect(x: 0, y: 2, width: 32, height: 28))
         button.isOverflow = true
