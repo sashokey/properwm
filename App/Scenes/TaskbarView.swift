@@ -17,8 +17,13 @@ struct TaskbarViewActions {
 final class TaskbarView: NSGlassEffectView {
     let taskbarContent: TaskbarContentView
 
-    override init(frame: CGRect) {
-        taskbarContent = TaskbarContentView(frame: CGRect(origin: .zero, size: frame.size))
+    override convenience init(frame: CGRect) {
+        self.init(frame: frame, popup: TaskbarPopupController(), contextMenu: TaskbarNativeContextMenu())
+    }
+
+    init(frame: CGRect, popup: any TaskbarPopupPresenting, contextMenu: any TaskbarContextMenuPresenting,
+         delay: @escaping TaskbarDelayedAction.Delay = { try? await Task.sleep(for: $0) }) {
+        taskbarContent = TaskbarContentView(frame: CGRect(origin: .zero, size: frame.size), popup: popup, contextMenu: contextMenu, delay: delay)
         super.init(frame: frame)
         style = .regular
         cornerRadius = 0

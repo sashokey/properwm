@@ -44,12 +44,10 @@ enum WindowLiftCGWindowProbe {
         excludingPID selfPID: pid_t,
         includeLiveWindowKeys: Bool,
         includesTiles: Bool,
-        trackedKeys: Set<WindowLiftAvoidance.WindowKey>
+        trackedKeys: Set<WindowLiftAvoidance.WindowKey>,
+        system: any WindowSystemAccess = NativeWindowSystem()
     ) -> WindowLiftCGScanResult {
-        let onScreenList = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[String: Any]] ?? []
+        let onScreenList = system.windowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) ?? []
 
         var onScreenFrames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
         for info in onScreenList {
@@ -60,10 +58,7 @@ enum WindowLiftCGWindowProbe {
 
         let liveWindowKeys: Set<WindowLiftAvoidance.WindowKey>?
         if includeLiveWindowKeys,
-           let fullList = CGWindowListCopyWindowInfo(
-               [.optionAll, .excludeDesktopElements],
-               kCGNullWindowID
-           ) as? [[String: Any]] {
+           let fullList = system.windowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) {
             liveWindowKeys = Set(fullList.compactMap(windowKey(in:)))
         } else {
             liveWindowKeys = nil
@@ -102,16 +97,14 @@ enum WindowLiftCGWindowProbe {
     }
 
     static func frames(
-        for keys: Set<WindowLiftAvoidance.WindowKey>
+        for keys: Set<WindowLiftAvoidance.WindowKey>,
+        system: any WindowSystemAccess = NativeWindowSystem()
     ) -> [WindowLiftAvoidance.WindowKey: CGRect] {
         guard !keys.isEmpty else { return [:] }
 
         var frames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
         for key in keys {
-            guard let list = CGWindowListCopyWindowInfo(
-                [.optionOnScreenAboveWindow, .optionIncludingWindow, .excludeDesktopElements],
-                key.cgWindowID
-            ) as? [[String: Any]],
+            guard let list = system.windowInfo([.optionOnScreenAboveWindow, .optionIncludingWindow, .excludeDesktopElements], key.cgWindowID),
                   let info = list.first(where: { windowKey(in: $0) == key }),
                   let bounds = windowBounds(in: info) else {
                 continue
@@ -205,15 +198,16 @@ protocol WindowLiftWindowProbing: Sendable {
 }
 
 struct LiveWindowLiftProbe: WindowLiftWindowProbing {
+    var system: any WindowSystemAccess = NativeWindowSystem()
     func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
                  includeLiveWindowKeys: Bool, includesTiles: Bool,
                  trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
         WindowLiftCGWindowProbe.capture(on: contexts, excludingPID: excludingPID,
-            includeLiveWindowKeys: includeLiveWindowKeys, includesTiles: includesTiles, trackedKeys: trackedKeys)
+            includeLiveWindowKeys: includeLiveWindowKeys, includesTiles: includesTiles, trackedKeys: trackedKeys, system: system)
     }
 
     func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect] {
-        WindowLiftCGWindowProbe.frames(for: keys)
+        WindowLiftCGWindowProbe.frames(for: keys, system: system)
     }
 }
 
@@ -331,6 +325,9 @@ final class WindowLiftAvoidanceController {
     /// 否则迟到的 rollback 会盖掉还原结果。
     private var pendingDrains: [Task<Void, Never>] = []
     private let isTrustedProbe: () -> Bool
+    private let makeGeometryObserver: @MainActor () -> FrontmostWindowGeometryObserver
+    private let reader: AXWindowReader
+    private let system: any WindowSystemAccess
     private let windowProbe: any WindowLiftWindowProbing
     private let uptime: @Sendable () -> TimeInterval
     private var pendingRestorationDrains: [Task<Void, Never>] = []
@@ -347,11 +344,16 @@ final class WindowLiftAvoidanceController {
          },
          restorationWindowKeys: @escaping @Sendable () -> Set<WindowLiftAvoidance.WindowKey>? = WindowLiftCGWindowProbe.liveWindowKeys,
          windowProbe: any WindowLiftWindowProbing = LiveWindowLiftProbe(),
+         reader: AXWindowReader = AXWindowReader(), system: any WindowSystemAccess = NativeWindowSystem(),
+         makeGeometryObserver: @escaping @MainActor () -> FrontmostWindowGeometryObserver = { FrontmostWindowGeometryObserver() },
          uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.host = host
         self.isTrustedProbe = isTrustedProbe
         self.restoreWindow = restoreWindow
         self.restorationWindowKeys = restorationWindowKeys
+        self.makeGeometryObserver = makeGeometryObserver
+        self.reader = reader
+        self.system = system
         self.windowProbe = windowProbe
         self.uptime = uptime
     }
@@ -495,7 +497,7 @@ final class WindowLiftAvoidanceController {
         trailingEventPollCount = 0
         subscribeWorkspaceNotifications()
 
-        let geometryObserver = FrontmostWindowGeometryObserver()
+        let geometryObserver = makeGeometryObserver()
         geometryObserver.onEvent = { [weak self] _ in
             self?.host?.windowGeometryChanged()
             self?.requestEventPoll()
@@ -852,7 +854,7 @@ final class WindowLiftAvoidanceController {
         }
 
         if case .lifted = state, classification == .native {
-            guard NSRunningApplication(processIdentifier: key.pid)?.isActive == true,
+            guard system.app(key.pid)?.isActive == true,
                   hostContexts().contains(context) else {
                 return true
             }
@@ -978,7 +980,7 @@ final class WindowLiftAvoidanceController {
                   for: appKitFrame,
                   includesTiles: includesTiles
               ),
-              let app = NSRunningApplication(processIdentifier: candidate.key.pid),
+              let app = system.app(candidate.key.pid),
               app.isActive,
               !app.isTerminated,
               app.activationPolicy == .regular || app.activationPolicy == .accessory else {
@@ -1010,7 +1012,7 @@ final class WindowLiftAvoidanceController {
             managedFrames[candidate.key] = ManagedFrames(
                 nativeAppKit: appKitFrame, targetAppKit: targetFrame,
                 primaryScreenHeight: context.primaryScreenHeight,
-                processGeneration: ProcessLiveness.startTime(pid: candidate.key.pid).map(ProcessGeneration.init)
+                processGeneration: system.generation(candidate.key.pid)
             )
         } else {
             event = .maximizedDetected(
@@ -1120,7 +1122,7 @@ final class WindowLiftAvoidanceController {
               attempt.generation == generation else {
             return
         }
-        guard let currentProcess = ProcessLiveness.startTime(pid: key.pid).map(ProcessGeneration.init),
+        guard let currentProcess = system.generation(key.pid),
               managedFrames[key]?.processGeneration.map({ $0 == currentProcess }) ?? true else {
             finishOperation(for: key, generation: generation, outcome: .transientValidation(.processIdentityUnavailable))
             return
@@ -1137,7 +1139,8 @@ final class WindowLiftAvoidanceController {
         validationGenerations[key] = generation
 
         let animate = usesAnimatedLift
-        let reader = AXWindowReader()
+        let reader = self.reader
+        let probe = windowProbe
         var drains = writeDrainTasks.removeValue(forKey: key).map { Array($0.values) } ?? []
         if let previousWriter = writeTasks.removeValue(forKey: key) {
             previousWriter.cancel()
@@ -1172,7 +1175,7 @@ final class WindowLiftAvoidanceController {
             let validation = await Self.validatedHandle(
                 reader: reader,
                 candidate: candidate,
-                detectedAt: detectedAt
+                detectedAt: detectedAt, probe: probe
             )
             guard !Task.isCancelled else {
                 await MainActor.run { [weak self] in
@@ -1248,7 +1251,7 @@ final class WindowLiftAvoidanceController {
     nonisolated private static func validatedHandle(
         reader: AXWindowReader,
         candidate: WindowLiftCGCandidate,
-        detectedAt: TimeInterval
+        detectedAt: TimeInterval, probe: any WindowLiftWindowProbing
     ) async -> ValidationOutcome {
         let schedule = WindowLiftAvoidance.PollSchedule.standard
         var lastTransientStage: ValidationStage = .handleUnavailable
@@ -1260,7 +1263,7 @@ final class WindowLiftAvoidanceController {
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
             guard !Task.isCancelled else { return .transient(lastTransientStage) }
-            guard let confirmedCGFrame = WindowLiftCGWindowProbe.frame(for: candidate.key) else {
+            guard let confirmedCGFrame = probe.frames(for: [candidate.key])[candidate.key] else {
                 lastTransientStage = .candidateMoved
                 continue
             }
@@ -1980,9 +1983,9 @@ final class WindowLiftAvoidanceController {
         context: WindowLiftAvoidanceContext
     ) -> Bool {
         guard let expected = managedFrames[key]?.processGeneration,
-              ProcessLiveness.startTime(pid: key.pid).map(ProcessGeneration.init) == expected,
+              system.generation(key.pid) == expected,
               hostContexts().contains(context),
-              NSRunningApplication(processIdentifier: key.pid)?.isActive == true,
+              system.app(key.pid)?.isActive == true,
               case let .writing(attempt) = states[key],
               attempt.generation == generation else {
             return false

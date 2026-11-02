@@ -40,6 +40,18 @@ The suite covers:
 
 Coverage reports identify untested paths; a count or percentage alone does not establish correct behavior. Automated tests cannot establish real Accessibility interoperability, native WindowServer animation, or hot-plug behavior on every Mac.
 
+## Main behavior integration
+
+`TaskbarBehaviorTests` drives the production presenter, runtime, planner, command queue, action executor and AX reader against a stateful boundary for Accessibility, WindowServer and application operations. It checks minimize-to-restore without a CG entry, exact group/list and file-hover activation, close and combined close, ordinary Quit, rejected identities, failed confirmations, cancellation during handle capture, and persisted or cancelled group moves. Assertions include observed window state and resulting taskbar content; the executor itself is not replaced.
+
+`WindowLiftBehaviorTests` exercises the production CG candidate parser, lift controller, handle validation, AX frame writer, verification and restoration. Keep the Chrome fullscreen-return and repeated-maximize paths, manual geometry preservation and rejected unconfirmed writes.
+
+`ApplicationBehaviorTests` enters through AppDelegate for first launch, late grants, reopen, permission suspension, recovery and termination. Replace native presentation and application/process operations so these checks never open windows, modify TCC, terminate other processes or change the user's desktop. Runtime, panel orchestration, permission coordination and restoration stay real.
+
+When changing these paths, prove the corresponding regression test rejects a missing action or write: disconnected toggle/activate/close/reorder, omitted normal termination, unconditional command failure, skipped unminimize, skipped lift write, and skipped reopen icon restoration. A compilation failure does not count as detecting the regression. Run the complete suite after restoring the implementation.
+
+The CI summary selects the `ProperWM.app` target. Do not combine test source coverage and duplicated source copies into an application coverage claim. Tests must assert the end effect of each core flow; no aggregate line percentage establishes that contract.
+
 ## Mac acceptance
 
 Use the app from the exact tested commit. Verify real desktop interactions only during an explicitly agreed test session; ordinary automated checks remain in the background.

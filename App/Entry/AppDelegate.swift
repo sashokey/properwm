@@ -5,6 +5,39 @@ import SwiftUI
 import os
 
 @MainActor
+struct ApplicationEnvironment {
+    var bundleURL = Bundle.main.bundleURL
+    var permissionService = PermissionService()
+    var permissionProbe: @Sendable () -> Bool = { PermissionService().hasRequiredPermissions() }
+    var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    var removeOtherInstances: @MainActor @Sendable () -> Void = { AppDelegate.terminateOtherInstances() }
+    var resetAppearance: @MainActor @Sendable () -> Void = { NSApp.appearance = nil }
+    var setActivationPolicy: @MainActor @Sendable (NSApplication.ActivationPolicy) -> Void = { _ = NSApp.setActivationPolicy($0) }
+    var activateApplication: @MainActor @Sendable () -> Void = { NSApp.activate(ignoringOtherApps: true) }
+    var terminate: @MainActor @Sendable () -> Void = { NSApp.terminate(nil) }
+    var replyToTermination: @MainActor @Sendable (NSApplication, Bool) -> Void = { $0.reply(toApplicationShouldTerminate: $1) }
+    var makeStatusItem: @MainActor @Sendable () -> any StatusItemPresenting = { NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength) }
+    var makePermissionWindow: @MainActor @Sendable (NSRect, NSWindow.StyleMask) -> NSWindow = {
+        NSWindow(contentRect: $0, styleMask: $1, backing: .buffered, defer: false)
+    }
+    var makePanels: @MainActor @Sendable (AppRuntime, StripOrderStore, DisplayTopologyStore) -> TaskbarScreenOrchestrator = {
+        TaskbarScreenOrchestrator(runtime: $0, stripOrderStore: $1, displayTopologyStore: $2)
+    }
+    var makeLift: @MainActor @Sendable (WindowLiftAvoidanceHost) -> WindowLiftAvoidanceController = { WindowLiftAvoidanceController(host: $0) }
+    var launchInstance: @MainActor @Sendable (URL) async -> Result<Void, Error> = { url in
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = true
+        return await withCheckedContinuation { continuation in
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
+                if let error { continuation.resume(returning: .failure(error)) }
+                else { continuation.resume(returning: .success(())) }
+            }
+        }
+    }
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var localizedDisplayName: String {
         (Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
@@ -13,14 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private let inventoryLog = WindowInventoryAnomalyLog()
-    let displayTopologyStore = DisplayTopologyStore(initialSnapshot: DisplayIdentity.topologySnapshot())
+    private let environment: ApplicationEnvironment
+    let displayTopologyStore: DisplayTopologyStore
     private(set) lazy var runtime = AppRuntime(
         inventoryLog: inventoryLog,
         displayTableProvider: { [displayTopologyStore] in displayTopologyStore.table },
         isAccessibilityTrusted: { [weak self] in self?.cachedAccessibilityTrusted ?? false }
     )
     lazy var stripOrderStore = StripOrderStore(inventoryLog: inventoryLog)
-    let settingsStore = AppSettingsStore()
+    let settingsStore: AppSettingsStore
     private var panelCoordinator: TaskbarScreenOrchestrator?
     private var windowLiftAvoidanceController: WindowLiftAvoidanceController?
     private lazy var launchAtLoginService = LaunchAtLoginService()
@@ -32,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainLoopStallProbe: Timer?
     private var permissionWindow: NSWindow?
     private var permissionHostingView: NSHostingView<PermissionOnboardingWindowContent>?
-    private let permissionService = PermissionService()
+    private var permissionService: PermissionService { environment.permissionService }
     private var installLocation: AppInstallLocation = .other
     private var permissionCoordinator: PermissionRecoveryCoordinator?
     private var permissionWatchdogTimer: Timer?
@@ -45,18 +79,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsCoordinator: settingsCoordinator,
         onMenuVisibilityChanged: { [weak self] isOpen in
             self?.panelCoordinator?.setTaskbarMenuOpen(isOpen)
-        }
+        }, statusItem: environment.makeStatusItem(), quit: environment.terminate
     )
+
+    override convenience init() { self.init(environment: ApplicationEnvironment()) }
+
+    init(environment: ApplicationEnvironment, runtime: AppRuntime? = nil,
+         displayTopologyStore: DisplayTopologyStore? = nil, settingsStore: AppSettingsStore? = nil,
+         stripOrderStore: StripOrderStore? = nil) {
+        self.environment = environment
+        self.displayTopologyStore = displayTopologyStore ?? DisplayTopologyStore(initialSnapshot: DisplayIdentity.topologySnapshot())
+        self.settingsStore = settingsStore ?? AppSettingsStore()
+        super.init()
+        if let runtime { self.runtime = runtime }
+        if let stripOrderStore { self.stripOrderStore = stripOrderStore }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setvbuf(stdout, nil, _IOLBF, 0)
 
         startMainLoopStallProbeIfTracing()
 
-        NSApp.appearance = nil
+        environment.resetAppearance()
 
         let location = AppInstallLocation(
-            bundleURL: Bundle.main.bundleURL,
+            bundleURL: environment.bundleURL,
             isReadOnlyVolume: { [permissionService] in permissionService.isReadOnlyVolume($0) }
         )
         installLocation = location
@@ -65,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logPermissionLaunch(installLocation: location, isTrusted: trusted)
 
         if !location.isTransient {
-            terminateOtherInstances()
+            environment.removeOtherInstances()
 
             _ = statusMenuController
 
@@ -74,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let coordinator = PermissionRecoveryCoordinator(
             handler: self,
             permissionService: permissionService,
-            installLocation: location
+            installLocation: location, now: environment.now
         )
         permissionCoordinator = coordinator
         coordinator.launched(trusted: trusted)
@@ -108,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             """)
     }
 
-    private func terminateOtherInstances() {
+    fileprivate static func terminateOtherInstances() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
         guard let origin = ApplicationOrigin(bundleURL: Bundle.main.bundleURL) else { return }
         let myPID = ProcessInfo.processInfo.processIdentifier
@@ -151,10 +198,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard permissionService.hasRequiredPermissions() else { return .terminateNow }
         guard terminationTask == nil else { return .terminateLater }
 
+        let reply = environment.replyToTermination
         terminationTask = Task { @MainActor [weak self] in
             await controller.stopAndRestore()
             self?.terminationTask = nil
-            sender.reply(toApplicationShouldTerminate: true)
+            reply(sender, true)
         }
         return .terminateLater
     }
@@ -172,16 +220,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let permissionWindow {
             resizePermissionWindowToFit()
             permissionWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            environment.activateApplication()
             return
         }
 
         let hosting = NSHostingView(rootView: PermissionOnboardingWindowContent(coordinator: coordinator))
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: PermissionOnboardingView.contentWidth, height: 260),
-            styleMask: [.titled, .miniaturizable],
-            backing: .buffered,
-            defer: false
+        let window = environment.makePermissionWindow(
+            NSRect(x: 0, y: 0, width: PermissionOnboardingView.contentWidth, height: 260), [.titled, .miniaturizable]
         )
         window.title = Self.localizedDisplayName
         window.isReleasedWhenClosed = false
@@ -191,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         resizePermissionWindowToFit()
         window.center()
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        environment.activateApplication()
     }
 
     private func resizePermissionWindowToFit() {
@@ -225,17 +270,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startTaskbarRuntime() {
         runtime.start()
-        let coordinator = TaskbarScreenOrchestrator(
-            runtime: runtime,
-            stripOrderStore: stripOrderStore,
-            displayTopologyStore: displayTopologyStore
-        )
+        let coordinator = environment.makePanels(runtime, stripOrderStore, displayTopologyStore)
         panelCoordinator = coordinator
         coordinator.onRequestTaskbarMenu = { [weak self] event, view in
             self?.statusMenuController.popUpFromTaskbar(with: event, in: view)
         }
         coordinator.start()
-        let lift = WindowLiftAvoidanceController(host: coordinator)
+        let lift = environment.makeLift(coordinator)
         windowLiftAvoidanceController = lift
         lift.start()
     }
@@ -264,9 +305,9 @@ extension AppDelegate: PermissionEffectHandler {
     func setActivationPolicy(_ policy: PermissionActivationPolicy) {
         switch policy {
         case .accessory:
-            NSApp.setActivationPolicy(.accessory)
+            environment.setActivationPolicy(.accessory)
         case .regular:
-            NSApp.setActivationPolicy(.regular)
+            environment.setActivationPolicy(.regular)
         }
     }
 
@@ -283,7 +324,7 @@ extension AppDelegate: PermissionEffectHandler {
         NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications", isDirectory: true))
     }
 
-    func terminateSelf() { NSApp.terminate(nil) }
+    func terminateSelf() { environment.terminate() }
 
     func startWatchdog() {
         stopWatchdog()
@@ -304,10 +345,11 @@ extension AppDelegate: PermissionEffectHandler {
         permissionWatchdogGate.stop()
     }
 
-    private func schedulePermissionProbe() {
+    func schedulePermissionProbe() {
         guard let generation = permissionWatchdogGate.beginProbe() else { return }
+        let probe = environment.permissionProbe
         permissionProbeQueue.async { [weak self] in
-            let trusted = PermissionService().hasRequiredPermissions()
+            let trusted = probe()
             DispatchQueue.main.async { [weak self] in
                 guard let self,
                       self.permissionWatchdogGate.completeProbe(generation: generation) else { return }
@@ -340,20 +382,7 @@ extension AppDelegate: PermissionEffectHandler {
     }
 
     func launchNewInstance(episode: UInt64) async -> Result<Void, Error> {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        configuration.activates = true
-        let url = Bundle.main.bundleURL
-
-        return await withCheckedContinuation { continuation in
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
-                if let error {
-                    continuation.resume(returning: .failure(error))
-                } else {
-                    continuation.resume(returning: .success(()))
-                }
-            }
-        }
+        await environment.launchInstance(environment.bundleURL)
     }
 }
 

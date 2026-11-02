@@ -40,9 +40,16 @@ protocol WindowRestorationAccess: Sendable {
 }
 
 struct AXWindowRestorationAccess: WindowRestorationAccess {
-    private let reader = AXWindowReader()
+    private let reader: AXWindowReader
+    private let startTime: @Sendable (pid_t) -> timeval?
 
-    func processStartTime(pid: pid_t) -> timeval? { ProcessLiveness.startTime(pid: pid) }
+    init(reader: AXWindowReader = AXWindowReader(),
+         processStartTime: @escaping @Sendable (pid_t) -> timeval? = { ProcessLiveness.startTime(pid: $0) }) {
+        self.reader = reader
+        self.startTime = processStartTime
+    }
+
+    func processStartTime(pid: pid_t) -> timeval? { startTime(pid) }
 
     func capture(_ key: WindowLiftAvoidance.WindowKey) -> AXElementKey? {
         reader.captureHandle(forPID: key.pid, cgWindowID: key.cgWindowID, messagingTimeout: 0.1)

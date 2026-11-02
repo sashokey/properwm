@@ -33,7 +33,7 @@ final class AppRuntime: ObservableObject {
     private let tracker: any WindowInventoryTracking
     private let work = WindowActionQueue()
     private var actionTokens: [String: UUID] = [:]
-    private let intentPipeline = IntentPipeline(actionPlanning: LifecycleActionPlanner())
+    private let intentPipeline: IntentPipeline
     private let actionExecutor: any WindowActionExecuting
     private let isAccessibilityTrusted: () -> Bool
     private var snapshotSubscription: AnyCancellable?
@@ -53,8 +53,10 @@ final class AppRuntime: ObservableObject {
         displayTableProvider: @escaping @MainActor () -> WindowDisplayAttribution.Table = {
             DisplayIdentity.attributionTable()
         },
-        isAccessibilityTrusted: @escaping () -> Bool = { PermissionService().hasRequiredPermissions() }
+        isAccessibilityTrusted: @escaping () -> Bool = { PermissionService().hasRequiredPermissions() },
+        isAppFrontmost: @escaping (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.isActive == true }
     ) {
+        self.intentPipeline = IntentPipeline(actionPlanning: LifecycleActionPlanner(isAppFrontmost: isAppFrontmost))
         self.tracker = tracker ?? AppTracker(inventoryLog: inventoryLog, displayTableProvider: displayTableProvider)
         self.actionExecutor = actionExecutor
         self.debugState = debugState ?? DebugRuntimeState()

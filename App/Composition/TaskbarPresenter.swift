@@ -18,7 +18,7 @@ final class TaskbarPresenter {
          backgroundMenu: @escaping (NSEvent, NSView) -> Void,
          popupPresented: @escaping (NSPanel) -> Void,
          contextMenuVisibilityChanged: @escaping (Bool) -> Void,
-         icons: AppIconResolver = .shared) {
+         icons: AppIconResolver = .shared, system: any WindowSystemAccess = NativeWindowSystem()) {
         self.view = view
         self.runtime = runtime
         self.ordering = ordering
@@ -31,13 +31,13 @@ final class TaskbarPresenter {
             close: { [weak runtime] in runtime?.close(windowID: $0) },
             quit: { group in
                 for pid in Set(group.windows.map(\.item.pid)) {
-                    guard let app = NSRunningApplication(processIdentifier: pid),
+                    guard let app = system.app(pid),
                           let representative = group.windows.first(where: { $0.item.pid == pid }),
                           let expected = representative.item.processGeneration,
-                          let current = ProcessLiveness.startTime(pid: pid), ProcessGeneration(current) == expected,
+                          let current = system.generation(pid), current == expected,
                           let origin = representative.item.applicationOrigin,
-                          ApplicationOrigin(bundleURL: app.bundleURL) == origin else { continue }
-                    _ = app.terminate()
+                          app.origin == origin else { continue }
+                    _ = system.terminate(pid)
                 }
             },
             reorder: { [weak self] app, target, after in

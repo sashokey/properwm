@@ -1,0 +1,834 @@
+import AppKit
+import ApplicationServices
+import Combine
+import Synchronization
+import XCTest
+
+final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, WindowFocusRequesting, @unchecked Sendable {
+    struct State: Sendable {
+        var windows: [CGWindowID: WindowRecord]
+        var focused: CGWindowID? = 1001
+        var omittedCG = Set<CGWindowID>()
+        var generation = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 1))
+        var writes: [String] = []
+        var rejectWrites = false
+        var ignoreWrites = false
+        var denyFocus = false
+        var missingWindows = Set<CGWindowID>()
+        var terminated: [pid_t] = []
+        var quitAttempts: [pid_t] = []
+        var deniedQuit = false
+        var cgOwnerOverride: pid_t?
+        var originOverride: ApplicationOrigin?
+        var beforeRead: (@Sendable (String) -> Void)?
+        var rejectMinimizedAttribute = false
+        var transientMinimizeReads = 0
+        var minimizeButtonReads = 0
+        var allowFocusOfMinimized = false
+    }
+
+    let state: Mutex<State>
+    let values: CurrentValueSubject<DockSnapshot, Never>
+    let elements: [CGWindowID: AXUIElement]
+    let applications: [pid_t: AXUIElement]
+    let closeButtons: [CGWindowID: AXUIElement]
+    let minimizeButtons: [CGWindowID: AXUIElement]
+
+    init() {
+        let windows = [("editor-a", Int32(-41000), UInt32(1001), "Editor"),
+                       ("editor-b", Int32(-41000), UInt32(1002), "Editor"),
+                       ("browser-c", Int32(-42000), UInt32(2001), "Browser")].map { id, pid, number, app in
+            WindowRecord(id: WindowID(rawValue: id), appID: AppID(rawValue: app), pid: pid,
+                bundleIdentifier: "test." + app, title: id,
+                bounds: CGRect(x: 0, y: 30, width: 1920, height: 1050),
+                status: number == 1001 ? .active : .inactive, cgWindowID: number, groupID: "tabgrp-" + id, displayUUID: "left",
+                applicationOrigin: ApplicationOrigin(bundleURL: URL(fileURLWithPath: "/Applications/\(app).app")),
+                processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 1)))
+        }
+        state = Mutex(State(windows: Dictionary(uniqueKeysWithValues: windows.map { ($0.cgWindowID!, $0) })))
+        values = CurrentValueSubject(DockSnapshot(windows: Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0) }),
+                                                  orderedWindowIDs: windows.map(\.id)))
+        elements = [1001: AXUIElementCreateApplication(-51001), 1002: AXUIElementCreateApplication(-51002),
+                    2001: AXUIElementCreateApplication(-52001)]
+        closeButtons = Dictionary(uniqueKeysWithValues: [UInt32(1001), 1002, 2001].map { ($0, AXUIElementCreateApplication(-60000 - Int32($0))) })
+        minimizeButtons = Dictionary(uniqueKeysWithValues: [UInt32(1001), 1002, 2001].map { ($0, AXUIElementCreateApplication(-70000 - Int32($0))) })
+        applications = [-41000: AXUIElementCreateApplication(-41000), -42000: AXUIElementCreateApplication(-42000)]
+    }
+
+    func publish() {
+        let snapshot = state.withLock { value in
+            let records = [1001, 1002, 2001].compactMap { value.windows[CGWindowID($0)] }
+            return DockSnapshot(windows: Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) }),
+                                orderedWindowIDs: records.map(\.id))
+        }
+        values.send(snapshot)
+    }
+
+    func number(_ element: AXUIElement) -> CGWindowID? {
+        elements.first { CFEqual($0.value, element) }?.key
+    }
+
+    func isTrusted() -> Bool { true }
+    func application(_ pid: pid_t) -> AXUIElement { applications[pid] ?? AXUIElementCreateApplication(-99999) }
+    func windowID(_ element: AXUIElement) -> CGWindowID? { number(element) }
+    func pid(_ element: AXUIElement) -> pid_t? {
+        guard let id = number(element) else { return applications.first { CFEqual($0.value, element) }?.key }
+        return state.withLock { $0.windows[id]?.pid }
+    }
+    func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError { .success }
+    func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) { (.success, true) }
+
+    func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?) {
+        let name = attribute as String
+        let value = state.withLock { $0 }
+        value.beforeRead?(name)
+        if let app = applications.first(where: { CFEqual($0.value, element) })?.key {
+                if name == kAXWindowsAttribute as String {
+                    return (.success, value.windows.values.filter { $0.pid == app && !value.missingWindows.contains($0.cgWindowID!) }
+                        .sorted { $0.cgWindowID! < $1.cgWindowID! }.compactMap { elements[$0.cgWindowID!] } as CFArray)
+                }
+                if name == kAXFocusedWindowAttribute as String || name == kAXMainWindowAttribute as String,
+                   let focused = value.focused, value.windows[focused]?.pid == app {
+                    return (.success, elements[focused])
+                }
+                return (.noValue, nil)
+        }
+        guard let id = number(element) else { return (.invalidUIElement, nil) }
+            guard let window = value.windows[id], !value.missingWindows.contains(id) else { return (.invalidUIElement, nil) }
+            switch name {
+            case kAXRoleAttribute as String: return (.success, kAXWindowRole as CFString)
+            case kAXSubroleAttribute as String: return (.success, kAXStandardWindowSubrole as CFString)
+            case kAXTitleAttribute as String: return (.success, window.title as CFString)
+            case kAXMinimizedAttribute as String: return (.success, window.status == .minimized ? kCFBooleanTrue : kCFBooleanFalse)
+            case "AXFullScreen": return (.success, kCFBooleanFalse)
+            case kAXPositionAttribute as String:
+                var point = window.bounds!.origin
+                return (.success, AXValueCreate(.cgPoint, &point))
+            case kAXSizeAttribute as String:
+                var size = window.bounds!.size
+                return (.success, AXValueCreate(.cgSize, &size))
+            case kAXCloseButtonAttribute as String: return (.success, closeButtons[id])
+            case kAXMinimizeButtonAttribute as String:
+                let unavailable = state.withLock { storage in
+                    storage.minimizeButtonReads += 1
+                    if storage.transientMinimizeReads > 0 { storage.transientMinimizeReads -= 1; return true }
+                    return false
+                }
+                return unavailable ? (.cannotComplete, nil) : (.success, minimizeButtons[id])
+            default: return (.attributeUnsupported, nil)
+            }
+    }
+
+    func set(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError {
+        guard let id = number(element) else { return .invalidUIElement }
+        let result = state.withLock { storage -> AXError in
+            guard var window = storage.windows[id] else { return .invalidUIElement }
+            if storage.rejectWrites || (storage.rejectMinimizedAttribute && attribute as String == kAXMinimizedAttribute as String) { return .failure }
+            storage.writes.append("\(id):\(attribute)")
+            guard !storage.ignoreWrites else { return .success }
+            if attribute as String == kAXMinimizedAttribute as String {
+                window.status = (value as? NSNumber)?.boolValue == true ? .minimized : .inactive
+                if window.status == .minimized, storage.focused == id { storage.focused = nil }
+            } else if attribute as String == kAXSizeAttribute as String {
+                var size = CGSize.zero
+                guard CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgSize, &size) else { return .illegalArgument }
+                window.bounds?.size = size
+            } else if attribute as String == kAXPositionAttribute as String {
+                var point = CGPoint.zero
+                guard CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgPoint, &point) else { return .illegalArgument }
+                window.bounds?.origin = point
+            }
+            storage.windows[id] = window
+            return .success
+        }
+        publish()
+        return result
+    }
+
+    func perform(_ element: AXUIElement, _ action: CFString) -> AXError {
+        let close = closeButtons.first { CFEqual($0.value, element) }?.key
+        let minimize = minimizeButtons.first { CFEqual($0.value, element) }?.key
+        guard let id = close ?? minimize ?? number(element) else { return .invalidUIElement }
+        let result = state.withLock { value -> AXError in
+            guard value.windows[id] != nil else { return .invalidUIElement }
+            if action as String == kAXPressAction as String {
+                if close != nil { value.windows.removeValue(forKey: id); value.writes.append("\(id):close") }
+                else if minimize != nil {
+                    value.windows[id]?.status = .minimized
+                    if value.focused == id { value.focused = nil }
+                    value.writes.append("\(id):press-minimize")
+                } else { return .actionUnsupported }
+            }
+            return .success
+        }
+        publish()
+        return result
+    }
+
+    func generation(_ pid: pid_t) -> ProcessGeneration? { state.withLock { $0.generation } }
+    func app(_ pid: pid_t) -> WindowApplicationState? {
+        state.withLock { value in
+            guard applications[pid] != nil else { return nil }
+            return WindowApplicationState(isActive: value.focused.flatMap { value.windows[$0]?.pid } == pid,
+                isHidden: false, isTerminated: value.terminated.contains(pid), activationPolicy: .regular,
+                bundleURL: URL(fileURLWithPath: value.originOverride?.bundlePath ?? (pid == -41000 ? "/Applications/Editor.app" : "/Applications/Browser.app")))
+        }
+    }
+    func activate(_ pid: pid_t) -> Bool { true }
+    func unhide(_ pid: pid_t) {}
+    func terminate(_ pid: pid_t) -> Bool {
+        state.withLock { value in
+            value.quitAttempts.append(pid)
+            guard !value.deniedQuit else { return false }
+            value.terminated.append(pid)
+            return true
+        }
+    }
+    func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]? {
+        state.withLock { value in
+            value.windows.values.filter { (relative == 0 || $0.cgWindowID == relative) && !value.omittedCG.contains($0.cgWindowID!) }
+                .sorted { ($0.cgWindowID == value.focused ? 0 : 1, $0.cgWindowID!) < ($1.cgWindowID == value.focused ? 0 : 1, $1.cgWindowID!) }
+                .map { [kCGWindowNumber as String: $0.cgWindowID!, kCGWindowOwnerPID as String: value.cgOwnerOverride ?? $0.pid,
+                        kCGWindowLayer as String: 0, kCGWindowIsOnscreen as String: $0.status != .minimized,
+                        kCGWindowBounds as String: $0.bounds!.dictionaryRepresentation] }
+        }
+    }
+    func setFrontmost(pid: pid_t, windowID: CGWindowID, mode: UInt32) -> Bool {
+        let accepted = state.withLock { value in
+            guard !value.denyFocus, let window = value.windows[windowID], window.pid == pid, window.status != .minimized || value.allowFocusOfMinimized else { return false }
+            for id in Array(value.windows.keys) where value.windows[id]?.status == .active { value.windows[id]?.status = .inactive }
+            if window.status != .minimized { value.windows[windowID]?.status = .active }
+            value.focused = windowID
+            return true
+        }
+        publish()
+        return accepted
+    }
+    func makeKey(pid: pid_t, windowID: CGWindowID) -> Bool { setFrontmost(pid: pid, windowID: windowID, mode: 0) }
+}
+
+@MainActor
+final class BehaviorInventory: WindowInventoryTracking {
+    let desktop: BehaviorDesktop
+    var snapshots: AnyPublisher<DockSnapshot, Never> { desktop.values.eraseToAnyPublisher() }
+    init(_ desktop: BehaviorDesktop) { self.desktop = desktop }
+    func start() {}
+    func stop() {}
+}
+
+final class BehaviorReadGate: Sendable {
+    let entered = Mutex(false)
+    let release = DispatchSemaphore(value: 0)
+    func read(_ attribute: String) {
+        guard attribute == kAXFocusedWindowAttribute as String else { return }
+        let first = entered.withLock { value in let result = !value; value = true; return result }
+        if first { _ = release.wait(timeout: .now() + 2) }
+    }
+}
+
+@MainActor
+final class BehaviorPopup: TaskbarPopupPresenting {
+    var panel: NSPanel? { nil }
+    var isPresented: Bool { content != nil }
+    var onPresent: ((NSPanel) -> Void)?
+    var onDismiss: (() -> Void)?
+    var content: NSView?
+    func focusForKeyboard() {}
+    func present(content: NSView, frame: CGRect, anchorWindow: NSWindow?) { self.content = content }
+    func dismiss() { (content as? TaskbarWindowListView)?.cancelPendingActions(); content = nil; onDismiss?() }
+}
+
+@MainActor
+final class BehaviorMenu: TaskbarContextMenuPresenting {
+    var visibilityChanged: ((Bool) -> Void)?
+    var menu: NSMenu?
+    func present(entries: [TaskbarMenuEntry], event: NSEvent, view: NSView) { menu = TaskbarNativeMenuFactory.menu(entries: entries) }
+    func dismiss() { menu = nil }
+}
+
+@MainActor
+final class TaskbarBehaviorTests: XCTestCase {
+    @MainActor
+    final class Fixture {
+        let desktop = BehaviorDesktop()
+        let popup = BehaviorPopup()
+        let menu = BehaviorMenu()
+        let defaults: UserDefaults
+        let domain = "ProperWM.Behavior.\(UUID().uuidString)"
+        let runtime: AppRuntime
+        let view: TaskbarView
+        let ordering: StripOrderStore
+        let presenter: TaskbarPresenter
+        let spaces = TaskbarSpaceStore(read: { _ in nil }, notifications: NotificationCenter(), pollInterval: 0)
+
+        init(width: CGFloat = 800) {
+            defaults = UserDefaults(suiteName: domain)!
+            ordering = StripOrderStore(defaults: defaults, bootTimeProvider: { 123 })
+            let reader = AXWindowReader(accessibility: desktop)
+            runtime = AppRuntime(tracker: BehaviorInventory(desktop),
+                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop),
+                isAccessibilityTrusted: { true }, isAppFrontmost: { [desktop] pid in desktop.app(pid)?.isActive == true })
+            view = TaskbarView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup, contextMenu: menu,
+                               delay: { _ in await Task.yield() })
+            presenter = TaskbarPresenter(view: view, runtime: runtime, ordering: ordering,
+                topology: DisplayTopologyStore(initialSnapshot: .init(physicalDisplayCount: 1, identifiedDisplayUUIDs: ["left"], attributionTable: .empty)),
+                spaces: spaces, displayUUID: nil, backgroundMenu: { _, _ in }, popupPresented: { _ in },
+                contextMenuVisibilityChanged: { _ in }, system: desktop)
+            runtime.start()
+        }
+        func stop() { view.taskbarContent.prepareForHiding(); runtime.stop(); defaults.removePersistentDomain(forName: domain) }
+    }
+
+    private func wait(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !condition(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertTrue(condition(), file: file, line: line)
+    }
+
+    private func ready(_ fixture: Fixture) async { await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).count == 3 } }
+    private func press(_ id: String, _ fixture: Fixture) throws {
+        XCTAssertTrue(try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-\(id)"]).accessibilityPerformPress())
+    }
+    private func event(_ type: NSEvent.EventType, _ point: CGPoint) -> NSEvent {
+        NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                          context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
+    }
+
+    func testButtonMinimizesThenRestoresTheSameWindowWhenCGEntryIsMissing() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        try press("editor-a", fixture)
+        await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-a")]?.status == .minimized }
+        fixture.desktop.state.withLock { _ = $0.omittedCG.insert(1001) }
+        try press("editor-a", fixture)
+        await wait { fixture.desktop.state.withLock { $0.windows[1001]?.status == .active } }
+        await wait { fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.isActiveWindow == true }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.writes.filter { $0 == "1001:AXMinimized" }.count }, 2)
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1002]?.status }, .inactive)
+        XCTAssertEqual(fixture.view.taskbarContent.layoutResult.buttons.flatMap(\.windowIDs), ["tabgrp-editor-a", "tabgrp-editor-b", "tabgrp-browser-c"])
+    }
+
+    func testCombinedListActivatesOnlyTheChosenSiblingThroughTheProductionExecutor() async throws {
+        let fixture = Fixture(width: 150); defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews.values.first { $0.isCombined })
+        XCTAssertTrue(button.accessibilityPerformPress())
+        let list = try XCTUnwrap(fixture.popup.content as? TaskbarWindowListView)
+        XCTAssertEqual(list.cells.map(\.item.id), ["tabgrp-editor-a", "tabgrp-editor-b"])
+        XCTAssertTrue(list.cells[1].accessibilityPerformPress())
+        await wait { fixture.desktop.state.withLock { $0.focused == 1002 } }
+        await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).first { $0.id == "tabgrp-editor-b" }?.isActive == true }
+        XCTAssertFalse(fixture.popup.isPresented)
+    }
+
+    func testContextCloseRemovesOnlyItsWindowAndKeepsTheApplicationRunning() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-b"])
+        button.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 0)
+        await wait { fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-b"] == nil }
+        XCTAssertEqual(fixture.desktop.state.withLock { Set($0.windows.keys) }, [1001, 2001])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty })
+    }
+
+    func testCombinedCloseClosesAllRepresentedWindowsWithoutQuittingOrClosingAnotherApp() async throws {
+        let fixture = Fixture(width: 150); defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews.values.first { $0.isCombined })
+        button.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 0)
+        await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).map(\.id) == ["tabgrp-browser-c"] }
+        XCTAssertEqual(fixture.desktop.state.withLock { Array($0.windows.keys) }, [2001])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty })
+    }
+
+    func testNativeQuitReachesOnlyTheMatchingApplicationOnce() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"])
+        button.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 1)
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.terminated }, [-41000])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows.count }, 3)
+    }
+
+    func testChangedProcessGenerationPreventsQuitAndWindowMutation() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.generation = ProcessGeneration(timeval(tv_sec: 20, tv_usec: 1)) }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 1)
+        try press("editor-a", fixture)
+        for task in fixture.runtime.pendingActionsForTesting { await task.value }
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty && $0.writes.isEmpty })
+    }
+
+    func testWrongCGOwnerPreventsMutationDespiteMatchingAccessibilityHandle() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.cgOwnerOverride = -43000 }
+        try press("editor-a", fixture)
+        await wait { fixture.runtime.debugState.feedbackEntriesByWindowID["editor-a"]?.phase == .failure }
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.status }, .active)
+    }
+
+    func testUncapturableWindowDoesNotActivateAnotherWindowAsFallback() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { _ = $0.missingWindows.insert(1002) }
+        try press("editor-b", fixture)
+        await wait { fixture.runtime.debugState.feedbackEntriesByWindowID["editor-b"]?.phase == .failure }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.focused }, 1001)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+    }
+
+    func testStoppingDuringNativeHandleCapturePreventsTheFollowingWindowWrite() async {
+        let fixture = Fixture()
+        let gate = BehaviorReadGate()
+        defer { gate.release.signal(); fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.beforeRead = { gate.read($0) } }
+        fixture.runtime.activate(windowID: "editor-b")
+        await wait { gate.entered.withLock { $0 } }
+        let pending = fixture.runtime.pendingActionsForTesting
+        fixture.runtime.stop()
+        gate.release.signal()
+        for task in pending { await task.value }
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+        XCTAssertTrue(fixture.runtime.snapshot.windows.isEmpty)
+        XCTAssertTrue(fixture.runtime.optimisticStatesByWindowID.isEmpty)
+    }
+
+    func testQuitRejectsAnotherApplicationOriginEvenWithTheSameProcessGeneration() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.originOverride = ApplicationOrigin(bundleURL: URL(fileURLWithPath: "/Applications/Other.app")) }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 1)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.quitAttempts.isEmpty })
+    }
+
+    func testRefusedNormalQuitDoesNotCloseWindowsOrAttemptForcedTermination() async {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.deniedQuit = true }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        fixture.menu.menu?.performActionForItem(at: 1)
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.quitAttempts }, [-41000])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty && $0.writes.isEmpty })
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows.count }, 3)
+    }
+
+    func testSeparateFileHoverRestoresTheWindowThroughTheProductionExecutor() async {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.windows[1002]?.status = .minimized; $0.omittedCG.insert(1002) }
+        fixture.desktop.publish()
+        await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-b")]?.status == .minimized }
+        fixture.view.taskbarContent.scheduleFileHover(buttonID: "window:tabgrp-editor-b")
+        await wait { fixture.desktop.state.withLock { $0.focused == 1002 && $0.windows[1002]?.status == .active } }
+        await wait { fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-b"]?.isActiveWindow == true }
+        XCTAssertFalse(fixture.popup.isPresented)
+    }
+
+    func testCombinedFileHoverWaitsForTheChosenRowThenRestoresOnlyThatWindow() async throws {
+        let fixture = Fixture(width: 150); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.windows[1002]?.status = .minimized; $0.omittedCG.insert(1002) }
+        fixture.desktop.publish()
+        await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-b")]?.status == .minimized }
+        let group = try XCTUnwrap(fixture.view.taskbarContent.layoutResult.buttons.first { $0.isCombined })
+        fixture.view.taskbarContent.scheduleFileHover(buttonID: group.id)
+        await wait { fixture.popup.content is TaskbarWindowListView }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.focused }, 1001)
+        let list = try XCTUnwrap(fixture.popup.content as? TaskbarWindowListView)
+        list.cells[1].scheduleFileHover()
+        await wait { fixture.desktop.state.withLock { $0.focused == 1002 && $0.windows[1002]?.status == .active } }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.status }, .inactive)
+    }
+
+    func testMouseUpOutsidePreservesThePersistedOrderAfterAReorderPreview() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        let content = fixture.view.taskbarContent
+        let button = try XCTUnwrap(content.buttonViews["window:tabgrp-editor-a"])
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        let end = CGPoint(x: try XCTUnwrap(content.buttonViews["window:tabgrp-browser-c"]).frame.maxX - 4, y: 16)
+        button.mouseDown(with: event(.leftMouseDown, start))
+        button.mouseDragged(with: event(.leftMouseDragged, end))
+        button.mouseUp(with: event(.leftMouseUp, CGPoint(x: end.x, y: -20)))
+        let restored = StripOrderStore(defaults: fixture.defaults, bootTimeProvider: { 123 })
+        XCTAssertEqual(restored.liveOrder, ["tabgrp-editor-a", "tabgrp-editor-b", "tabgrp-browser-c"])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+    }
+
+    func testFailedOrUnconfirmedRestoreNeverPublishesSuccessfulActivation() async throws {
+        for ignore in [false, true] {
+            let fixture = Fixture(); defer { fixture.stop() }
+            await ready(fixture)
+            fixture.desktop.state.withLock { $0.windows[1001]?.status = .minimized; $0.focused = nil; $0.rejectWrites = !ignore; $0.ignoreWrites = ignore }
+            fixture.desktop.publish()
+            await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-a")]?.status == .minimized }
+            try press("editor-a", fixture)
+            await wait { fixture.runtime.debugState.feedbackEntriesByWindowID["editor-a"]?.phase == .failure }
+            XCTAssertNil(fixture.runtime.optimisticStatesByWindowID["editor-a"])
+            await wait { fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.isActiveWindow == false }
+            XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.status }, .minimized)
+        }
+    }
+
+    func testFocusedMetadataCannotTurnAnUnappliedRestoreIntoSuccess() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock {
+            $0.windows[1001]?.status = .minimized
+            $0.focused = nil
+            $0.ignoreWrites = true
+            $0.allowFocusOfMinimized = true
+        }
+        fixture.desktop.publish()
+        await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-a")]?.status == .minimized }
+        try press("editor-a", fixture)
+        await wait { fixture.runtime.debugState.feedbackEntriesByWindowID["editor-a"]?.phase == .failure }
+        XCTAssertNil(fixture.runtime.optimisticStatesByWindowID["editor-a"])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.status }, .minimized)
+    }
+
+    func testMinimizeButtonFallbackRetriesATransientReadAndConfirmsItsWindow() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        fixture.desktop.state.withLock { $0.rejectMinimizedAttribute = true; $0.transientMinimizeReads = 1 }
+        try press("editor-a", fixture)
+        await wait { fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-a")]?.status == .minimized }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.minimizeButtonReads }, 2)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.contains("1001:press-minimize") })
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows.count }, 3)
+    }
+
+    func testFinishedDragPersistsTheWholeGroupAndSurvivesPresenterRecreation() async throws {
+        let fixture = Fixture(); defer { fixture.stop() }
+        await ready(fixture)
+        let content = fixture.view.taskbarContent
+        let button = try XCTUnwrap(content.buttonViews["window:tabgrp-editor-a"])
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        let end = CGPoint(x: try XCTUnwrap(content.buttonViews["window:tabgrp-browser-c"]).frame.maxX - 4, y: 16)
+        button.mouseDown(with: event(.leftMouseDown, start))
+        button.mouseDragged(with: event(.leftMouseDragged, end))
+        button.mouseUp(with: event(.leftMouseUp, end))
+        await wait { fixture.ordering.liveOrder == ["tabgrp-browser-c", "tabgrp-editor-a", "tabgrp-editor-b"] }
+        let restored = StripOrderStore(defaults: fixture.defaults, bootTimeProvider: { 123 })
+        XCTAssertEqual(restored.liveOrder, ["tabgrp-browser-c", "tabgrp-editor-a", "tabgrp-editor-b"])
+        let view = TaskbarView(frame: fixture.view.frame)
+        let presenter = TaskbarPresenter(view: view, runtime: fixture.runtime, ordering: restored,
+            topology: DisplayTopologyStore(initialSnapshot: .init(physicalDisplayCount: 1, identifiedDisplayUUIDs: ["left"], attributionTable: .empty)),
+            spaces: fixture.spaces, displayUUID: nil, backgroundMenu: { _, _ in }, popupPresented: { _ in }, contextMenuVisibilityChanged: { _ in })
+        withExtendedLifetime(presenter) { XCTAssertEqual(view.taskbarContent.layoutResult.buttons.flatMap(\.windowIDs), ["tabgrp-browser-c", "tabgrp-editor-a", "tabgrp-editor-b"]) }
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+    }
+}
+
+@MainActor
+final class BehaviorLiftHost: WindowLiftAvoidanceHost {
+    var contexts: [WindowLiftAvoidanceContext]
+    init(_ context: WindowLiftAvoidanceContext) { contexts = [context] }
+    func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] { contexts }
+    func windowGeometryChanged() {}
+}
+
+@MainActor
+final class WindowLiftBehaviorTests: XCTestCase {
+    private func wait(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !condition(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(2)) }
+        XCTAssertTrue(condition(), file: file, line: line)
+    }
+
+    private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+        let screen = CGRect(x: 0, y: 0, width: width, height: height)
+        let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
+                                         screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
+        let reader = AXWindowReader(accessibility: desktop)
+        let access = AXWindowRestorationAccess(reader: reader, processStartTime: { pid in
+            desktop.generation(pid).map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }
+        })
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, frames, start, live, cancellation in
+                WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
+                                                       liveWindowKeys: live, cancellation: cancellation)
+            }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
+            windowProbe: LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop)
+        controller.isEnabled = true
+        return (controller, host)
+    }
+
+    func testProductionCaptureAndWriterAdjustHeightThenRestoreTheConfirmedFrame() async throws {
+        let desktop = BehaviorDesktop()
+        let (controller, host) = makeController(desktop)
+        defer { withExtendedLifetime(host) {} }
+        controller.poll()
+        await wait { desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 1920, height: 1016) } }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        await wait { if case .lifted = controller.states[key] { return true }; return false }
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1002]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertEqual(controller.pendingRestorations.count, 0)
+        XCTAssertTrue(desktop.state.withLock { $0.writes.contains("1001:AXSize") })
+    }
+
+    func testChromeFullscreenReturnAndRepeatedMaximizeTraverseTheProductionWriter() async {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 2560, height: 1410) }
+        let (controller, host) = makeController(desktop, width: 2560, height: 1440)
+        defer { withExtendedLifetime(host) {} }
+        controller.poll()
+        await wait { desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 2560, height: 1376) } }
+        desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 2560, height: 1410) }
+        controller.poll()
+        await wait { desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 2560, height: 1376) } }
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 2560, height: 1410))
+    }
+
+    func testManualGeometryAfterAdjustmentIsNotOverwrittenDuringStop() async {
+        let desktop = BehaviorDesktop()
+        let (controller, host) = makeController(desktop)
+        defer { withExtendedLifetime(host) {} }
+        controller.poll()
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        await wait { if case .lifted = controller.states[key] { return true }; return false }
+        desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 300, y: 200, width: 600, height: 400) }
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 300, y: 200, width: 600, height: 400))
+    }
+
+    func testNativeReaderRejectsAnAcknowledgedButUnappliedSizeWrite() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.ignoreWrites = true }
+        let reader = AXWindowReader(accessibility: desktop)
+        let result = reader.setSize(CGSize(width: 1920, height: 1016), for: desktop.elements[1001]!, messagingTimeout: 0.1,
+            verificationTolerance: 2, onlyIfCurrentMatches: CGRect(x: 0, y: 30, width: 1920, height: 1050), restoreOnFailureTo: nil)
+        guard case let .failure(reason, _) = result else { return XCTFail("Unconfirmed frame must fail") }
+        XCTAssertEqual(reason, .verificationMismatch(expected: CGRect(x: 0, y: 30, width: 1920, height: 1016),
+                                                      actual: CGRect(x: 0, y: 30, width: 1920, height: 1050)))
+    }
+}
+
+@MainActor
+final class BehaviorStatusItem: StatusItemPresenting {
+    var isVisible = false
+    var menu: NSMenu?
+    var name: NSStatusItem.AutosaveName?
+    func configureAutosaveName(_ name: NSStatusItem.AutosaveName) { self.name = name }
+    func configureButtonImage(_ image: NSImage?) {}
+}
+
+@MainActor
+final class BehaviorPermissionWindow: NSWindow {
+    var presentations = 0
+    override func makeKeyAndOrderFront(_ sender: Any?) { presentations += 1 }
+}
+
+final class BehaviorPermission: Sendable {
+    let trusted = Mutex(false)
+    let clock = Mutex<TimeInterval>(0)
+}
+
+@MainActor
+final class ApplicationBehaviorTests: XCTestCase {
+    @MainActor
+    final class Effects {
+        var statusCreations = 0
+        var prompts = 0
+        var panelCreations = 0
+        var liftCreations = 0
+        var quitRequests = 0
+        var instanceCleanupRequests = 0
+        var relaunchURLs: [URL] = []
+        var frameAtRelaunch: CGRect?
+        var relaunchFails = false
+        var terminationReplies: [Bool] = []
+        var windows: [BehaviorPermissionWindow] = []
+        var panels: TaskbarScreenOrchestrator?
+        var lift: WindowLiftAvoidanceController?
+    }
+
+    @MainActor
+    final class Fixture {
+        let desktop = BehaviorDesktop()
+        let effects = Effects()
+        let status = BehaviorStatusItem()
+        let permission = BehaviorPermission()
+        let runtime: AppRuntime
+        let delegate: AppDelegate
+        let domain = "ProperWM.ApplicationBehavior.\(UUID().uuidString)"
+        let defaults: UserDefaults
+
+        init(trusted initial: Bool = false) {
+            permission.trusted.withLock { $0 = initial }
+            defaults = UserDefaults(suiteName: domain)!
+            let reader = AXWindowReader(accessibility: desktop)
+            runtime = AppRuntime(tracker: BehaviorInventory(desktop),
+                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop),
+                isAccessibilityTrusted: { [permission] in permission.trusted.withLock { $0 } })
+            let topology = DisplayTopologyStore(initialSnapshot: .init(physicalDisplayCount: 0, identifiedDisplayUUIDs: [], attributionTable: .empty))
+            var environment = ApplicationEnvironment()
+            environment.bundleURL = URL(fileURLWithPath: "/Applications/ProperWM.app")
+            environment.permissionService = PermissionService(trustCheck: { [permission] in permission.trusted.withLock { $0 } },
+                promptRequest: { [effects] in effects.prompts += 1; return false }, readOnlyVolumeCheck: { _ in false })
+            environment.permissionProbe = { [permission] in permission.trusted.withLock { $0 } }
+            environment.now = { [permission] in permission.clock.withLock { $0 } }
+            environment.setActivationPolicy = { _ in }
+            environment.removeOtherInstances = { [effects] in effects.instanceCleanupRequests += 1 }
+            environment.resetAppearance = {}
+            environment.activateApplication = {}
+            environment.terminate = { [effects] in effects.quitRequests += 1 }
+            environment.launchInstance = { [effects, desktop] url in
+                effects.relaunchURLs.append(url)
+                effects.frameAtRelaunch = desktop.state.withLock { $0.windows[1001]?.bounds }
+                return effects.relaunchFails ? .failure(CocoaError(.fileReadUnknown)) : .success(())
+            }
+            environment.replyToTermination = { [effects] _, result in effects.terminationReplies.append(result) }
+            environment.makeStatusItem = { [status, effects] in effects.statusCreations += 1; return status }
+            environment.makePermissionWindow = { [effects] frame, style in
+                let window = BehaviorPermissionWindow(contentRect: frame, styleMask: style, backing: .buffered, defer: true)
+                effects.windows.append(window)
+                return window
+            }
+            environment.makePanels = { [effects] runtime, ordering, topology in
+                effects.panelCreations += 1
+                let panels = TaskbarScreenOrchestrator(runtime: runtime, stripOrderStore: ordering, displayTopologyStore: topology,
+                    spaceStore: TaskbarSpaceStore(read: { _ in nil }, notifications: NotificationCenter(), pollInterval: 0),
+                    overlaySpaceHost: nil,
+                    topologySnapshotProvider: { .init(physicalDisplayCount: 0, identifiedDisplayUUIDs: [], attributionTable: .empty) })
+                effects.panels = panels
+                return panels
+            }
+            environment.makeLift = { [effects, desktop] host in
+                effects.liftCreations += 1
+                let reader = AXWindowReader(accessibility: desktop)
+                let access = AXWindowRestorationAccess(reader: reader, processStartTime: { pid in
+                    desktop.generation(pid).map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }
+                })
+                let lift = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+                    restoreWindow: { key, frames, start, live, cancellation in
+                        WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
+                            liveWindowKeys: live, cancellation: cancellation)
+                    }, restorationWindowKeys: { nil }, windowProbe: LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
+                    makeGeometryObserver: { FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) })
+                effects.lift = lift
+                return lift
+            }
+            delegate = AppDelegate(environment: environment, runtime: runtime, displayTopologyStore: topology,
+                settingsStore: AppSettingsStore(defaults: defaults), stripOrderStore: StripOrderStore(defaults: defaults))
+        }
+
+        func launch() { delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification)) }
+        func stop() { delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification)); defaults.removePersistentDomain(forName: domain) }
+    }
+
+    private func wait(_ predicate: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = ContinuousClock.now + .seconds(3)
+        while !predicate(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(2)) }
+        XCTAssertTrue(predicate(), file: file, line: line)
+    }
+
+    func testFirstLaunchUsesOnlySystemPromptAndLateGrantStartsRuntimeOnce() async {
+        let fixture = Fixture(); defer { fixture.stop() }
+        fixture.launch()
+        XCTAssertEqual(fixture.effects.prompts, 1)
+        XCTAssertTrue(fixture.effects.windows.isEmpty)
+        XCTAssertTrue(fixture.runtime.snapshot.windows.isEmpty)
+        fixture.permission.trusted.withLock { $0 = true }
+        fixture.delegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+        await wait { fixture.runtime.snapshot.windows.count == 3 }
+        fixture.delegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+        XCTAssertEqual(fixture.effects.panelCreations, 1)
+        XCTAssertEqual(fixture.effects.liftCreations, 1)
+        XCTAssertEqual(fixture.effects.prompts, 1)
+        XCTAssertTrue(fixture.effects.windows.isEmpty)
+    }
+
+    func testReopenRestoresTheSameHiddenStatusItemWithoutStartingAnotherRuntime() async {
+        let fixture = Fixture(trusted: true); defer { fixture.stop() }
+        fixture.launch()
+        await wait { fixture.runtime.snapshot.windows.count == 3 }
+        let menu = fixture.status.menu
+        XCTAssertFalse(fixture.status.isVisible)
+        XCTAssertFalse(fixture.delegate.applicationShouldHandleReopen(NSApplication.shared, hasVisibleWindows: false))
+        XCTAssertTrue(fixture.status.isVisible)
+        XCTAssertTrue(fixture.status.menu === menu)
+        XCTAssertEqual(fixture.effects.statusCreations, 1)
+        XCTAssertEqual(fixture.effects.panelCreations, 1)
+        XCTAssertEqual(fixture.effects.liftCreations, 1)
+    }
+
+    func testTerminationWaitsForActualFrameRestorationBeforeReplying() async throws {
+        let fixture = Fixture(trusted: true); defer { fixture.stop() }
+        fixture.launch()
+        await wait { fixture.runtime.snapshot.windows.count == 3 }
+        let lift = try XCTUnwrap(fixture.effects.lift)
+        fixture.desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1016) }
+        lift.pendingRestorations[.init(pid: -41000, cgWindowID: 1001)] = .init(
+            nativeAppKit: CGRect(x: 0, y: 0, width: 1920, height: 1050), targetAppKit: CGRect(x: 0, y: 34, width: 1920, height: 1016),
+            primaryScreenHeight: 1080, processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 1)))
+        XCTAssertEqual(fixture.delegate.applicationShouldTerminate(NSApplication.shared), .terminateLater)
+        XCTAssertTrue(fixture.effects.terminationReplies.isEmpty)
+        await wait { fixture.effects.terminationReplies == [true] }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertTrue(lift.pendingRestorations.isEmpty)
+        fixture.delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        XCTAssertTrue(fixture.runtime.snapshot.windows.isEmpty)
+    }
+
+    func testPermissionLossSuspendsRealRuntimeAndStopsHeightWrites() async throws {
+        let fixture = Fixture(trusted: true); defer { fixture.stop() }
+        fixture.launch()
+        await wait { fixture.runtime.snapshot.windows.count == 3 }
+        fixture.permission.trusted.withLock { $0 = false }
+        fixture.delegate.schedulePermissionProbe()
+        await wait { fixture.effects.lift?.isEnabled == false }
+        fixture.permission.clock.withLock { $0 = 6 }
+        fixture.delegate.schedulePermissionProbe()
+        await wait { fixture.runtime.snapshot.windows.isEmpty }
+        fixture.runtime.activate(windowID: "editor-a")
+        XCTAssertTrue(fixture.runtime.pendingActionsForTesting.isEmpty)
+        XCTAssertFalse(fixture.effects.lift?.isEnabled ?? true)
+        XCTAssertEqual(fixture.effects.panels?.units.count, 0)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+        XCTAssertEqual(fixture.effects.prompts, 1)
+        XCTAssertFalse(fixture.effects.windows.contains { $0.isVisible })
+    }
+
+    func testPermissionRecoveryRestoresTheFrameBeforeRequestingRelaunchAndTermination() async throws {
+        for failRelaunch in [false, true] {
+            let fixture = Fixture(trusted: true); defer { fixture.stop() }
+            fixture.effects.relaunchFails = failRelaunch
+            fixture.launch()
+            await wait { fixture.runtime.snapshot.windows.count == 3 }
+            let lift = try XCTUnwrap(fixture.effects.lift)
+            fixture.desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1016) }
+            lift.pendingRestorations[.init(pid: -41000, cgWindowID: 1001)] = .init(
+                nativeAppKit: CGRect(x: 0, y: 0, width: 1920, height: 1050), targetAppKit: CGRect(x: 0, y: 34, width: 1920, height: 1016),
+                primaryScreenHeight: 1080, processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 1)))
+            fixture.permission.trusted.withLock { $0 = false }
+            fixture.delegate.schedulePermissionProbe()
+            await wait { !lift.isEnabled }
+            fixture.permission.clock.withLock { $0 = 6 }
+            fixture.delegate.schedulePermissionProbe()
+            await wait { fixture.runtime.snapshot.windows.isEmpty }
+            fixture.permission.trusted.withLock { $0 = true }
+            fixture.delegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+            await wait { fixture.effects.relaunchURLs.count == 1 }
+            XCTAssertEqual(fixture.effects.frameAtRelaunch, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            XCTAssertEqual(fixture.effects.relaunchURLs, [URL(fileURLWithPath: "/Applications/ProperWM.app")])
+            await wait { failRelaunch || fixture.effects.quitRequests == 1 }
+            XCTAssertEqual(fixture.effects.quitRequests, failRelaunch ? 0 : 1)
+            fixture.delegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+            XCTAssertEqual(fixture.effects.relaunchURLs.count, 1)
+            XCTAssertTrue(lift.pendingRestorations.isEmpty)
+        }
+    }
+}

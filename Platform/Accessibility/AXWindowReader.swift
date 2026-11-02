@@ -179,11 +179,49 @@ extension AppTrackerWindowReading {
     }
 }
 
+protocol AccessibilityOperations: Sendable {
+    func isTrusted() -> Bool
+    func application(_ pid: pid_t) -> AXUIElement
+    func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?)
+    func set(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError
+    func perform(_ element: AXUIElement, _ action: CFString) -> AXError
+    func pid(_ element: AXUIElement) -> pid_t?
+    func windowID(_ element: AXUIElement) -> CGWindowID?
+    func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError
+    func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool)
+}
+
+struct NativeAccessibilityOperations: AccessibilityOperations {
+    func isTrusted() -> Bool { AXIsProcessTrusted() }
+    func application(_ pid: pid_t) -> AXUIElement { AXUIElementCreateApplication(pid) }
+    func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?) {
+        var value: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, attribute, &value)
+        return (error, value)
+    }
+    func set(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError {
+        AXUIElementSetAttributeValue(element, attribute, value)
+    }
+    func perform(_ element: AXUIElement, _ action: CFString) -> AXError { AXUIElementPerformAction(element, action) }
+    func pid(_ element: AXUIElement) -> pid_t? {
+        var value: pid_t = 0
+        return AXUIElementGetPid(element, &value) == .success ? value : nil
+    }
+    func windowID(_ element: AXUIElement) -> CGWindowID? { AXWindowIDBridge.cgWindowID(for: element) }
+    func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError { AXUIElementSetMessagingTimeout(element, timeout) }
+    func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) {
+        var value = DarwinBoolean(false)
+        let error = AXUIElementIsAttributeSettable(element, attribute, &value)
+        return (error, value.boolValue)
+    }
+}
+
 struct AXWindowReader: AppTrackerWindowReading, Sendable {
+    let accessibility: any AccessibilityOperations
     private var budget: OperationReadBudget?
     private var readMessagingTimeout: TimeInterval = 0.1
 
-    init() {}
+    init(accessibility: any AccessibilityOperations = NativeAccessibilityOperations()) { self.accessibility = accessibility }
 
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
         readWindows(forPID: pid, messagingTimeout: messagingTimeout, cancellation: cancellation)
@@ -232,7 +270,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     private func readWindowsWithinBudget(forPID pid: pid_t, messagingTimeout: TimeInterval?) -> AXWindowReadResult {
         guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
-        let appElement = AXUIElementCreateApplication(pid)
+        let appElement = accessibility.application(pid)
         applyMessagingTimeout(messagingTimeout, to: appElement)
 
         var rawWindows: CFTypeRef?
@@ -277,7 +315,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         retryIntervalMicroseconds: useconds_t = 0,
         messagingTimeout: TimeInterval? = nil
     ) -> AXWindowHandle? {
-        guard AXIsProcessTrusted() else { return nil }
+        guard accessibility.isTrusted() else { return nil }
         let boundedAttempts = max(1, attempts)
 
         for attempt in 0..<boundedAttempts {
@@ -312,7 +350,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         cgWindowID: CGWindowID,
         messagingTimeout: TimeInterval = 0.1
     ) -> AXWindowHandle? {
-        guard AXIsProcessTrusted(),
+        guard accessibility.isTrusted(),
               cgWindowID != 0,
               messagingTimeout.isFinite,
               messagingTimeout > 0 else {
@@ -320,7 +358,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         let deadline = ProcessInfo.processInfo.systemUptime + messagingTimeout
-        let appElement = AXUIElementCreateApplication(pid)
+        let appElement = accessibility.application(pid)
 
         func remainingTimeout() -> TimeInterval? {
             let remaining = deadline - ProcessInfo.processInfo.systemUptime
@@ -330,7 +368,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         func matches(_ element: AXUIElement) -> Bool {
             guard let timeout = remainingTimeout() else { return false }
             applyMessagingTimeout(timeout, to: element)
-            if let bridgedID = AXWindowIDBridge.cgWindowID(for: element) {
+            if let bridgedID = accessibility.windowID(element) {
                 return bridgedID == cgWindowID
             }
 
@@ -382,7 +420,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
     }
 
     func focusedWindow(forPID pid: pid_t, messagingTimeout: TimeInterval? = nil) -> AXUIElement? {
-        let app = AXUIElementCreateApplication(pid)
+        let app = accessibility.application(pid)
         applyMessagingTimeout(messagingTimeout, to: app)
         return elementAttribute(kAXFocusedWindowAttribute as CFString, from: app,
                                 maxAttempts: messagingTimeout == nil ? 2 : 1)
@@ -421,7 +459,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
     }
 
     func cgWindowID(for element: AXUIElement, maxAttempts: Int = 2) -> UInt32? {
-        if let bridgedID = AXWindowIDBridge.cgWindowID(for: element) {
+        if let bridgedID = accessibility.windowID(element) {
             return bridgedID
         }
 
@@ -582,7 +620,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     func setMinimized(_ minimized: Bool, for handle: AXWindowHandle) -> Bool {
         let value: CFTypeRef = minimized ? kCFBooleanTrue : kCFBooleanFalse
-        let result = AXUIElementSetAttributeValue(
+        let result = accessibility.set(
             handle.element,
             kAXMinimizedAttribute as CFString,
             value
@@ -614,7 +652,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 guard budget.canContinue else { return .cannotComplete }
                 applyMessagingTimeout(min(readMessagingTimeout, budget.remaining), to: element)
             }
-            let result = AXUIElementCopyAttributeValue(element, attribute, &value)
+            let result: AXError
+            (result, value) = accessibility.copy(element, attribute)
             if result == .success {
                 return result
             }
@@ -650,10 +689,9 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         _ attribute: CFString,
         on element: AXUIElement
     ) -> AXWindowAttributeSettableStatus {
-        var isSettable = DarwinBoolean(false)
-        let result = AXUIElementIsAttributeSettable(element, attribute, &isSettable)
+        let (result, isSettable) = accessibility.isSettable(element, attribute)
         guard result == .success else { return .unread(result) }
-        return isSettable.boolValue ? .settable : .notSettable
+        return isSettable ? .settable : .notSettable
     }
 
     private func writeSize(
@@ -699,7 +737,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         recordAttempt(expectedFrame)
-        let writeResult = AXUIElementSetAttributeValue(
+        let writeResult = accessibility.set(
             element,
             kAXSizeAttribute as CFString,
             sizeValue
@@ -789,7 +827,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
         if let sizeValue {
             recordAttempt(CGRect(origin: initialFrame.origin, size: targetFrame.size))
-            let result = AXUIElementSetAttributeValue(
+            let result = accessibility.set(
                 element,
                 kAXSizeAttribute as CFString,
                 sizeValue
@@ -806,7 +844,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 return .failure(.verificationUnavailable)
             }
             recordAttempt(targetFrame)
-            let result = AXUIElementSetAttributeValue(
+            let result = accessibility.set(
                 element,
                 kAXPositionAttribute as CFString,
                 positionValue
@@ -887,7 +925,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     private func applyMessagingTimeout(_ timeout: TimeInterval?, to element: AXUIElement) {
         guard let timeout else { return }
-        _ = AXUIElementSetMessagingTimeout(element, Float(timeout))
+        _ = accessibility.setTimeout(element, Float(timeout))
     }
 
     private func bestMatch(

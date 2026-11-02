@@ -3,6 +3,39 @@ import ApplicationServices
 import Foundation
 import OSLog
 
+struct WindowApplicationState: Sendable {
+    let isActive: Bool
+    let isHidden: Bool
+    let isTerminated: Bool
+    let activationPolicy: NSApplication.ActivationPolicy
+    let bundleURL: URL?
+    var origin: ApplicationOrigin? { ApplicationOrigin(bundleURL: bundleURL) }
+}
+
+protocol WindowSystemAccess: Sendable {
+    func generation(_ pid: pid_t) -> ProcessGeneration?
+    func app(_ pid: pid_t) -> WindowApplicationState?
+    func activate(_ pid: pid_t) -> Bool
+    func unhide(_ pid: pid_t)
+    func terminate(_ pid: pid_t) -> Bool
+    func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]?
+}
+
+struct NativeWindowSystem: WindowSystemAccess {
+    func generation(_ pid: pid_t) -> ProcessGeneration? { ProcessLiveness.startTime(pid: pid).map(ProcessGeneration.init) }
+    func app(_ pid: pid_t) -> WindowApplicationState? {
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        return WindowApplicationState(isActive: app.isActive, isHidden: app.isHidden, isTerminated: app.isTerminated,
+            activationPolicy: app.activationPolicy, bundleURL: app.bundleURL)
+    }
+    func activate(_ pid: pid_t) -> Bool { NSRunningApplication(processIdentifier: pid)?.activate(options: []) ?? false }
+    func unhide(_ pid: pid_t) { NSRunningApplication(processIdentifier: pid)?.unhide() }
+    func terminate(_ pid: pid_t) -> Bool { NSRunningApplication(processIdentifier: pid)?.terminate() ?? false }
+    func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]? {
+        CGWindowListCopyWindowInfo(options, relative) as? [[String: Any]]
+    }
+}
+
 enum WindowCommandIdentity {
     static func permitsProcess(_ record: WindowRecord, currentGeneration: ProcessGeneration?) -> Bool {
         guard let expected = record.processGeneration else { return false }
@@ -17,21 +50,22 @@ enum WindowCommandIdentity {
         return accessibilityOwnerPID == record.pid && accessibilityWindowID == windowID
     }
 
-    static func validateProcess(_ record: WindowRecord) -> Bool {
-        permitsProcess(record, currentGeneration: ProcessLiveness.startTime(pid: record.pid).map(ProcessGeneration.init))
+    static func validateProcess(_ record: WindowRecord, system: any WindowSystemAccess = NativeWindowSystem()) -> Bool {
+        permitsProcess(record, currentGeneration: system.generation(record.pid))
     }
 
-    static func validate(_ record: WindowRecord, element: AXUIElement? = nil) -> Bool {
-        let generation = ProcessLiveness.startTime(pid: record.pid).map(ProcessGeneration.init)
+    static func validate(_ record: WindowRecord, element: AXUIElement? = nil,
+                         reader: AXWindowReader = AXWindowReader(), system: any WindowSystemAccess = NativeWindowSystem()) -> Bool {
+        let generation = system.generation(record.pid)
         guard permitsProcess(record, currentGeneration: generation) else { return false }
-        var accessibilityPID: pid_t = 0
+        var accessibilityPID: pid_t?
         if let element {
-            guard AXUIElementGetPid(element, &accessibilityPID) == .success,
-                  accessibilityPID == record.pid else { return false }
+            accessibilityPID = reader.accessibility.pid(element)
+            guard accessibilityPID == record.pid else { return false }
         }
         let owner: Int32?
         if let windowID = record.cgWindowID,
-           let values = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]],
+           let values = system.windowInfo(.optionIncludingWindow, windowID),
            let value = values.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID }),
            let number = value[kCGWindowOwnerPID as String] as? NSNumber {
             owner = Int32(exactly: number.int64Value)
@@ -42,12 +76,13 @@ enum WindowCommandIdentity {
         guard let element else { return false }
         return permits(record, currentGeneration: generation, ownerPID: nil,
             accessibilityOwnerPID: accessibilityPID,
-            accessibilityWindowID: AXWindowReader().cgWindowID(for: element, maxAttempts: 1))
+            accessibilityWindowID: reader.cgWindowID(for: element, maxAttempts: 1))
     }
 }
 
 struct AccessibilityWindowActionExecutor: Sendable {
     private let reader: AXWindowReader
+    private let system: any WindowSystemAccess
     private let chipProbeEnabled: Bool
     private let focusBackend: any WindowFocusRequesting
     private let cancellation: OperationCancellation
@@ -56,9 +91,11 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     init(reader: AXWindowReader = AXWindowReader(), chipProbeEnabled: Bool = false,
          focusBackend: any WindowFocusRequesting = SkyLightWindowFocus(),
+         system: any WindowSystemAccess = NativeWindowSystem(),
          cancellation: OperationCancellation = OperationCancellation(),
          authorization: @escaping @Sendable (pid_t, CGWindowID?, AXUIElement?) -> Bool = { _, _, _ in true }) {
         self.reader = reader
+        self.system = system
         self.chipProbeEnabled = chipProbeEnabled
         self.focusBackend = focusBackend
         self.cancellation = cancellation
@@ -67,7 +104,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     func withCancellation(_ cancellation: OperationCancellation,
                           authorization: @escaping @Sendable (pid_t, CGWindowID?, AXUIElement?) -> Bool) -> Self {
-        Self(reader: reader, chipProbeEnabled: chipProbeEnabled, focusBackend: focusBackend,
+        Self(reader: reader, chipProbeEnabled: chipProbeEnabled, focusBackend: focusBackend, system: system,
              cancellation: cancellation, authorization: authorization)
     }
 
@@ -83,7 +120,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
     @discardableResult
     func activateApplication(pid: pid_t) -> Bool {
         guard canAct(pid: pid) else { return false }
-        return NSRunningApplication(processIdentifier: pid)?.activate(options: []) ?? false
+        return system.activate(pid)
     }
 
     struct ActionExecution {
@@ -163,7 +200,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         let visibleWindows = liveWindows.filter { !$0.isMinimized }
 
         if let window = visibleWindows.first, canAct(pid: pid, windowID: window.cgWindowID) {
-            _ = AXUIElementPerformAction(visibleWindows[0].element, kAXRaiseAction as CFString)
+            _ = reader.accessibility.perform(visibleWindows[0].element, kAXRaiseAction as CFString)
             return activateApplication(pid: pid)
         }
 
@@ -192,6 +229,19 @@ struct AccessibilityWindowActionExecutor: Sendable {
         )
     }
 
+    private func minimizeButton(for handle: WindowHandle) -> AXUIElement? {
+        for _ in 0..<2 {
+            let (result, value) = reader.accessibility.copy(handle.element, kAXMinimizeButtonAttribute as CFString)
+            if result == .success {
+                guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+                return unsafeBitCast(value, to: AXUIElement.self)
+            }
+            guard result == .cannotComplete else { return nil }
+            usleep(20_000)
+        }
+        return nil
+    }
+
     func minimize(_ handle: WindowHandle) -> ActionExecution {
         guard canAct(on: handle) else {
             return ActionExecution(success: false, mechanism: "stale-target", verifiedMinimized: nil)
@@ -199,7 +249,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         if chipProbeEnabled {
             let role = reader.stringAttribute(kAXRoleAttribute as CFString, from: handle.element, maxAttempts: 1)
             let subrole = reader.stringAttribute(kAXSubroleAttribute as CFString, from: handle.element, maxAttempts: 1)
-            let hasMinimizeButton = axElementAttribute(kAXMinimizeButtonAttribute as CFString, from: handle.element) != nil
+            let hasMinimizeButton = minimizeButton(for: handle) != nil
             let currentMinimized = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element, maxAttempts: 1)
             var minimizedSettable: DarwinBoolean = false
             _ = AXUIElementIsAttributeSettable(handle.element, kAXMinimizedAttribute as CFString, &minimizedSettable)
@@ -225,7 +275,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             }
         }
 
-        guard let button = axElementAttribute(kAXMinimizeButtonAttribute as CFString, from: handle.element) else {
+        guard let button = minimizeButton(for: handle) else {
             let verified = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element)
             return ActionExecution(
                 success: verified == true,
@@ -234,7 +284,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             )
         }
 
-        guard canAct(on: handle), AXUIElementPerformAction(button, kAXPressAction as CFString) == .success else {
+        guard canAct(on: handle), reader.accessibility.perform(button, kAXPressAction as CFString) == .success else {
             return ActionExecution(
                 success: false,
                 mechanism: "press-minimize-button-failed",
@@ -260,7 +310,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
         awaitOnScreenBeforeFocus: Bool = false
     ) -> Bool {
         guard canAct(on: handle) else { return false }
-        if knownMinimized || reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element) == true {
+        let wasMinimized = knownMinimized || reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element) == true
+        if wasMinimized {
             if preActivateForRestore, let wid = knownCGWindowID {
                 postSkyLightFrontSwitchOnly(pid: handle.pid, windowID: wid, element: handle.element)
             }
@@ -271,16 +322,16 @@ struct AccessibilityWindowActionExecutor: Sendable {
             if let wid = knownCGWindowID {
                 postSkyLightWindowFocus(pid: handle.pid, windowID: wid, element: handle.element)
             }
-            if canAct(on: handle) { AXUIElementSetAttributeValue(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue) }
+            if canAct(on: handle) { reader.accessibility.set(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue) }
         }
 
         return WindowActivationAttempt.run(
             requestPrivateFocus: { requestWindowFocusViaSkyLight(pid: handle.pid, element: handle.element) },
-            raise: { if canAct(on: handle) { _ = AXUIElementPerformAction(handle.element, kAXRaiseAction as CFString) } },
+            raise: { if canAct(on: handle) { _ = reader.accessibility.perform(handle.element, kAXRaiseAction as CFString) } },
             activateApplication: { _ = activateApplication(pid: handle.pid) },
             confirm: { timeout in
                 confirmFocused(pid: handle.pid, windowID: handle.cgWindowID, element: handle.element,
-                               timeout: timeout, pollIntervalMicroseconds: pollIntervalMicroseconds)
+                               timeout: timeout, pollIntervalMicroseconds: pollIntervalMicroseconds, requiresRestored: wasMinimized)
             },
             timeout: confirmationTimeout,
             isCancelled: { !canAct(on: handle) }
@@ -292,7 +343,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         let deadline = ProcessInfo.processInfo.systemUptime + cap
         repeat {
             guard !cancellation.isCancelled else { return false }
-            if let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
+            if let list = system.windowInfo([.optionIncludingWindow], windowID),
                let info = list.first,
                (info[kCGWindowIsOnscreen as String] as? Bool) == true,
                (info[kCGWindowLayer as String] as? Int) == 0 {
@@ -310,10 +361,11 @@ struct AccessibilityWindowActionExecutor: Sendable {
             guard canAct(on: handle) else { return false }
             attempts += 1
             var raw: CFTypeRef?
-            let readError = AXUIElementCopyAttributeValue(handle.element, kAXCloseButtonAttribute as CFString, &raw)
+            let readError: AXError
+            (readError, raw) = reader.accessibility.copy(handle.element, kAXCloseButtonAttribute as CFString)
             if readError == .success, let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() {
                 guard canAct(on: handle) else { return false }
-                let pressError = AXUIElementPerformAction(raw as! AXUIElement, kAXPressAction as CFString)
+                let pressError = reader.accessibility.perform(raw as! AXUIElement, kAXPressAction as CFString)
                 Self.chipProbeLogger.info("close-press pid=\(handle.pid, privacy: .public) error=\(pressError.rawValue, privacy: .public) attempt=\(attempts, privacy: .public)")
                 if pressError == .success { return true }
                 if pressError != .cannotComplete { return false }
@@ -329,18 +381,24 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     private func confirmFocused(
         pid: pid_t, windowID: CGWindowID?, element: AXUIElement? = nil,
-        timeout: TimeInterval, pollIntervalMicroseconds: useconds_t = 10_000
+        timeout: TimeInterval, pollIntervalMicroseconds: useconds_t = 10_000, requiresRestored: Bool = false
     ) -> Bool {
         let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
         repeat {
             guard !cancellation.isCancelled else { return false }
             let remaining = max(0.001, deadline - ProcessInfo.processInfo.systemUptime)
-            if NSRunningApplication(processIdentifier: pid)?.isActive == true,
+            if system.app(pid)?.isActive == true,
                let focused = reader.focusedWindow(forPID: pid, messagingTimeout: min(remaining, 0.025)) {
-                if let element, CFEqual(focused, element) { return true }
-                if let windowID, reader.matchesCGWindowID(windowID, element: focused,
-                    messagingTimeout: min(max(0.001, deadline - ProcessInfo.processInfo.systemUptime), 0.025)) == true {
-                    return true
+                let matches: Bool
+                if let element, CFEqual(focused, element) { matches = true }
+                else if let windowID {
+                    matches = reader.matchesCGWindowID(windowID, element: focused,
+                        messagingTimeout: min(max(0.001, deadline - ProcessInfo.processInfo.systemUptime), 0.025)) == true
+                } else { matches = false }
+                if matches {
+                    if !requiresRestored { return true }
+                    _ = reader.accessibility.setTimeout(focused, Float(min(remaining, 0.025)))
+                    if reader.boolAttribute(kAXMinimizedAttribute as CFString, from: focused, maxAttempts: 1) == false { return true }
                 }
             }
             let wait = min(Double(pollIntervalMicroseconds) / 1_000_000,
@@ -356,17 +414,17 @@ struct AccessibilityWindowActionExecutor: Sendable {
         snapshot: DockSnapshot,
         focusedReadBudget: TimeInterval = 0
     ) -> MinimizeHandoffTarget.Verdict {
-        guard !cancellation.isCancelled, NSRunningApplication(processIdentifier: handle.pid)?.isActive == true else { return .none }
+        guard !cancellation.isCancelled, system.app(handle.pid)?.isActive == true else { return .none }
 
-        let appElement = AXUIElementCreateApplication(handle.pid)
-        AXUIElementSetMessagingTimeout(appElement, 0.2)
+        let appElement = reader.accessibility.application(handle.pid)
+        _ = reader.accessibility.setTimeout(appElement, 0.2)
         let deadline = Date().addingTimeInterval(focusedReadBudget)
         var focused: AXUIElement?
         var readError = AXError.success
         repeat {
             guard !cancellation.isCancelled else { return .none }
             var raw: CFTypeRef?
-            readError = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &raw)
+            (readError, raw) = reader.accessibility.copy(appElement, kAXFocusedWindowAttribute as CFString)
             if readError == .success, let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() {
                 focused = (raw as! AXUIElement)
             }
@@ -379,10 +437,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         }
 
         let ourPID = pid_t(ProcessInfo.processInfo.processIdentifier)
-        guard let list = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[String: Any]] else { return .none }
+        guard let list = system.windowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) else { return .none }
 
         var zOrder: [MinimizeHandoffTarget.ZOrderedWindow] = []
         for info in list {
@@ -417,8 +472,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
             Self.chipProbeLogger.info("switch-frontmost-handoff unavailable pid=\(pid, privacy: .public)")
             return false
         }
-        let targetApp = AXUIElementCreateApplication(targetPID)
-        AXUIElementSetMessagingTimeout(targetApp, 0.05)
+        let targetApp = reader.accessibility.application(targetPID)
+        _ = reader.accessibility.setTimeout(targetApp, 0.05)
         let deadline = Date().addingTimeInterval(deactivationCap)
         var stillFrontmost: Bool? = true
         var lastAXError: Int32 = 0
@@ -426,7 +481,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
         repeat {
             guard !cancellation.isCancelled else { return false }
             var raw: CFTypeRef?
-            let axError = AXUIElementCopyAttributeValue(targetApp, kAXFrontmostAttribute as CFString, &raw)
+            let axError: AXError
+            (axError, raw) = reader.accessibility.copy(targetApp, kAXFrontmostAttribute as CFString)
             if axError == .success {
                 stillFrontmost = (raw as? NSNumber)?.boolValue
             } else {
@@ -437,14 +493,14 @@ struct AccessibilityWindowActionExecutor: Sendable {
             usleep(2_000)
         } while Date() < deadline
         Self.chipProbeLogger.info("switch-frontmost-handoff pid=\(pid, privacy: .public) route=\(route, privacy: .public) targetStillFrontmost=\(String(describing: stillFrontmost), privacy: .public) axError=\(lastAXError, privacy: .public) waitMs=\(Int(Date().timeIntervalSince(waitStart) * 1000), privacy: .public)")
-        return stillFrontmost == false && NSRunningApplication(processIdentifier: pid)?.isActive == true
+        return stillFrontmost == false && system.app(pid)?.isActive == true
     }
 
     private func activateApplicationViaAccessibility(pid: pid_t) -> Bool {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.2)
+        let app = reader.accessibility.application(pid)
+        _ = reader.accessibility.setTimeout(app, 0.2)
         guard canAct(pid: pid) else { return false }
-        return AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue) == .success
+        return reader.accessibility.set(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue) == .success
     }
 
     private static let skyLightFocusEnabled =
@@ -553,9 +609,16 @@ struct PlatformActionExecutor: WindowActionExecuting {
     private static let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
     private static let postMinimizeActivateDelayMicroseconds: useconds_t = 50_000
 
-    init(switches: ActionExecutionSwitches = ActionExecutionSwitches()) {
+    private let reader: AXWindowReader
+    private let system: any WindowSystemAccess
+
+    init(switches: ActionExecutionSwitches = ActionExecutionSwitches(), reader: AXWindowReader = AXWindowReader(),
+         system: any WindowSystemAccess = NativeWindowSystem(), focusBackend: any WindowFocusRequesting = SkyLightWindowFocus()) {
         self.switches = switches
-        windowExecutor = AccessibilityWindowActionExecutor(chipProbeEnabled: switches.chipProbeEnabled)
+        self.reader = reader
+        self.system = system
+        windowExecutor = AccessibilityWindowActionExecutor(reader: reader, chipProbeEnabled: switches.chipProbeEnabled,
+            focusBackend: focusBackend, system: system)
     }
 
     @discardableResult
@@ -570,11 +633,11 @@ struct PlatformActionExecutor: WindowActionExecuting {
             guard let record = snapshot.windows.values.first(where: {
                 $0.pid == pid && (windowID == nil || $0.cgWindowID == windowID)
             }) else { return false }
-            if windowID == nil { return WindowCommandIdentity.validateProcess(record) }
-            return WindowCommandIdentity.validate(record, element: element)
+            if windowID == nil { return WindowCommandIdentity.validateProcess(record, system: system) }
+            return WindowCommandIdentity.validate(record, element: element, reader: reader, system: system)
         }
         guard !cancellation.isCancelled, let windowID = request.windowID,
-              let record = snapshot.windows[windowID], WindowCommandIdentity.validateProcess(record) else {
+              let record = snapshot.windows[windowID], WindowCommandIdentity.validateProcess(record, system: system) else {
             return false
         }
         let effectiveKnownMinimized = forcedMinimizedPrior || record.status == .minimized
@@ -585,19 +648,19 @@ struct PlatformActionExecutor: WindowActionExecuting {
            !forcedMinimizedPrior,
            let cgWindowID = record.cgWindowID,
            record.status == .active || record.status == .inactive,
-           NSRunningApplication(processIdentifier: record.pid)?.isActive != true {
+           system.app(record.pid)?.isActive != true {
             windowExecutor.requestEarlyWindowFocus(pid: record.pid, cgWindowID: cgWindowID)
             ClickLatencyTrace.mark(windowID: request.windowID?.rawValue, "earlyFocus")
         }
 
         var justUnhid = false
         if isFinderWindow {
-            let finderApp = NSRunningApplication(processIdentifier: record.pid)
+            let finderApp = system.app(record.pid)
             if finderApp?.isHidden == true {
-                guard !cancellation.isCancelled, WindowCommandIdentity.validateProcess(record) else { return false }
-                finderApp?.unhide()
+                guard !cancellation.isCancelled, WindowCommandIdentity.validateProcess(record, system: system) else { return false }
+                system.unhide(record.pid)
                 let deadline = Date().addingTimeInterval(0.2)
-                while finderApp?.isHidden == true, Date() < deadline {
+                while system.app(record.pid)?.isHidden == true, Date() < deadline {
                     usleep(20_000)
                 }
                 justUnhid = true
@@ -784,39 +847,8 @@ struct PlatformActionExecutor: WindowActionExecuting {
     private func executeAppFallback(request: PlatformActionRequest, record: WindowRecord, executor windowExecutor: AccessibilityWindowActionExecutor) -> Bool {
         guard request.kind == .activateWindow else { return false }
         return windowExecutor.activateAppWithWindowRecovery(
-            pid: record.pid, runningApp: NSRunningApplication(processIdentifier: record.pid))
+            pid: record.pid, runningApp: nil)
     }
 
 }
 
-private func axElementAttribute(_ attribute: CFString, from element: AXUIElement) -> AXUIElement? {
-    guard let value = axCopyAttributeValue(attribute, from: element),
-          CFGetTypeID(value) == AXUIElementGetTypeID() else {
-        return nil
-    }
-    return (value as! AXUIElement)
-}
-
-private func axCopyAttributeValue(
-    _ attribute: CFString,
-    from element: AXUIElement,
-    maxAttempts: Int = 2
-) -> CFTypeRef? {
-    var attempt = 0
-    while attempt < maxAttempts {
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, attribute, &value)
-        if result == .success {
-            return value
-        }
-
-        if result != .cannotComplete {
-            return nil
-        }
-
-        attempt += 1
-        usleep(20_000)
-    }
-
-    return nil
-}

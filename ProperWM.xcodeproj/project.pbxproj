@@ -286,6 +286,7 @@
 		0621792722C3D91946144543 /* WindowSpaceVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A933EC4B50271EC2E6F8AD /* WindowSpaceVisibilityTests.swift */; };
 		2DA4D11D616ACF0B045A003C /* TaskbarSpaceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */; };
 		29C98328B49C37750EF67463 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
+		E69FAB823E13849964014C4D = {isa = PBXBuildFile; fileRef = C6F148DC93E1A93713C4D563; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -469,6 +470,7 @@
 		63BC9803AA93A08F173B96D2 /* TaskbarSpaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarSpaceStore.swift; sourceTree = "<group>"; };
 		C7A933EC4B50271EC2E6F8AD /* WindowSpaceVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowSpaceVisibilityTests.swift; sourceTree = "<group>"; };
 		16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarSpaceStoreTests.swift; sourceTree = "<group>"; };
+		C6F148DC93E1A93713C4D563 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarBehaviorTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -507,6 +509,7 @@
 				CAC68C8C9934A6358A28C8B7,
 				C757E51A34A4D4F65CA8C48C,
 				35F0B6CC05AE5ECDAE656A24,
+				C6F148DC93E1A93713C4D563,
 				38EDF81CAE222EB752141E25,
 				0A95269DF31CDA0184AA1F40,
 				9C33F094644B4978BAE7E77F,
@@ -1224,6 +1227,7 @@
 				452E9C541EDC0055C577545D,
 				F87D51234347E29DADF419A1,
 				96D026158DE9A044040EFEA4,
+				E69FAB823E13849964014C4D,
 				0210673001E443780FF004F6,
 				132A413EF5B9FD9566329B23,
 				902B466BD03649EAB3253707,

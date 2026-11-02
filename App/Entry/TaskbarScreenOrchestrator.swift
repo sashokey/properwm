@@ -11,7 +11,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     }
 
     private(set) var units: [Unit] = []
-    let overlaySpaceHost = OverlaySpaceHost.make()
+    let overlaySpaceHost: OverlaySpaceHost?
 
     private let runtime: AppRuntime
     private let stripOrderStore: StripOrderStore
@@ -37,6 +37,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         stripOrderStore: StripOrderStore,
         displayTopologyStore: DisplayTopologyStore,
         spaceStore: TaskbarSpaceStore = TaskbarSpaceStore(),
+        overlaySpaceHost: OverlaySpaceHost? = OverlaySpaceHost.make(),
         topologySnapshotProvider: @escaping @MainActor () -> ScreenTopologySnapshot = {
             DisplayIdentity.topologySnapshot()
         },
@@ -47,6 +48,7 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
             return item
         }
     ) {
+        self.overlaySpaceHost = overlaySpaceHost
         self.runtime = runtime
         self.stripOrderStore = stripOrderStore
         self.displayTopologyStore = displayTopologyStore
