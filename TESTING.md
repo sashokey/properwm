@@ -61,6 +61,8 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 | First launch | Only the native Accessibility prompt appears; no ProperWM permission window or extra Dock presence. No Screen Recording request. |
 | Initial permission still missing | Waiting, denial, and elapsed time do not open a guide or repeat the system prompt. A later grant starts the taskbar once without relaunching; Quit prevents a delayed startup. |
 | Transient installation or confirmed recovery failure | Show the relevant explanation for the actual problem. Do not infer a broken permission record from initial waiting alone. |
+| Embedded helper application | Steam has the main application icon/group. Activate, minimize, restore and close affect the selected native window; Quit terminates the main application normally. No extra permission request. |
+| Independent settings window | Terminal Profiles appears alongside its main window and can be activated and closed. Its child modal sheet does not become a separate button. |
 | Running app without windows | No launcher or pinned button appears. |
 | Several windows of one app | Separate labeled buttons while space remains, adjacent in stable discovery order. |
 | Activate, minimize, restore, rename, close, create | Surviving siblings keep their order; a new window joins its app group. |
@@ -94,9 +96,15 @@ Use the app from the exact tested commit. Verify real desktop interactions only 
 
 macOS 26 remains the deployment minimum without a dedicated compatibility matrix. Automated testing uses the newest hosted macOS available in GitHub Actions; physical Mac acceptance uses the newest installed macOS. Record OS, scale, display arrangement, version, source commit, steps, and observed results for failures.
 
-## Accessory application admission
+## Accessory and embedded application admission
 
-Run the inventory lifecycle tests with injected application metadata; fixtures must pass through the production activation-policy gate. A Stats-shaped standalone accessory bundle with a standard Dashboard window must be admitted through seed, scan, and launch retry. Reject ProperWM itself, prohibited processes, unknown accessory bundle ownership, and embedded helper bundles, including Steam's recorded nested helper layout. Preserve per-window filtering for empty, untitled, undersized, and floating utility surfaces. Closing and reopening a tracked accessory window must work through the window event read without periodic admission or an app-only taskbar button. No live permissions or desktop windows are required for these tests.
+Run inventory lifecycle tests through the production activation-policy gate. A standalone accessory bundle with a standard Dashboard window remains eligible through seed, scan and launch retry. An embedded helper needs a unique, current host identity established by the production ownership resolver. Resolver tests replace only running-process, generation and signing boundaries; exercise canonical component containment, symlink escape, executable containment, missing/mismatched signers, ambiguous hosts, and process replacement during verification. No application-name matching is used.
+
+Verify the same helper inventory through seed, scan and launch retry, with ownership work off the main thread. Presentation uses the host identity while records retain the helper PID and origin. The real presenter/runtime/planner/executor/AX reader must minimize and restore the exact helper window, close only that window, and send normal Quit once to the current matching host. Changed host identities must block Quit. Host termination retires helper inventory and observers; host-frontmost polling refreshes helper focus without repeating signature checks. Foreign AX elements are not assigned to the enumerating process; unread ownership preserves prior inventory.
+
+Exercise top-level nonmodal AXDialog settings windows through the real AX reader and inventory filter. Confirmed settings windows appear; modal, unread, nested and floating utility surfaces do not. Closing and reopening a tracked accessory window must use its existing observer without an app-only card or a periodic-admission delay.
+
+Mutation checks must detect removed signer equality, path containment, host generation validation, dialog boundaries and native AX ownership filtering. Keep mutation copies separate from the source used for release. Automated fixtures do not establish that a third-party app exposes the expected native AX roles or accepts its window commands; verify Steam and Terminal Profiles on the tested application build before release.
 
 ## Review regression coverage
 

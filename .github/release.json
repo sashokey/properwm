@@ -1,6 +1,6 @@
 {
-  "version": "1.1.6",
+  "version": "1.1.7",
   "prerelease": false,
   "draft": false,
-  "notes": "## Fixed\n\n- Keep the activity indicator centered below the app icon while it expands from gray to blue and contracts again. Interrupted transitions remain smooth, and Reduce Motion applies the final state immediately.\n- Update the active-window button without waiting for the full window inventory when switching between windows of the same app on different monitors. Late inventory responses no longer restore an older focus highlight.\n\n## Verification\n\nThe complete test suite, focused regressions, constrained-executor checks, WindowLab replays and Apple Silicon Release build pass. Regression tests detect both original defects and deliberately removed focus-ordering and owner-validation safeguards. No new permissions, dependencies or global input observers."
+  "notes": "## Fixed\n\n- Support eligible windows owned by a verified embedded helper, using the main application identity for grouping and normal Quit while retaining the native window process for window actions. No application allowlist or additional privacy permissions.\n- Include independent, confirmed nonmodal settings dialogs while continuing to exclude modal sheets and floating utility panels.\n- Preserve native AX window ownership and reject stale admission results that could hide an already tracked helper window.\n\n## Verification\n\nThe complete test suite, constrained-executor checks, WindowLab replays, tooling checks and Apple Silicon Release build pass. Regression tests reproduce the missing-window and command-routing defects; deliberate removal of ownership and dialog safeguards is detected."
 }

@@ -61,13 +61,17 @@ On a normal installed launch without Accessibility permission, remain an accesso
 
 Keep explanations for confirmed problems: a transient/read-only installation, sustained permission loss after the app was already running, or a failed recovery relaunch. Preserve the permission-loss debounce, panel suspension, window restoration, recovery guidance, and retry behavior. Do not reset privacy permissions or introduce new ones to test first-launch behavior; use injected permission states for automated checks.
 
-## Deferred Steam ownership investigation
+## Embedded helper windows
 
-A read-only check found Steam's visible main window owned by `com.valvesoftware.steam.helper`, an accessory process, while `com.valvesoftware.steam` was the regular application. The inventory admits regular applications and standalone accessory application bundles, such as Stats. Embedded accessory helpers inside another bundle's Contents remain excluded, so that helper window is currently absent. Admitting every helper window would also admit menus and utility surfaces. A fix needs explicit helper-to-parent ownership, window filtering, and separate routing of window actions and application Quit. That broader change is deferred; do not add privacy permissions or indiscriminately admit accessory processes as a shortcut.
+An embedded accessory process may own a visible window while a regular application provides its identity. Admit that helper only when exactly one running regular host contains its canonical bundle below Contents, both executables remain inside their own bundle's Contents/MacOS directory, and both processes have valid Apple-anchored signatures with the same Team ID. Verify code identifiers and process generations; unknown, ambiguous, unsigned, mismatched, or escaped paths do not establish ownership. Do not add application-name exceptions or privacy permissions.
+
+Keep the native window PID, bundle origin, generation, AX element and CG identity. Use the verified host only for presentation/grouping and ordinary Quit, validating both identities before Quit. Window activation, minimize, restore and close still target the native owner. Cache the binding after admission; reuse existing focus/event refreshes and remove it on helper or host termination and tracker shutdown. Signing checks run during background admission, not rendering or focus polling.
+
+AX lists may expose another process's elements. Skip confirmed foreign owners rather than relabeling them; unread ownership is a failed inventory read, not confirmation that windows disappeared. Independently switchable nonmodal AXDialog windows require a confirmed application-level parent and a reasonable frame. Sheets, modal dialogs, unknown dialog metadata and floating utility windows remain excluded.
 
 ## Menu-bar application windows
 
-A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Keep embedded helpers excluded until ownership and Quit routing are implemented.
+A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Embedded helpers must satisfy the verified ownership rules above.
 
 Keep an admitted application's AX observer after its last window closes, just as for regular applications. The open-window projection hides the empty application; an AX window-created event must detect its next window without waiting for periodic admission. Process termination and tracker shutdown still release the observer. Do not restore the former non-regular eviction retries, which implemented obsolete Dock-style app-card behavior.
 
