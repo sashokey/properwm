@@ -71,12 +71,21 @@ struct DiagnosticAdmissionRecord: Equatable {
     let at: Date
 }
 
+typealias ApplicationOwnerRead = (identity: ScanAdmissionDecision.ProcessIdentity, application: AppTrackerWindowEligibility.Application)
+
 protocol AppTrackerProcessProviding: Sendable {
     func isAlive(pid: pid_t) -> Bool
     func identity(pid: pid_t, bundleID: String?) -> ScanAdmissionDecision.ProcessIdentity
+    func applicationOwner(pid: pid_t) -> ApplicationOwnerRead?
+}
+
+extension AppTrackerProcessProviding {
+    func applicationOwner(pid: pid_t) -> ApplicationOwnerRead? { nil }
 }
 
 struct LiveAppTrackerProcessProvider: AppTrackerProcessProviding {
+    func applicationOwner(pid: pid_t) -> ApplicationOwnerRead? { ApplicationOwnership().owner(for: pid) }
+
     func isAlive(pid: pid_t) -> Bool {
         ProcessLiveness.isAlive(pid: pid)
     }
@@ -98,6 +107,18 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     @Published private(set) var snapshot: DockSnapshot = .empty
 
     private var apps: [pid_t: AppEntry] = [:]
+    private struct OwnerBinding {
+        let process: ScanAdmissionDecision.ProcessIdentity
+        let owner: ApplicationOwnerRead
+        let origin: ApplicationOrigin
+    }
+    private struct ApplicationProbe {
+        let identity: ScanAdmissionDecision.ProcessIdentity
+        let result: AXWindowReadResult
+        let owner: ApplicationOwnerRead?
+        var pid: pid_t { identity.pid }
+    }
+    private var ownerBindings: [pid_t: OwnerBinding] = [:]
     private(set) var lastAdmissionVerdictByPID: [pid_t: DiagnosticAdmissionRecord] = [:]
 
     func diagnosticApps() -> [AppEntry] {
@@ -372,6 +393,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         lastReconcileAtByPID.removeAll()
         shadowPoolDiagnosticsByPID.removeAll()
         heldLogDeduplicator.removeAll()
+        ownerBindings.removeAll()
         pendingEventReads.removeAll()
         trailingEventSources.removeAll()
         focusRevisions.removeAll()
@@ -1298,20 +1320,22 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let seedStart = Date()
         let configured = Int(DebugSwitch.seedAxTimeoutMs.value() ?? "") ?? 100
         let messagingTimeout: TimeInterval? = configured == 0 ? nil : max(0.001, Double(configured) / 1_000)
-        let candidates = runningApplications.filter(isWindowApplication).map {
-            processIdentity(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier)
+        let candidates = runningApplications.filter(isWindowCandidate).map {
+            (identity: processIdentity(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier),
+             requiresOwner: !eligibilityApplication(for: $0).canOwnTaskbarWindows)
         }
         let reader = reader
+        let processProvider = processProvider
         work.launch { [weak self] generation in
-            var results: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
-            for identity in candidates {
+            var results: [ApplicationProbe] = []
+            for candidate in candidates {
                 guard !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
-                    messagingTimeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0, cancellation: cancellation) }
-                        ?? reader.windowReadResult(forPID: identity.pid)
+                    Self.probeApplication(candidate.identity, requiresOwner: candidate.requiresOwner,
+                        reader: reader, processProvider: processProvider, timeout: messagingTimeout, cancellation: cancellation)
                 }) else { return }
-                results.append((identity, result))
+                results.append(result)
             }
             let probed = results
             await MainActor.run {
@@ -1322,7 +1346,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func completeSeed(
-        _ probed: [(identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)],
+        _ probed: [ApplicationProbe],
         messagingTimeout: TimeInterval?, startedAt: Date
     ) {
         let useTimeout = messagingTimeout != nil
@@ -1332,6 +1356,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let cgSnapshot = cgSnapshotProvider()
         for entry in probed {
             let pid = entry.identity.pid
+            defer { if apps[pid] == nil { ownerBindings.removeValue(forKey: pid) } }
+            rememberOwner(entry)
             guard apps[pid] == nil, let app = applicationForAdmission(pid: pid),
                   isWindowApplication(app), !isTerminatedForAdmission(app),
                   ScanAdmissionDecision.ProcessIdentity.matches(probed: entry.identity,
@@ -1485,7 +1511,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     // MARK: - Workspace Handlers
 
     private func handleAppLaunched(_ app: NSRunningApplication) {
-        guard isWindowApplication(app) else { return }
+        guard isWindowCandidate(app) else { return }
         scanDirtyPIDs.insert(app.processIdentifier)
         scanCandidateCache = nil
         if FinderWindowRules.isFinder(bundleIdentifier: app.bundleIdentifier) {
@@ -1504,7 +1530,14 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func handleAppActivated(_ app: NSRunningApplication) {
-        guard isWindowApplication(app) else { return }
+        guard isWindowCandidate(app) else { return }
+        for (pid, binding) in ownerBindings where binding.owner.identity.pid == app.processIdentifier {
+            if applicationOwner(for: pid) != nil { requestFocusedWindowRead(pid: pid) }
+        }
+        if !isWindowApplication(app) {
+            scheduleRetryAdmission(app: app, delays: [0])
+            return
+        }
         guard apps[app.processIdentifier] == nil else {
             markReconcileGateDirty(pid: app.processIdentifier)
             requestFocusedWindowRead(pid: app.processIdentifier)
@@ -1516,6 +1549,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     func handleAppTerminated(pid: pid_t) {
+        let helpers = ownerBindings.filter { $0.value.owner.identity.pid == pid }.map(\.key)
+        for helper in helpers { removeTrackedProcess(pid: helper) }
         removeTrackedProcess(pid: pid)
         rebuildSnapshot()
     }
@@ -1525,6 +1560,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         observers.removeValue(forKey: pid)?.stop()
         if let app = apps[pid] { recordProcessGoneSeats(app: app) }
         apps.removeValue(forKey: pid)
+        ownerBindings.removeValue(forKey: pid)
         appOrder.removeAll { $0 == pid }
         pendingEventReads.removeValue(forKey: pid)
         trailingEventSources.removeValue(forKey: pid)
@@ -1568,7 +1604,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         source: InventoryReconcileSource = .initialEnumeration
     ) {
         let pid = app.processIdentifier
-        guard apps[pid] == nil else { return }
+        guard apps[pid] == nil, isWindowApplication(app) else { return }
         cgEventGeneration &+= 1
         let application = eligibilityApplication(for: app)
 
@@ -1616,6 +1652,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private func scheduleRetryAdmission(app: NSRunningApplication, delays: [TimeInterval]) {
         let pid = app.processIdentifier
         let reader = reader
+        let processProvider = processProvider
+        let requiresOwner = !eligibilityApplication(for: app).canOwnTaskbarWindows
         for delay in delays {
             work.launch(after: delay) { [weak self] generation in
                 let identity = await MainActor.run { () -> ScanAdmissionDecision.ProcessIdentity? in
@@ -1630,10 +1668,15 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 guard let identity, !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
-                    reader.inventoryWindows(forPID: pid, messagingTimeout: 0.1, cancellation: cancellation)
+                    Self.probeApplication(identity, requiresOwner: requiresOwner, reader: reader,
+                        processProvider: processProvider, timeout: 0.1, cancellation: cancellation)
                 }) else { return }
                 await MainActor.run {
-                    guard let self, self.work.isCurrent(generation), self.apps[pid] == nil,
+                    guard let self, self.work.isCurrent(generation) else { return }
+                    defer { if self.apps[pid] == nil { self.ownerBindings.removeValue(forKey: pid) } }
+                    self.rememberOwner(result)
+                    let result = result.result
+                    guard self.apps[pid] == nil,
                           let current = self.applicationForAdmission(pid: pid),
                           self.isWindowApplication(current), !self.isTerminatedForAdmission(current),
                           ScanAdmissionDecision.ProcessIdentity.matches(probed: identity,
@@ -1674,7 +1717,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             isBelowNormalLayer: snap.cgWindowID.map {
                 cgSnapshot.belowNormalLayerWindowIDs.contains($0)
             } ?? false,
-            application: application
+            application: application, isModal: snap.isModal, isTopLevel: snap.isTopLevel
         )
     }
 
@@ -2221,14 +2264,18 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func pollFrontmostApp() {
         guard AXIsProcessTrusted() else { return }
-        guard let pid = currentFrontmostPID(), apps[pid] != nil else { return }
+        guard let pid = currentFrontmostPID() else { return }
 
         scheduleFrontmostPoll(pid: pid)
     }
 
     private func scheduleFrontmostPoll(pid: pid_t) {
-        guard apps[pid] != nil else { return }
-        scheduleEventRead(pid: pid, source: .frontmostPoll)
+        if apps[pid] != nil { scheduleEventRead(pid: pid, source: .frontmostPoll) }
+        for (helper, binding) in ownerBindings where binding.owner.identity.pid == pid {
+            if apps[helper] != nil, applicationOwner(for: helper) != nil {
+                scheduleEventRead(pid: helper, source: .frontmostPoll)
+            }
+        }
     }
 
     private func reconcile() {
@@ -2417,7 +2464,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             // 旁路（启动补扫轮 / DOCK_SCAN_GATE=0）：与改造前逐位一致，现场全量枚举。
             candidates = runningApplications.compactMap { app in
                 let pid = app.processIdentifier
-                guard isWindowApplication(app), !isTerminatedForAdmission(app), apps[pid] == nil else { return nil }
+                guard isWindowCandidate(app), !isTerminatedForAdmission(app), apps[pid] == nil else { return nil }
                 scanDirtyPIDs.remove(pid)
                 return (pid, processIdentity(pid: pid, bundleID: app.bundleIdentifier))
             }
@@ -2426,19 +2473,26 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
         isScanningCandidates = true
         let reader = self.reader
+        let processProvider = processProvider
+        let embeddedPIDs = Set(candidates.compactMap { candidate -> pid_t? in
+            guard let app = applicationForAdmission(pid: candidate.pid),
+                  !eligibilityApplication(for: app).canOwnTaskbarWindows else { return nil }
+            return candidate.pid
+        })
 
         work.launch { [weak self] generation in
             // 后台只做 AX 读（限时 100ms，挂死 App 不拖主线程）。eligible 过滤放主线程：它依赖
             // 实例属性 eligibilityPolicy，且只是对已读字段的纯计算，零 AX 往返。
             let probeStart = DispatchTime.now().uptimeNanoseconds
-            var probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)] = []
+            var probed: [ApplicationProbe] = []
             for candidate in candidates {
                 guard !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
-                    reader.inventoryWindows(forPID: candidate.pid, messagingTimeout: 0.1, cancellation: cancellation)
+                    Self.probeApplication(candidate.identity, requiresOwner: embeddedPIDs.contains(candidate.pid),
+                        reader: reader, processProvider: processProvider, timeout: 0.1, cancellation: cancellation)
                 }) else { return }
-                probed.append((candidate.pid, candidate.identity, result))
+                probed.append(result)
             }
             let results = probed
             let probeElapsed = TimeInterval(DispatchTime.now().uptimeNanoseconds - probeStart) / 1_000_000_000
@@ -2455,13 +2509,13 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private func enumerateScanCandidates() -> [(pid: pid_t, bundleID: String?)] {
         runningApplications.compactMap { app in
             let pid = app.processIdentifier
-            guard isWindowApplication(app), !app.isTerminated, apps[pid] == nil else { return nil }
+            guard isWindowCandidate(app), !app.isTerminated, apps[pid] == nil else { return nil }
             return (pid, app.bundleIdentifier)
         }
     }
 
     private func admitScannedApps(
-        _ probed: [(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity, result: AXWindowReadResult)],
+        _ probed: [ApplicationProbe],
         tickSnapshot: AppTrackerCGWindowSnapshot? = nil,
         probeElapsed: TimeInterval = .infinity
     ) {
@@ -2478,6 +2532,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var admitted = false
 
         for entry in probed {
+            defer { if apps[entry.pid] == nil { ownerBindings.removeValue(forKey: entry.pid) } }
+            rememberOwner(entry)
             guard let app = applicationForAdmission(pid: entry.pid) else {
                 scanMemos.removeValue(forKey: entry.pid)
                 noteAdmissionVerdict(pid: entry.pid, verdict: "skipProcessUnavailable", source: "scan")
@@ -2639,6 +2695,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var orderedWindowIDs: [WindowID] = []
         for pid in appOrder {
             guard let app = apps[pid] else { continue }
+            let owningApplication = applicationOwner(for: pid)
+            if ownerBindings[pid] != nil && owningApplication == nil { continue }
             for cgID in app.windowOrder {
                 guard let seat = app.windowsByID[cgID] else { continue }
                 let id = WindowID(rawValue: "cgw-\(cgID)")
@@ -2646,10 +2704,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     id: id, appID: AppID(rawValue: app.bundleIdentifier ?? app.appName), pid: pid,
                     bundleIdentifier: app.bundleIdentifier, title: seat.title, bounds: seat.bounds,
                     status: windowStatus(isHidden: app.isHidden, isMinimized: seat.isMinimized,
-                                         isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID),
+                                         isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID, owningPID: owningApplication?.pid),
                     cgWindowID: cgID, isOnDesktop: !seat.isMinimized && !app.isHidden,
                     groupID: seat.token, displayUUID: seat.displayUUID,
-                    applicationOrigin: app.applicationOrigin, processGeneration: app.processGeneration
+                    applicationOrigin: app.applicationOrigin, processGeneration: app.processGeneration,
+                    owningApplication: owningApplication
                 )
                 orderedWindowIDs.append(id)
             }
@@ -2659,10 +2718,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         snapshot = next
     }
 
-    private func windowStatus(isHidden: Bool, isMinimized: Bool, isFocused: Bool, pid: pid_t, frontmostPID: pid_t?) -> WindowStatus {
+    private func windowStatus(isHidden: Bool, isMinimized: Bool, isFocused: Bool, pid: pid_t, frontmostPID: pid_t?, owningPID: pid_t?) -> WindowStatus {
         if isHidden { return .hidden }
         if isMinimized { return .minimized }
-        if isFocused && pid == frontmostPID { return .active }
+        if isFocused && (pid == frontmostPID || owningPID != nil && owningPID == frontmostPID) { return .active }
         return .inactive
     }
 
@@ -2684,8 +2743,48 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         return app.isTerminated
     }
 
+    private func isWindowCandidate(_ app: NSRunningApplication) -> Bool {
+        let application = eligibilityApplication(for: app)
+        return application.canOwnTaskbarWindows || application.isEmbeddedHelper
+    }
+
     private func isWindowApplication(_ app: NSRunningApplication) -> Bool {
-        eligibilityApplication(for: app).canOwnTaskbarWindows
+        let application = eligibilityApplication(for: app)
+        return application.canOwnTaskbarWindows || application.isEmbeddedHelper && applicationOwner(for: app.processIdentifier) != nil
+    }
+
+    nonisolated private static func probeApplication(
+        _ identity: ScanAdmissionDecision.ProcessIdentity, requiresOwner: Bool,
+        reader: any AppTrackerWindowReading, processProvider: any AppTrackerProcessProviding,
+        timeout: TimeInterval?, cancellation: OperationCancellation
+    ) -> ApplicationProbe {
+        guard !cancellation.isCancelled else { return .init(identity: identity, result: .unread(.cannotComplete), owner: nil) }
+        let owner = requiresOwner ? processProvider.applicationOwner(pid: identity.pid) : nil
+        guard !requiresOwner || owner != nil else { return .init(identity: identity, result: .success([]), owner: nil) }
+        guard !cancellation.isCancelled else { return .init(identity: identity, result: .unread(.cannotComplete), owner: nil) }
+        let result = timeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0, cancellation: cancellation) }
+            ?? reader.windowReadResult(forPID: identity.pid)
+        return .init(identity: identity, result: result, owner: owner)
+    }
+
+    private func rememberOwner(_ probe: ApplicationProbe) {
+        guard apps[probe.pid] == nil else { return }
+        if let owner = probe.owner, let origin = ApplicationOrigin(bundleURL: owner.application.bundleURL) {
+            ownerBindings[probe.pid] = OwnerBinding(process: probe.identity, owner: owner, origin: origin)
+        }
+    }
+
+    private func applicationOwner(for pid: pid_t) -> ApplicationIdentity? {
+        guard let binding = ownerBindings[pid],
+              ScanAdmissionDecision.ProcessIdentity.matches(probed: binding.process,
+                  current: processIdentity(pid: pid, bundleID: binding.process.bundleID)),
+              ScanAdmissionDecision.ProcessIdentity.matches(probed: binding.owner.identity,
+                  current: processIdentity(pid: binding.owner.identity.pid, bundleID: binding.owner.identity.bundleID)),
+              let seconds = binding.owner.identity.startTimeSec, let microseconds = binding.owner.identity.startTimeUsec,
+              let bundleID = binding.owner.application.bundleIdentifier else { return nil }
+        return ApplicationIdentity(pid: binding.owner.identity.pid, bundleIdentifier: bundleID,
+            origin: binding.origin,
+            generation: ProcessGeneration(timeval(tv_sec: Int(seconds), tv_usec: microseconds)))
     }
 
     #if DEBUG

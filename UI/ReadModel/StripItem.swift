@@ -21,8 +21,10 @@ struct StripItem: Hashable {
     let bundleIdentifier: String?
     let applicationOrigin: ApplicationOrigin?
     let processGeneration: ProcessGeneration?
+    let owningApplication: ApplicationIdentity?
 
     var applicationKey: String {
+        if let owningApplication { return "bundle:\(owningApplication.origin.bundlePath)" }
         if let applicationOrigin { return "bundle:\(applicationOrigin.bundlePath)" }
         if let processGeneration { return "process:\(pid):\(processGeneration.seconds):\(processGeneration.microseconds)" }
         return "process:\(pid)"
@@ -36,6 +38,7 @@ struct StripItem: Hashable {
 
     func representsSameProcess(as other: StripItem) -> Bool {
         pid == other.pid && processGeneration == other.processGeneration && applicationOrigin == other.applicationOrigin
+            && owningApplication == other.owningApplication
     }
 
     func representsSameWindow(as other: StripItem) -> Bool {
@@ -57,10 +60,11 @@ struct StripItem: Hashable {
         self.actionWindowID = representative.id.rawValue
         self.title = representative.title
         self.status = representative.status.rawValue
-        self.appID = representative.appID.rawValue
-        self.bundleIdentifier = representative.bundleIdentifier
+        self.appID = representative.owningApplication?.bundleIdentifier ?? representative.appID.rawValue
+        self.bundleIdentifier = representative.owningApplication?.bundleIdentifier ?? representative.bundleIdentifier
         self.applicationOrigin = representative.applicationOrigin
         self.processGeneration = representative.processGeneration
+        self.owningApplication = representative.owningApplication
         self.isOnDesktop = representative.isOnDesktop
         self.cgWindowID = representative.cgWindowID
         self.bounds = representative.bounds

@@ -148,7 +148,7 @@ struct DockWindowEligibilityPolicy {
 /// Production adapter for the inventory-first AppTracker path. Keeping the AX shape check and the
 /// shared deny policy in one pure decision prevents incomplete metadata wiring from opening a seat.
 struct AppTrackerWindowEligibility {
-    struct Application {
+    struct Application: Sendable {
         let bundleIdentifier: String?
         let appName: String
         let activationPolicy: NSApplication.ActivationPolicy
@@ -162,6 +162,13 @@ struct AppTrackerWindowEligibility {
             self.activationPolicy = activationPolicy
             self.executablePath = executablePath
             self.bundleURL = bundleURL
+        }
+
+        var isEmbeddedHelper: Bool {
+            guard activationPolicy == .accessory,
+                  bundleIdentifier != DockWindowEligibilityPolicy.selfBundleIdentifier,
+                  let bundleURL, bundleURL.isFileURL, bundleURL.pathExtension.lowercased() == "app" else { return false }
+            return bundleURL.deletingLastPathComponent().pathComponents.contains("Contents")
         }
 
         var canOwnTaskbarWindows: Bool {
@@ -187,16 +194,17 @@ struct AppTrackerWindowEligibility {
         alpha: Double?,
         isMinimized: Bool,
         isBelowNormalLayer: Bool,
-        application: Application
+        application: Application, isModal: Bool? = nil, isTopLevel: Bool? = nil
     ) -> Bool {
         verdict(title: title, role: role, subrole: subrole, bounds: bounds, alpha: alpha,
                 isMinimized: isMinimized, isBelowNormalLayer: isBelowNormalLayer,
-                application: application) == .eligible
+                application: application, isModal: isModal, isTopLevel: isTopLevel) == .eligible
     }
 
     func verdict(
         title: String?, role: String?, subrole: String?, bounds: CGRect?, alpha: Double?,
-        isMinimized: Bool, isBelowNormalLayer: Bool, application: Application
+        isMinimized: Bool, isBelowNormalLayer: Bool, application: Application,
+        isModal: Bool? = nil, isTopLevel: Bool? = nil
     ) -> DockWindowEligibilityPolicy.Verdict {
         // Desktop-layer windows (widgets, wallpaper surfaces) are not windows the user switches
         // to. No default on the parameter: an omitted layer check must not compile.
@@ -215,7 +223,7 @@ struct AppTrackerWindowEligibility {
         guard verdict == .eligible else { return verdict }
 
         if FeishuBundleRules.isFeishu(bundleIdentifier: application.bundleIdentifier) {
-            return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds)
+            return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
                 ? .eligible : .feishuNotMainWindow
         }
 
@@ -229,7 +237,7 @@ struct AppTrackerWindowEligibility {
             ) ? .eligible : .finderNotTrackable
         }
 
-        return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds)
+        return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
             ? .eligible : .notMainWindow
     }
 }
@@ -258,10 +266,15 @@ enum AXTaskbarWindowRules {
         }
     }
 
-    static func decision(role: String?, subrole: String?, bounds: CGRect?) -> Decision {
+    static func decision(role: String?, subrole: String?, bounds: CGRect?,
+                         isModal: Bool? = nil, isTopLevel: Bool? = nil) -> Decision {
         guard role == (kAXWindowRole as String) else { return .rejected }
 
         if subrole == (kAXStandardWindowSubrole as String) {
+            return .mainWindow
+        }
+
+        if subrole == kAXDialogSubrole as String, isModal == false, isTopLevel == true, hasReasonableFrame(bounds) {
             return .mainWindow
         }
 
@@ -272,8 +285,9 @@ enum AXTaskbarWindowRules {
         return .unconfirmedMainWindow
     }
 
-    static func isMainWindow(role: String?, subrole: String?, bounds: CGRect?) -> Bool {
-        decision(role: role, subrole: subrole, bounds: bounds).isAccepted
+    static func isMainWindow(role: String?, subrole: String?, bounds: CGRect?,
+                             isModal: Bool? = nil, isTopLevel: Bool? = nil) -> Bool {
+        decision(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel).isAccepted
     }
 
     private static func hasReasonableFrame(_ bounds: CGRect?) -> Bool {

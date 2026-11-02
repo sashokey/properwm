@@ -287,6 +287,9 @@
 		2DA4D11D616ACF0B045A003C /* TaskbarSpaceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */; };
 		29C98328B49C37750EF67463 = {isa = PBXBuildFile; fileRef = 9DA777C38F1AC5C766FA2467; };
 		E69FAB823E13849964014C4D = {isa = PBXBuildFile; fileRef = C6F148DC93E1A93713C4D563; };
+		3DA15EC82FD1CD2589DA69C9 = {isa = PBXBuildFile; fileRef = FFBC0020056131EF4AB9521B; };
+		F9116A05C2CC7BFF41F59EED = {isa = PBXBuildFile; fileRef = FFBC0020056131EF4AB9521B; };
+		1C41E6ACD940FCF48C2D0A06 = {isa = PBXBuildFile; fileRef = 4789D156E7CB01AFD383EADD; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -471,6 +474,8 @@
 		C7A933EC4B50271EC2E6F8AD /* WindowSpaceVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowSpaceVisibilityTests.swift; sourceTree = "<group>"; };
 		16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarSpaceStoreTests.swift; sourceTree = "<group>"; };
 		C6F148DC93E1A93713C4D563 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tests/Unit/TaskbarBehaviorTests.swift"; sourceTree = SOURCE_ROOT; };
+		FFBC0020056131EF4AB9521B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationOwnership.swift; sourceTree = "<group>"; };
+		4789D156E7CB01AFD383EADD = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationOwnershipTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -722,6 +727,7 @@
 				A00000000000000000009600 /* TabFoldDecision.swift */,
 				A00000000000000000009E00 /* WindowInventoryAnomalyLog.swift */,
 				A00000000000000000009E03 /* ProcessLiveness.swift */,
+				FFBC0020056131EF4AB9521B,
 				A00000000000000000009E05 /* ScanAdmissionDecision.swift */,
 				B10000000000000000000103 /* PeriodicReconcileSkipDecision.swift */,
 				01E180445AF4D389149F830B /* AbsentSeatReleaseDecision.swift */,
@@ -859,6 +865,7 @@
 				C3CEFC4D966C928F440C7181 /* ProcessGenerationCacheTests.swift */,
 				29AD4E878265E81FB03D3F4F /* PanelLifecycleTests.swift */,
 				83D649BF991E3B30F28733C9 /* WindowObservationLifecycleTests.swift */,
+				4789D156E7CB01AFD383EADD,
 				9BFA278A88FB042FB54DFD43 /* WindowRestorationTests.swift */,
 				8CBB0AC11DD52E99C8910062 /* WindowCommandLifecycleTests.swift */,
 				E90000000000000000000008 /* DebugSwitchTests.swift */,
@@ -1133,6 +1140,7 @@
 				A00000000000000000009610 /* TabFoldDecision.swift in Sources */,
 				A00000000000000000009E10 /* WindowInventoryAnomalyLog.swift in Sources */,
 				A00000000000000000009E16 /* ProcessLiveness.swift in Sources */,
+				3DA15EC82FD1CD2589DA69C9,
 				A00000000000000000009E19 /* ScanAdmissionDecision.swift in Sources */,
 				B10000000000000000000003 /* PeriodicReconcileSkipDecision.swift in Sources */,
 				177B3B780D52CD1070BD77B8 /* AbsentSeatReleaseDecision.swift in Sources */,
@@ -1195,6 +1203,7 @@
 				630CDFF43F78216DD750E6A6 /* ProcessGenerationCacheTests.swift in Sources */,
 				F92D331A50736C68C2C16250 /* PanelLifecycleTests.swift in Sources */,
 				052456AB85C2E06E83E3591F /* WindowObservationLifecycleTests.swift in Sources */,
+				1C41E6ACD940FCF48C2D0A06,
 				1D35B7E8CF195DF381FDB076 /* WindowRestorationTests.swift in Sources */,
 				80947399F1065514A86D0F90 /* WindowCommandLifecycleTests.swift in Sources */,
 				2AAD487A49BBF7AAE466ECDC /* PanelCoordinator+Layout.swift in Sources */,
@@ -1302,6 +1311,7 @@
 					C9000000000000000000000A /* AXElementCacheTests.swift in Sources */,
 					A00000000000000000009E15 /* AXWindowMatchPolicy.swift in Sources */,
 					A00000000000000000009E17 /* ProcessLiveness.swift in Sources */,
+				F9116A05C2CC7BFF41F59EED,
 					A00000000000000000009E18 /* ProcessLivenessTests.swift in Sources */,
 					A00000000000000000000B91 /* FeedbackTickPolicyTests.swift in Sources */,
 					A00000000000000000009E1A /* ScanAdmissionDecision.swift in Sources */,

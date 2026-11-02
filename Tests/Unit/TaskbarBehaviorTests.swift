@@ -25,6 +25,13 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var transientMinimizeReads = 0
         var minimizeButtonReads = 0
         var allowFocusOfMinimized = false
+        var frontmostPIDOverride: pid_t?
+        var generationsByPID: [pid_t: ProcessGeneration] = [:]
+        var subroles: [CGWindowID: String] = [:]
+        var modalWindows: [CGWindowID: Bool] = [:]
+        var topLevelWindows = Set<CGWindowID>()
+        var enumeratedWindows: [pid_t: [CGWindowID]] = [:]
+        var unreadOwners = Set<CGWindowID>()
     }
 
     let state: Mutex<State>
@@ -73,7 +80,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
     func windowID(_ element: AXUIElement) -> CGWindowID? { number(element) }
     func pid(_ element: AXUIElement) -> pid_t? {
         guard let id = number(element) else { return applications.first { CFEqual($0.value, element) }?.key }
-        return state.withLock { $0.windows[id]?.pid }
+        return state.withLock { $0.unreadOwners.contains(id) ? nil : $0.windows[id]?.pid }
     }
     func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError { .success }
     func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) { (.success, true) }
@@ -83,7 +90,9 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         let value = state.withLock { $0 }
         value.beforeRead?(name)
         if let app = applications.first(where: { CFEqual($0.value, element) })?.key {
+                if name == kAXRoleAttribute as String { return (.success, kAXApplicationRole as CFString) }
                 if name == kAXWindowsAttribute as String {
+                    if let ids = value.enumeratedWindows[app] { return (.success, ids.compactMap { elements[$0] } as CFArray) }
                     return (.success, value.windows.values.filter { $0.pid == app && !value.missingWindows.contains($0.cgWindowID!) }
                         .sorted { $0.cgWindowID! < $1.cgWindowID! }.compactMap { elements[$0.cgWindowID!] } as CFArray)
                 }
@@ -97,7 +106,12 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
             guard let window = value.windows[id], !value.missingWindows.contains(id) else { return (.invalidUIElement, nil) }
             switch name {
             case kAXRoleAttribute as String: return (.success, kAXWindowRole as CFString)
-            case kAXSubroleAttribute as String: return (.success, kAXStandardWindowSubrole as CFString)
+            case kAXSubroleAttribute as String: return (.success, (value.subroles[id] ?? kAXStandardWindowSubrole as String) as CFString)
+            case kAXModalAttribute as String:
+                guard let modal = value.modalWindows[id] else { return (.attributeUnsupported, nil) }
+                return (.success, modal ? kCFBooleanTrue : kCFBooleanFalse)
+            case kAXParentAttribute as String:
+                return (.success, value.topLevelWindows.contains(id) ? applications[window.pid] : elements[id])
             case kAXTitleAttribute as String: return (.success, window.title as CFString)
             case kAXMinimizedAttribute as String: return (.success, window.status == .minimized ? kCFBooleanTrue : kCFBooleanFalse)
             case "AXFullScreen": return (.success, kCFBooleanFalse)
@@ -165,11 +179,11 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         return result
     }
 
-    func generation(_ pid: pid_t) -> ProcessGeneration? { state.withLock { $0.generation } }
+    func generation(_ pid: pid_t) -> ProcessGeneration? { state.withLock { $0.generationsByPID[pid] ?? $0.generation } }
     func app(_ pid: pid_t) -> WindowApplicationState? {
         state.withLock { value in
             guard applications[pid] != nil else { return nil }
-            return WindowApplicationState(isActive: value.focused.flatMap { value.windows[$0]?.pid } == pid,
+            return WindowApplicationState(isActive: (value.frontmostPIDOverride ?? value.focused.flatMap { value.windows[$0]?.pid }) == pid,
                 isHidden: false, isTerminated: value.terminated.contains(pid), activationPolicy: .regular,
                 bundleURL: URL(fileURLWithPath: value.originOverride?.bundlePath ?? (pid == -41000 ? "/Applications/Editor.app" : "/Applications/Browser.app")))
         }
@@ -294,6 +308,22 @@ final class TaskbarBehaviorTests: XCTestCase {
                           context: nil, eventNumber: 0, clickCount: 1, pressure: 0)!
     }
 
+    func testInventoryDoesNotAssignAnotherProcessesAXWindowToTheEnumeratingApplication() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.enumeratedWindows[-41000] = [1001, 2001] }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        guard case .success(let windows) = result else { return XCTFail("Valid native windows must remain readable") }
+        XCTAssertEqual(windows.compactMap(\.cgWindowID), [1001])
+        XCTAssertEqual(windows.map(\.pid), [-41000])
+    }
+
+    func testUnreadNativeWindowOwnerDoesNotBecomeAnEmptySuccessfulInventory() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.enumeratedWindows[-41000] = [1001]; $0.unreadOwners = [1001] }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        guard case .unread = result else { return XCTFail("Unread ownership must preserve existing inventory") }
+    }
+
     func testButtonMinimizesThenRestoresTheSameWindowWhenCGEntryIsMissing() async throws {
         let fixture = Fixture(); defer { fixture.stop() }
         await ready(fixture)
@@ -340,6 +370,77 @@ final class TaskbarBehaviorTests: XCTestCase {
         fixture.menu.menu?.performActionForItem(at: 0)
         await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).map(\.id) == ["tabgrp-browser-c"] }
         XCTAssertEqual(fixture.desktop.state.withLock { Array($0.windows.keys) }, [2001])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty })
+    }
+
+    private func helperFixture(generation: Int64 = 10, origin: String = "/Applications/Browser.app") async -> Fixture {
+        let fixture = Fixture()
+        await ready(fixture)
+        let owner = ApplicationIdentity(pid: -42000, bundleIdentifier: "test.Browser",
+            origin: ApplicationOrigin(bundleURL: URL(fileURLWithPath: origin))!,
+            generation: ProcessGeneration(timeval(tv_sec: Int(generation), tv_usec: 1)))
+        fixture.desktop.state.withLock {
+            $0.windows[1001]?.owningApplication = owner
+            $0.windows[1002]?.owningApplication = owner
+            $0.windows.removeValue(forKey: 2001)
+        }
+        fixture.desktop.publish()
+        await wait { fixture.view.taskbarContent.groups.count == 1 && fixture.view.taskbarContent.groups[0].windows.count == 2 }
+        return fixture
+    }
+
+    func testHelperGroupQuitTargetsOnlyTheVerifiedMainApplication() async throws {
+        let fixture = await helperFixture(); defer { fixture.stop() }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        let menu = try XCTUnwrap(fixture.menu.menu)
+        menu.performActionForItem(at: 1)
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.quitAttempts }, [-42000])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.terminated }, [-42000])
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.writes.isEmpty })
+    }
+
+    func testHelperQuitRejectsAReplacedMainApplication() async throws {
+        let fixture = await helperFixture(generation: 9); defer { fixture.stop() }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        try XCTUnwrap(fixture.menu.menu).performActionForItem(at: 1)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.quitAttempts.isEmpty })
+    }
+
+    func testHelperQuitRejectsADifferentMainApplicationOrigin() async throws {
+        let fixture = await helperFixture(origin: "/Applications/Other.app"); defer { fixture.stop() }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        try XCTUnwrap(fixture.menu.menu).performActionForItem(at: 1)
+        XCTAssertTrue(fixture.desktop.state.withLock { $0.quitAttempts.isEmpty })
+    }
+
+    func testActiveHelperWindowMinimizesWhenItsMainApplicationIsFrontmost() async throws {
+        let fixture = await helperFixture(); defer { fixture.stop() }
+        fixture.desktop.state.withLock { $0.frontmostPIDOverride = -42000 }
+        try press("editor-a", fixture)
+        await wait { fixture.desktop.state.withLock { $0.windows[1001]?.status == .minimized } }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.writes }, ["1001:AXMinimized"])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1002]?.status }, .inactive)
+    }
+
+    func testHelperWindowRestoresAfterMinimizingWithTheMainApplicationFrontmost() async throws {
+        let fixture = await helperFixture(); defer { fixture.stop() }
+        fixture.desktop.state.withLock { $0.frontmostPIDOverride = -42000 }
+        try press("editor-a", fixture)
+        await wait { fixture.desktop.state.withLock { $0.windows[1001]?.status == .minimized } }
+        try press("editor-a", fixture)
+        await wait { fixture.desktop.state.withLock { $0.windows[1001]?.status == .active } }
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.focused }, 1001)
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.writes }, ["1001:AXMinimized", "1001:AXMinimized", "1001:AXMain"])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1002]?.status }, .inactive)
+    }
+
+    func testHelperWindowCloseKeepsItsSiblingAndMainApplicationRunning() async throws {
+        let fixture = await helperFixture(); defer { fixture.stop() }
+        fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-b"]?.onContextMenu?(event(.rightMouseDown, .zero))
+        try XCTUnwrap(fixture.menu.menu).performActionForItem(at: 0)
+        await wait { fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-b"] == nil }
+        XCTAssertEqual(fixture.desktop.state.withLock { Set($0.windows.keys) }, [1001])
+        XCTAssertEqual(fixture.desktop.state.withLock { $0.writes }, ["1002:close"])
         XCTAssertTrue(fixture.desktop.state.withLock { $0.terminated.isEmpty })
     }
 

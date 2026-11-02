@@ -20,6 +20,13 @@ struct ApplicationOrigin: Hashable, Sendable {
     }
 }
 
+struct ApplicationIdentity: Hashable, Sendable {
+    let pid: Int32
+    let bundleIdentifier: String
+    let origin: ApplicationOrigin
+    let generation: ProcessGeneration
+}
+
 struct WindowRecord: Hashable, Sendable {
     let id: WindowID
     let appID: AppID
@@ -27,6 +34,7 @@ struct WindowRecord: Hashable, Sendable {
     let bundleIdentifier: String?
     var applicationOrigin: ApplicationOrigin?
     var processGeneration: ProcessGeneration?
+    var owningApplication: ApplicationIdentity?
     var title: String
     var bounds: CGRect?
     var status: WindowStatus
@@ -54,7 +62,8 @@ struct WindowRecord: Hashable, Sendable {
         groupID: String = "",
         displayUUID: String? = nil,
         applicationOrigin: ApplicationOrigin? = nil,
-        processGeneration: ProcessGeneration? = nil
+        processGeneration: ProcessGeneration? = nil,
+        owningApplication: ApplicationIdentity? = nil
     ) {
         self.id = id
         self.appID = appID
@@ -62,6 +71,7 @@ struct WindowRecord: Hashable, Sendable {
         self.bundleIdentifier = bundleIdentifier
         self.applicationOrigin = applicationOrigin
         self.processGeneration = processGeneration
+        self.owningApplication = owningApplication
         self.title = title
         self.bounds = bounds
         self.status = status

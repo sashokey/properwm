@@ -5,7 +5,7 @@ enum ScanAdmissionDecision {
     /// 进程代际身份。pid 会被复用：后台探测拿到的 AX element 属于探测那一刻的进程实例，
     /// 回调时必须确认 pid 背后还是同一个实例。`startTime` 来自 POSIX
     /// `ProcessLiveness.startTime(pid:)`（活进程必有值）。
-    struct ProcessIdentity: Equatable {
+    struct ProcessIdentity: Equatable, Sendable {
         let pid: pid_t
         let startTimeSec: Int64?
         let startTimeUsec: Int32?

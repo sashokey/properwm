@@ -85,7 +85,7 @@ final class AccessibilitySource {
             let axDecision = AXTaskbarWindowRules.decision(
                 role: window.role,
                 subrole: window.subrole,
-                bounds: window.bounds
+                bounds: window.bounds, isModal: window.isModal, isTopLevel: window.isTopLevel
             )
             guard axDecision.isAccepted else { return nil }
             logUnconfirmedWindowIfNeeded(axDecision, window: window, app: app)

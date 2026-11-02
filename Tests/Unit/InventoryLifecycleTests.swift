@@ -347,6 +347,128 @@ final class InventoryLifecycleTests: XCTestCase {
         XCTAssertEqual(tracker.mutationGenerationCountForTesting, 1)
     }
 
+    func testStandaloneNonmodalSettingsDialogsAreShownWithoutAdmittingSheetsOrUtilityPanels() async {
+        let cases: [(modal: Bool?, topLevel: Bool, subrole: String, count: Int)] = [
+            (false, true, kAXDialogSubrole as String, 1),
+            (true, true, kAXDialogSubrole as String, 0),
+            (nil, true, kAXDialogSubrole as String, 0),
+            (false, false, kAXDialogSubrole as String, 0),
+            (false, true, kAXFloatingWindowSubrole as String, 0)
+        ]
+        for sample in cases {
+            let desktop = BehaviorDesktop()
+            desktop.state.withLock {
+                $0.windows = $0.windows.filter { $0.key == 1001 }
+                $0.windows[1001]?.title = "Profiles"
+                $0.subroles[1001] = sample.subrole
+                $0.modalWindows[1001] = sample.modal
+                if sample.topLevel { $0.topLevelWindows.insert(1001) }
+            }
+            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [1001],
+                windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1])
+            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001] })
+            tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.SettingsApp", appName: "SettingsApp",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            defer { tracker.stop() }
+            tracker.scheduleFrontmostPollForTesting(pid: -41000)
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            let windows = StripItem.openWindows(from: tracker.snapshot)
+            XCTAssertEqual(windows.count, sample.count, "modal=\(String(describing: sample.modal)) topLevel=\(sample.topLevel) subrole=\(sample.subrole)")
+            if sample.count == 1 { XCTAssertEqual(windows.first?.title, "Profiles") }
+        }
+    }
+
+    private var embeddedApplication: AppTrackerWindowEligibility.Application {
+        .init(bundleIdentifier: "test.Host.helper", appName: "Helper", activationPolicy: .accessory,
+              executablePath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app/Contents/MacOS/Helper",
+              bundleURL: URL(fileURLWithPath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app"))
+    }
+
+    private func ownedTracker(reader: any AppTrackerWindowReading, process: OwnedApplicationProcess) -> AppTracker {
+        let pid = NSRunningApplication.current.processIdentifier
+        let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [77], onScreenWindowIDs: [77],
+            windowIDsByPID: [pid: [77]], alphaByWindowID: [77: 1])
+        return AppTracker(reader: reader, processProvider: process,
+                          cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [77] })
+    }
+
+    func testLateAdmissionCannotReplaceTheBindingOfAnAlreadyAdmittedHelper() async {
+        let reader = LifecycleReader()
+        let process = OwnedApplicationProcess()
+        let tracker = ownedTracker(reader: reader, process: process)
+        defer { reader.gates.forEach { $0.signal() }; tracker.stop() }
+        process.parentGeneration.withLock { $0 = 9 }
+        tracker.runAdmissionForTesting(source: "seed", application: embeddedApplication)
+        await waitForRead(reader)
+        process.parentGeneration.withLock { $0 = 10 }
+        tracker.runAdmissionForTesting(source: "seed", application: embeddedApplication)
+        await waitForRead(reader, count: 2)
+        reader.gates[1].signal()
+        await waitForFocus { tracker.snapshot.windows.count == 1 }
+        XCTAssertEqual(tracker.snapshot.windows.values.first?.title, "Read 1")
+        reader.gates[0].signal()
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        tracker.rebuildSnapshotForTesting(onScreenCGIDs: [77])
+        XCTAssertEqual(tracker.snapshot.windows.count, 1)
+        XCTAssertEqual(tracker.snapshot.windows.values.first?.owningApplication?.generation,
+                       ProcessGeneration(timeval(tv_sec: 10, tv_usec: 1)))
+    }
+
+    func testFrontmostHostPollingRefreshesItsOwnedHelper() async {
+        let reader = AdmissionWindowReader()
+        let process = OwnedApplicationProcess()
+        let tracker = ownedTracker(reader: reader, process: process)
+        defer { tracker.stop() }
+        tracker.runAdmissionForTesting(source: "seed", application: embeddedApplication)
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        tracker.setFrontmostPIDForTesting(-43000)
+        reader.state.withLock { $0.focused = true }
+        tracker.scheduleFrontmostPollForTesting(pid: -43000)
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        XCTAssertEqual(tracker.snapshot.windows.values.first?.status, .active)
+        XCTAssertEqual(reader.state.withLock { $0.reads }, 2)
+        XCTAssertEqual(process.lookups.withLock { $0 }, 1)
+    }
+
+    func testMainApplicationTerminationRetiresItsHelperInventory() async {
+        let reader = AdmissionWindowReader()
+        let process = OwnedApplicationProcess()
+        let tracker = ownedTracker(reader: reader, process: process)
+        defer { tracker.stop() }
+        tracker.runAdmissionForTesting(source: "seed", application: embeddedApplication)
+        for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        XCTAssertEqual(tracker.snapshot.windows.count, 1)
+        process.parentAlive.withLock { $0 = false }
+        tracker.handleAppTerminated(pid: -43000)
+        XCTAssertTrue(tracker.snapshot.windows.isEmpty)
+        XCTAssertTrue(tracker.diagnosticApps().isEmpty)
+    }
+
+    func testVerifiedEmbeddedHelperIsAdmittedWithoutChangingItsWindowOwner() async {
+        let pid = NSRunningApplication.current.processIdentifier
+        for source in ["seed", "scan", "launchRetry"] {
+            let reader = AdmissionWindowReader()
+            let process = OwnedApplicationProcess()
+            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [77], onScreenWindowIDs: [77],
+                windowIDsByPID: [pid: [77]], alphaByWindowID: [77: 1])
+            let tracker = AppTracker(reader: reader, processProvider: process,
+                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [77] })
+            defer { tracker.stop() }
+            tracker.runAdmissionForTesting(source: source, application: .init(
+                bundleIdentifier: "test.Host.helper", appName: "Helper", activationPolicy: .accessory,
+                executablePath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app/Contents/MacOS/Helper",
+                bundleURL: URL(fileURLWithPath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app")))
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            XCTAssertEqual(StripItem.openWindows(from: tracker.snapshot).count, 1, source)
+            XCTAssertEqual(tracker.snapshot.windows.values.first?.pid, pid, source)
+            XCTAssertEqual(StripItem.openWindows(from: tracker.snapshot).first?.bundleIdentifier, "test.Host", source)
+            XCTAssertEqual(tracker.snapshot.windows.values.first?.bundleIdentifier, "test.Host.helper", source)
+            XCTAssertFalse(process.usedMainThread.withLock { $0 }, source)
+            XCTAssertEqual(process.lookups.withLock { $0 }, 1, source)
+        }
+    }
+
     func testAccessoryDashboardIsAdmittedBySeedScanAndLaunchRetry() async {
         for source in ["seed", "scan", "launchRetry"] {
             let reader = AdmissionWindowReader()
@@ -553,6 +675,8 @@ private final class AdmissionWindowReader: AppTrackerWindowReading, Sendable {
     struct State {
         var usedMainThread = false
         var windowID: CGWindowID? = 77
+        var focused = false
+        var reads = 0
     }
     let state = Mutex(State())
     let rejected: RejectedKind?
@@ -564,18 +688,19 @@ private final class AdmissionWindowReader: AppTrackerWindowReading, Sendable {
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult { read(pid) }
 
     private func read(_ pid: pid_t) -> AXWindowReadResult {
-        let windowID = state.withLock {
+        let values = state.withLock {
             $0.usedMainThread = $0.usedMainThread || Thread.isMainThread
-            return $0.windowID
+            $0.reads += 1
+            return ($0.windowID, $0.focused)
         }
-        guard rejected != .empty, let windowID else { return .success([]) }
+        guard rejected != .empty, let windowID = values.0 else { return .success([]) }
         return .success([AXWindowSnapshot(pid: pid, cgWindowID: windowID,
             titleRead: rejected == .untitled ? .empty : .value("Dashboard"),
             bounds: rejected == .tiny ? CGRect(x: 0, y: 0, width: 10, height: 10)
                 : CGRect(x: 40, y: 40, width: 850, height: 780),
             role: kAXWindowRole as String,
             subrole: rejected == .utility ? kAXFloatingWindowSubrole as String : kAXStandardWindowSubrole as String,
-            isMinimized: false, isFocusedWindow: false, element: AXUIElementCreateApplication(pid))])
+            isMinimized: false, isFocusedWindow: values.1, element: AXUIElementCreateApplication(pid))])
     }
 }
 
@@ -644,5 +769,23 @@ private final class FocusListGate: Sendable {
         guard attribute == kAXWindowsAttribute as String else { return }
         entered.withLock { $0 = true }
         _ = release.wait(timeout: .now() + 3)
+    }
+}
+
+private final class OwnedApplicationProcess: AppTrackerProcessProviding, Sendable {
+    let parentAlive = Mutex(true)
+    let parentGeneration = Mutex(Int64(10))
+    let lookups = Mutex(0)
+    let usedMainThread = Mutex(false)
+    func isAlive(pid: pid_t) -> Bool { pid != -43000 || parentAlive.withLock { $0 } }
+    func identity(pid: pid_t, bundleID: String?) -> ScanAdmissionDecision.ProcessIdentity {
+        .init(pid: pid, startTimeSec: isAlive(pid: pid) ? (pid == -43000 ? parentGeneration.withLock { $0 } : 10) : nil, startTimeUsec: 1, bundleID: bundleID)
+    }
+    func applicationOwner(pid: pid_t) -> (identity: ScanAdmissionDecision.ProcessIdentity, application: AppTrackerWindowEligibility.Application)? {
+        lookups.withLock { $0 += 1 }
+        usedMainThread.withLock { $0 = $0 || Thread.isMainThread }
+        return (identity(pid: -43000, bundleID: "test.Host"),
+         .init(bundleIdentifier: "test.Host", appName: "Host", activationPolicy: .regular,
+               executablePath: "/Applications/Host/Contents/MacOS/Host", bundleURL: URL(fileURLWithPath: "/Applications/Host")))
     }
 }

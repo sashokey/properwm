@@ -59,6 +59,7 @@ final class LifecycleActionPlanner {
             let optimistic = optimisticStates[id.rawValue]
             let status = optimistic?.status ?? record.status
             let appIsFrontmost = isAppFrontmost(record.pid)
+                || record.owningApplication.map { isAppFrontmost($0.pid) } == true
             if status == .active && appIsFrontmost {
                 if Self.staleActiveGuardEnabled,
                    OptimisticWindowState.siblingActivationInFlight(

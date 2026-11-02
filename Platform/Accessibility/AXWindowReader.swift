@@ -49,12 +49,15 @@ struct AXWindowSnapshot {
 
     let isMinimizedRead: Bool?
     let focusReadUptime: TimeInterval?
+    let isModal: Bool?
+    let isTopLevel: Bool?
 
     var title: String? { titleRead.title }
 
     init(pid: Int32, cgWindowID: UInt32?, titleRead: AXWindowTitleRead, bounds: CGRect?,
          role: String?, subrole: String?, isMinimized: Bool, isFocusedWindow: Bool, element: AXUIElement,
-         isMinimizedRead: Bool? = nil, focusReadUptime: TimeInterval? = nil) {
+         isMinimizedRead: Bool? = nil, focusReadUptime: TimeInterval? = nil,
+         isModal: Bool? = nil, isTopLevel: Bool? = nil) {
         self.pid = pid
         self.cgWindowID = cgWindowID
         self.titleRead = titleRead
@@ -66,6 +69,8 @@ struct AXWindowSnapshot {
         self.element = element
         self.isMinimizedRead = isMinimizedRead
         self.focusReadUptime = focusReadUptime
+        self.isModal = isModal
+        self.isTopLevel = isTopLevel
     }
 }
 
@@ -344,20 +349,37 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         var snapshots: [AXWindowSnapshot] = []
         for element in elements {
             guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
+            guard let ownerPID = accessibility.pid(element) else { return .unread(.cannotComplete) }
+            guard ownerPID == pid else { continue }
             applyMessagingTimeout(messagingTimeout, to: element)
             let minimized = boolAttribute(kAXMinimizedAttribute as CFString, from: element, maxAttempts: maxAttempts)
+            let windowID = cgWindowID(for: element, maxAttempts: maxAttempts)
+            let title = titleAttribute(from: element, maxAttempts: maxAttempts)
+            let bounds = frame(of: element, maxAttempts: maxAttempts)
+            let role = stringAttribute(kAXRoleAttribute as CFString, from: element, maxAttempts: maxAttempts)
+            let subrole = stringAttribute(kAXSubroleAttribute as CFString, from: element, maxAttempts: maxAttempts)
+            var isModal: Bool?
+            var isTopLevel: Bool?
+            if subrole == kAXDialogSubrole as String {
+                isModal = boolAttribute(kAXModalAttribute as CFString, from: element, maxAttempts: maxAttempts)
+                if let parent = elementAttribute(kAXParentAttribute as CFString, from: element, maxAttempts: maxAttempts) {
+                    isTopLevel = accessibility.pid(parent) == pid
+                        && stringAttribute(kAXRoleAttribute as CFString, from: parent, maxAttempts: maxAttempts) == kAXApplicationRole as String
+                }
+            }
             snapshots.append(AXWindowSnapshot(
                 pid: pid,
-                cgWindowID: cgWindowID(for: element, maxAttempts: maxAttempts),
-                titleRead: titleAttribute(from: element, maxAttempts: maxAttempts),
-                bounds: frame(of: element, maxAttempts: maxAttempts),
-                role: stringAttribute(kAXRoleAttribute as CFString, from: element, maxAttempts: maxAttempts),
-                subrole: stringAttribute(kAXSubroleAttribute as CFString, from: element, maxAttempts: maxAttempts),
+                cgWindowID: windowID,
+                titleRead: title,
+                bounds: bounds,
+                role: role,
+                subrole: subrole,
                 isMinimized: minimized ?? false,
                 isFocusedWindow: focusedElement.map { CFEqual($0, element) } ?? false,
                 element: element,
                 isMinimizedRead: minimized,
-                focusReadUptime: focusReadUptime
+                focusReadUptime: focusReadUptime,
+                isModal: isModal, isTopLevel: isTopLevel
             ))
         }
         guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }

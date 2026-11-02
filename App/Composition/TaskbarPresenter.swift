@@ -30,13 +30,20 @@ final class TaskbarPresenter {
             activate: { [weak runtime] in runtime?.activate(windowID: $0) },
             close: { [weak runtime] in runtime?.close(windowID: $0) },
             quit: { group in
-                for pid in Set(group.windows.map(\.item.pid)) {
-                    guard let app = system.app(pid),
-                          let representative = group.windows.first(where: { $0.item.pid == pid }),
-                          let expected = representative.item.processGeneration,
-                          let current = system.generation(pid), current == expected,
-                          let origin = representative.item.applicationOrigin,
-                          app.origin == origin else { continue }
+                var attempted = Set<pid_t>()
+                for window in group.windows {
+                    let item = window.item
+                    guard let app = system.app(item.pid), !app.isTerminated,
+                          let expected = item.processGeneration,
+                          system.generation(item.pid) == expected,
+                          let origin = item.applicationOrigin, app.origin == origin else { continue }
+                    let pid = item.owningApplication?.pid ?? item.pid
+                    if let owner = item.owningApplication {
+                        guard let parent = system.app(pid), !parent.isTerminated,
+                              system.generation(pid) == owner.generation,
+                              parent.origin == owner.origin else { continue }
+                    }
+                    guard attempted.insert(pid).inserted else { continue }
                     _ = system.terminate(pid)
                 }
             },
