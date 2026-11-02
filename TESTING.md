@@ -104,7 +104,7 @@ Verify the same helper inventory through seed, scan and launch retry, with owner
 
 Exercise top-level nonmodal AXDialog settings windows through the real AX reader and inventory filter. Confirmed settings windows appear; modal, unread, nested and floating utility surfaces do not. Closing and reopening a tracked accessory window must use its existing observer without an app-only card or a periodic-admission delay.
 
-Mutation checks must detect removed signer equality, path containment, host generation validation, dialog boundaries and native AX ownership filtering. Keep mutation copies separate from the source used for release. Automated fixtures do not establish that a third-party app exposes the expected native AX roles or accepts its window commands; verify Steam and Terminal Profiles on the tested application build before release.
+Mutation checks must detect removed signer equality, path containment, host generation validation, dialog boundaries and native AX ownership filtering. Keep mutation copies separate from the source used for release. Automated fixtures do not establish that a third-party app exposes the expected native AX roles or accepts its window commands; record Steam and Terminal Profiles acceptance separately when a native test session is available.
 
 ## Review regression coverage
 
