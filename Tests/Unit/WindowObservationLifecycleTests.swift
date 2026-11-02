@@ -10,6 +10,7 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
     let removals = Mutex(0)
     let transientFailures = Mutex(0)
     let registered = Mutex<[AXElementKey: Set<String>]>([:])
+    let applicationNotifications = Mutex<Set<String>>([])
     let gate = DispatchSemaphore(value: 0)
     let blockWindows: Bool
     @MainActor var attachments = 0
@@ -28,7 +29,7 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
             }
             if failed { return .cannotComplete }
             _ = registered.withLock { $0[element, default: []].insert(notification) }
-        }
+        } else { _ = applicationNotifications.withLock { $0.insert(notification) } }
         return .success
     }
     func remove(_ notification: String, element: AXElementKey) {
@@ -192,7 +193,7 @@ final class WindowObservationLifecycleTests: XCTestCase {
         observer.start()
         _ = observer.registerWindow(AXUIElementCreateApplication(42), cgWindowID: 1)
         await waitUntil { observer.isCovered(cgWindowID: 1) }
-        XCTAssertEqual(fixture.calls.withLock { $0.count }, 6)
+        XCTAssertEqual(fixture.calls.withLock { $0.count }, 7)
         XCTAssertFalse(fixture.calls.withLock { $0.contains(true) })
         observer.stop()
         XCTAssertEqual(fixture.detachments, 1)
@@ -276,6 +277,25 @@ final class WindowObservationLifecycleTests: XCTestCase {
         XCTAssertEqual(fixture.registered.withLock { $0[replacement]?.count }, 4)
         XCTAssertEqual(reports, 1)
         XCTAssertEqual(observer.subscribedElement(cgWindowID: 1).map { AXElementKey(e: $0.element) }, replacement)
+        observer.stop()
+    }
+
+    func testMainWindowChangeDeliversAFocusRefreshThroughItsRegisteredSession() async {
+        let fixture = ObservationFixture()
+        let callback = Mutex<(@Sendable (AXElementKey, String) -> Void)?>(nil)
+        let observer = AppWindowObserver(pid: 42, makeSession: { _, receive in
+            callback.withLock { $0 = receive }
+            return fixture
+        })
+        var focusedPIDs: [pid_t] = []
+        observer.onFocusedWindowChanged = { focusedPIDs.append($0) }
+        observer.start()
+        await waitUntil { observer.isActive }
+        if fixture.applicationNotifications.withLock({ $0.contains(kAXMainWindowChangedNotification) }) {
+            callback.withLock { $0 }?(AXElementKey(e: AXUIElementCreateApplication(42)), kAXMainWindowChangedNotification)
+        }
+        await waitUntil { focusedPIDs == [42] }
+        XCTAssertEqual(focusedPIDs, [42])
         observer.stop()
     }
 

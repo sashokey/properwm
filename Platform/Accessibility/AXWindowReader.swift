@@ -44,16 +44,17 @@ struct AXWindowSnapshot {
     let role: String?
     let subrole: String?
     let isMinimized: Bool
-    let isFocusedWindow: Bool
+    var isFocusedWindow: Bool
     let element: AXUIElement
 
     let isMinimizedRead: Bool?
+    let focusReadUptime: TimeInterval?
 
     var title: String? { titleRead.title }
 
     init(pid: Int32, cgWindowID: UInt32?, titleRead: AXWindowTitleRead, bounds: CGRect?,
          role: String?, subrole: String?, isMinimized: Bool, isFocusedWindow: Bool, element: AXUIElement,
-         isMinimizedRead: Bool? = nil) {
+         isMinimizedRead: Bool? = nil, focusReadUptime: TimeInterval? = nil) {
         self.pid = pid
         self.cgWindowID = cgWindowID
         self.titleRead = titleRead
@@ -64,6 +65,7 @@ struct AXWindowSnapshot {
         self.isFocusedWindow = isFocusedWindow
         self.element = element
         self.isMinimizedRead = isMinimizedRead
+        self.focusReadUptime = focusReadUptime
     }
 }
 
@@ -165,14 +167,34 @@ enum AXWindowReadResult {
     }
 }
 
+enum AXFocusedWindowRead: Equatable, Sendable {
+    case window(CGWindowID)
+    case none
+    case unread(AXError)
+}
+
+struct AXFocusedWindowObservation: Sendable {
+    let result: AXFocusedWindowRead
+    let observedAt: TimeInterval
+    init(result: AXFocusedWindowRead, observedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        self.result = result
+        self.observedAt = observedAt
+    }
+}
+
 protocol AppTrackerWindowReading: Sendable {
     func windows(forPID pid: pid_t) -> [AXWindowSnapshot]
     func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult
+    func focusedWindowRead(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXFocusedWindowObservation
 }
 
 extension AppTrackerWindowReading {
+    func focusedWindowRead(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXFocusedWindowObservation {
+        AXFocusedWindowObservation(result: .unread(.notImplemented))
+    }
+
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
         guard !cancellation.isCancelled else { return .unread(.cannotComplete) }
         return inventoryWindows(forPID: pid, messagingTimeout: messagingTimeout)
@@ -225,6 +247,30 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
         readWindows(forPID: pid, messagingTimeout: messagingTimeout, cancellation: cancellation)
+    }
+
+    func focusedWindowRead(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXFocusedWindowObservation {
+        guard messagingTimeout.isFinite, messagingTimeout > 0 else { return .init(result: .unread(.illegalArgument)) }
+        guard accessibility.isTrusted() else { return .init(result: .unread(.apiDisabled)) }
+        var reader = self
+        reader.readMessagingTimeout = messagingTimeout
+        reader.budget = OperationReadBudget(maximumDuration: messagingTimeout * 2, cancellation: cancellation)
+        let application = accessibility.application(pid)
+        var value: CFTypeRef?
+        let error = reader.copyAttributeValue(kAXFocusedWindowAttribute as CFString, from: application,
+                                             into: &value, maxAttempts: 1)
+        let observedAt = ProcessInfo.processInfo.systemUptime
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        if error == .noValue { return .init(result: .none, observedAt: observedAt) }
+        guard error == .success else { return .init(result: .unread(error)) }
+        guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .init(result: .unread(.failure)) }
+        let element = value as! AXUIElement
+        guard accessibility.pid(element) == pid else { return .init(result: .unread(.invalidUIElement)) }
+        guard let remaining = reader.budget?.remaining, remaining > 0 else { return .init(result: .unread(.cannotComplete)) }
+        reader.applyMessagingTimeout(min(messagingTimeout, remaining), to: element)
+        guard let id = reader.cgWindowID(for: element, maxAttempts: 1), id != 0 else { return .init(result: .unread(.failure)) }
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        return .init(result: .window(id), observedAt: observedAt)
     }
 
     static func validatedElements(_ value: CFTypeRef?, budget: OperationReadBudget? = nil) -> [AXUIElement]? {
@@ -286,7 +332,15 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return .unread(budget?.canContinue == false ? .cannotComplete : .failure)
         }
 
-        let focusedElement = elementAttribute(kAXFocusedWindowAttribute as CFString, from: appElement)
+        var focusedValue: CFTypeRef?
+        let focusedError = copyAttributeValue(kAXFocusedWindowAttribute as CFString, from: appElement,
+                                             into: &focusedValue)
+        let focusedElement: AXUIElement?
+        if focusedError == .success, let value = focusedValue, CFGetTypeID(value) == AXUIElementGetTypeID() {
+            focusedElement = value as! AXUIElement
+        } else { focusedElement = nil }
+        let focusReadUptime: TimeInterval? = focusedElement != nil || focusedError == .noValue
+            ? ProcessInfo.processInfo.systemUptime : nil
         var snapshots: [AXWindowSnapshot] = []
         for element in elements {
             guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
@@ -302,7 +356,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 isMinimized: minimized ?? false,
                 isFocusedWindow: focusedElement.map { CFEqual($0, element) } ?? false,
                 element: element,
-                isMinimizedRead: minimized
+                isMinimizedRead: minimized,
+                focusReadUptime: focusReadUptime
             ))
         }
         guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }

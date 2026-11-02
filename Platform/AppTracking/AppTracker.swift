@@ -157,6 +157,20 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private var nextEventReadToken: UInt64 = 0
     private var pendingEventReads: [pid_t: PendingEventRead] = [:]
     private var trailingEventSources: [pid_t: InventoryReconcileSource] = [:]
+    private struct PendingFocusRead {
+        let id = UUID()
+        let revision: UInt64
+        let mutationGeneration: UInt64
+        let identity: ScanAdmissionDecision.ProcessIdentity
+    }
+    private struct ConfirmedFocus {
+        let observedAt: TimeInterval
+        let windowID: CGWindowID?
+    }
+    private var focusRevisions: [pid_t: UInt64] = [:]
+    private var confirmedFocus: [pid_t: ConfirmedFocus] = [:]
+    private var pendingFocusReads: [pid_t: PendingFocusRead] = [:]
+    private var trailingFocusReads = Set<pid_t>()
     var mutationGenerations: [pid_t: UInt64] = [:]
 
     private let reader: any AppTrackerWindowReading
@@ -360,6 +374,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         heldLogDeduplicator.removeAll()
         pendingEventReads.removeAll()
         trailingEventSources.removeAll()
+        focusRevisions.removeAll()
+        confirmedFocus.removeAll()
+        pendingFocusReads.removeAll()
+        trailingFocusReads.removeAll()
         mutationGenerations.removeAll()
         gateStates.removeAll()
         scanMemos.removeAll()
@@ -1489,6 +1507,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         guard isWindowApplication(app) else { return }
         guard apps[app.processIdentifier] == nil else {
             markReconcileGateDirty(pid: app.processIdentifier)
+            requestFocusedWindowRead(pid: app.processIdentifier)
             rebuildSnapshot()  // frontmost changed → active highlight update
             return
         }
@@ -1509,6 +1528,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         appOrder.removeAll { $0 == pid }
         pendingEventReads.removeValue(forKey: pid)
         trailingEventSources.removeValue(forKey: pid)
+        focusRevisions.removeValue(forKey: pid)
+        confirmedFocus.removeValue(forKey: pid)
+        pendingFocusReads.removeValue(forKey: pid)
+        trailingFocusReads.remove(pid)
         mutationGenerations.removeValue(forKey: pid)
         clearInventoryDiagnostics(pid: pid)
         gateStates.removeValue(forKey: pid)
@@ -1809,9 +1832,60 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         rebuildSnapshot()
     }
 
-    private func handleFocusedWindowChanged(pid: pid_t) {
+    func handleFocusedWindowChanged(pid: pid_t) {
         markReconcileGateDirty(pid: pid)
+        requestFocusedWindowRead(pid: pid)
         scheduleEventRead(pid: pid, source: .focusChanged)
+    }
+
+    private func requestFocusedWindowRead(pid: pid_t) {
+        guard work.isActive, apps[pid] != nil else { return }
+        focusRevisions[pid, default: 0] &+= 1
+        if pendingFocusReads[pid] != nil {
+            trailingFocusReads.insert(pid)
+            return
+        }
+        beginFocusedWindowRead(pid: pid)
+    }
+
+    private func beginFocusedWindowRead(pid: pid_t) {
+        guard let app = apps[pid] else { return }
+        let request = PendingFocusRead(revision: focusRevisions[pid, default: 0],
+            mutationGeneration: mutationGenerations[pid, default: 0],
+            identity: processIdentity(pid: pid, bundleID: app.bundleIdentifier))
+        pendingFocusReads[pid] = request
+        let reader = reader
+        work.launch(priority: .userInitiated) { [weak self] generation in
+            let cancellation = OperationCancellation()
+            guard let result = await AsyncWorkScope.performBlocking(cancellation: cancellation, operation: {
+                reader.focusedWindowRead(forPID: pid, messagingTimeout: 0.05, cancellation: cancellation)
+            }) else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.work.isCurrent(generation), self.pendingFocusReads[pid]?.id == request.id else { return }
+                self.pendingFocusReads.removeValue(forKey: pid)
+                if self.trailingFocusReads.remove(pid) != nil {
+                    self.beginFocusedWindowRead(pid: pid)
+                    return
+                }
+                guard self.focusRevisions[pid] == request.revision,
+                      self.mutationGenerations[pid, default: 0] == request.mutationGeneration,
+                      let app = self.apps[pid],
+                      ScanAdmissionDecision.ProcessIdentity.matches(probed: request.identity,
+                          current: self.processIdentity(pid: pid, bundleID: app.bundleIdentifier)) else { return }
+                guard self.confirmedFocus[pid].map({ $0.observedAt <= result.observedAt }) ?? true else { return }
+                let focused: CGWindowID?
+                switch result.result {
+                case let .window(id): focused = id
+                case .none: focused = nil
+                case .unread: return
+                }
+                self.confirmedFocus[pid] = ConfirmedFocus(observedAt: result.observedAt, windowID: focused)
+                for id in app.windowOrder {
+                    self.apps[pid]?.windowsByID[id]?.isFocused = id == focused
+                }
+                self.rebuildSnapshot(onScreenCGIDs: self.lastOnScreenCGIDs)
+            }
+        }
     }
 
     private func handleTitleChanged(pid: pid_t, cgWindowID: CGWindowID) {
@@ -2019,8 +2093,22 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             readOutcome = .success(count: windows.count)
             rawAXCgIDs = Set(windows.compactMap(\.cgWindowID))
             let application = eligibilityApplication(for: app)
-            eligible = windows.filter {
+            let observed = windows.filter {
                 isEligible($0, application: application, cgSnapshot: cgSnapshot)
+            }
+            let observedAt = windows.first?.focusReadUptime
+            if let focus = confirmedFocus[pid], observedAt.map({ $0 < focus.observedAt }) ?? true {
+                eligible = observed.map { snapshot in
+                    var snapshot = snapshot
+                    snapshot.isFocusedWindow = focus.windowID.map { snapshot.cgWindowID == $0 } ?? false
+                    return snapshot
+                }
+            } else {
+                eligible = observed
+                if let observedAt {
+                    let focused = windows.first(where: \.isFocusedWindow)?.cgWindowID
+                    confirmedFocus[pid] = ConfirmedFocus(observedAt: observedAt, windowID: focused)
+                }
             }
         case .unread(let error):
             readOutcome = .unread(errorCode: error.rawValue)

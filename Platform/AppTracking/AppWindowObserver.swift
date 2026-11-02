@@ -76,6 +76,8 @@ final class AppWindowObserver {
                 _ = session?.add(kAXWindowCreatedNotification, element: nil)
                 guard !cancellation.isCancelled else { return nil as (any WindowObservationSession)? }
                 _ = session?.add(kAXFocusedWindowChangedNotification, element: nil)
+                guard !cancellation.isCancelled else { return nil as (any WindowObservationSession)? }
+                _ = session?.add(kAXMainWindowChangedNotification, element: nil)
                 return session
             }
             await MainActor.run { [weak self] in
@@ -224,7 +226,8 @@ final class AppWindowObserver {
     fileprivate func handleNotification(element: AXUIElement, notification notifStr: String) {
         if notifStr == (kAXWindowCreatedNotification as String) {
             onWindowCreated?(pid)
-        } else if notifStr == (kAXFocusedWindowChangedNotification as String) {
+        } else if notifStr == (kAXFocusedWindowChangedNotification as String)
+                    || notifStr == (kAXMainWindowChangedNotification as String) {
             onFocusedWindowChanged?(pid)
         } else if notifStr == (kAXUIElementDestroyedNotification as String) {
             if Self.dropsDestroyNotifications { return }
