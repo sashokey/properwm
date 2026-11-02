@@ -63,6 +63,33 @@ final class TaskbarDrawingTests: XCTestCase {
         return contrast
     }
 
+    func testExplicitLineSeparatorsRenderOneCenteredCaptionWithoutChangingTheTitle() throws {
+        let expectedTitle = "Find in page Your Repositories"
+        for separator in ["\n", "\r\n", "\r", "\u{2028}", "\u{2029}"] {
+            let rawTitle = "Find in page" + separator + "Your Repositories"
+            for dark in [false, true] {
+                for scale: CGFloat in [1, 2] {
+                    let reference = button(dark: dark)
+                    reference.titleLabel.usesSingleLineMode = false
+                    reference.title = expectedTitle
+                    let expected = try render(reference, scale: scale)
+                    let view = button(dark: dark)
+                    view.title = rawTitle
+                    let actual = try render(view, scale: scale)
+                    XCTAssertEqual(view.titleLabel.alignmentRect(forFrame: view.titleLabel.frame),
+                                   reference.titleLabel.alignmentRect(forFrame: reference.titleLabel.frame),
+                                   "Caption geometry changed for \(separator.debugDescription)")
+                    XCTAssertTrue(changedPixels(expected, actual, region: view.bounds, scale: scale).isEmpty,
+                                  "Caption must render on one baseline for \(separator.debugDescription), dark=\(dark), scale=\(scale)")
+                    XCTAssertEqual(view.title, rawTitle)
+                    XCTAssertEqual(view.accessibilityLabel(), rawTitle)
+                    XCTAssertEqual(view.iconView.frame, reference.iconView.frame)
+                    XCTAssertEqual(view.indicator.frame, reference.indicator.frame)
+                }
+            }
+        }
+    }
+
     func testNativeIconAndLabelActuallyDrawAtBothScales() throws {
         for dark in [false, true] {
             for scale: CGFloat in [1, 2] {

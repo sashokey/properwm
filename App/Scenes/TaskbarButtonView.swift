@@ -4,7 +4,7 @@ import AppKit
 final class TaskbarButtonView: NSButton {
     override var title: String {
         didSet {
-            titleLabel.stringValue = title
+            titleLabel.stringValue = WindowDisplayTitle.singleLine(title)
             setAccessibilityLabel(title)
         }
     }
@@ -68,6 +68,7 @@ final class TaskbarButtonView: NSButton {
         titleLabel.font = NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
         titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.usesSingleLineMode = true
         titleLabel.maximumNumberOfLines = 1
         titleLabel.setAccessibilityElement(false)
         addSubview(titleLabel)
@@ -97,7 +98,7 @@ final class TaskbarButtonView: NSButton {
         let iconX = isOverflow ? floor((bounds.width - TaskbarMetrics.iconSize) / 2) : TaskbarMetrics.iconInset
         iconView.frame = CGRect(x: iconX, y: 6, width: TaskbarMetrics.iconSize, height: TaskbarMetrics.iconSize)
         let font = titleLabel.font ?? NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
-        let height = ceil((title as NSString).size(withAttributes: [.font: font]).height)
+        let height = ceil((titleLabel.stringValue as NSString).size(withAttributes: [.font: font]).height)
         let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((contentBounds.height - height) / 2),
                                width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset), height: height)
         titleLabel.frame = titleLabel.frame(forAlignmentRect: titleRect)

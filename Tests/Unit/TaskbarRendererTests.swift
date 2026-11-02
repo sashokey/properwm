@@ -130,6 +130,24 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertTrue(view.taskbarContent.buttonViews["window:window-0"]?.isActiveWindow == true)
     }
 
+    func testMultilineCaptionUsesTheWidthOfItsSingleLinePresentation() throws {
+        let rawTitle = "Find in page\nYour Repositories"
+        let record = WindowRecord(id: WindowID(rawValue: "multiline"), appID: AppID(rawValue: "chrome"), pid: 42,
+            bundleIdentifier: "test.chrome", title: rawTitle, bounds: nil, status: .active,
+            cgWindowID: 77, groupID: "multiline", displayUUID: "left")
+        let item = StripItem(record: record)
+        let presentation = TaskbarPresentation.groups(items: [item], order: [item.id],
+            filter: StripDisplayFilter(scope: "left", connectedUUIDs: ["left"], primaryUUID: "left"),
+            titles: [:], optimisticStates: [:], appName: { _ in "Chrome" })
+        let view = makeView()
+        view.taskbarContent.update(groups: presentation)
+        let button = try XCTUnwrap(view.taskbarContent.buttonViews["window:multiline"])
+        XCTAssertEqual(button.frame.width, 164)
+        XCTAssertEqual(button.titleLabel.stringValue, "Find in page Your Repositories")
+        XCTAssertEqual(button.accessibilityLabel(), rawTitle)
+        XCTAssertEqual(record.title, rawTitle)
+    }
+
     func testRepeatedUpdatesReuseViewsAndDoNotDuplicateButtons() {
         let view = makeView()
         view.taskbarContent.update(groups: groups())

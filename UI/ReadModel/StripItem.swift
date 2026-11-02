@@ -11,6 +11,10 @@ enum WindowDisplayTitle {
 
     static func bounded(_ value: String) -> String { BoundedText.utf8(value) }
 
+    static func singleLine(_ value: String) -> String {
+        value.split(whereSeparator: \.isNewline).joined(separator: " ")
+    }
+
 }
 
 struct StripItem: Hashable {

@@ -116,9 +116,9 @@ final class TaskbarContentView: NSView {
         let displayed = groupDrag.order(groups.map(\.id)).compactMap { groupLookup[$0] }
         let inputs = displayed.map { group in
             TaskbarLayoutGroup(id: group.id,
-                               desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (group.name as NSString).size(withAttributes: [.font: font]).width),
+                               desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine(group.name) as NSString).size(withAttributes: [.font: font]).width),
                                windows: group.windows.map {
-                TaskbarLayoutWindow(id: $0.id, desiredWidth: TaskbarMetrics.buttonWidth(textWidth: ($0.title as NSString).size(withAttributes: [.font: font]).width))
+                TaskbarLayoutWindow(id: $0.id, desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine($0.title) as NSString).size(withAttributes: [.font: font]).width))
             })
         }
         var result = TaskbarLayout.resolve(groups: inputs, width: bounds.width)
