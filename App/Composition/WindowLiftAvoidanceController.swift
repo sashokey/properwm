@@ -2117,6 +2117,7 @@ final class WindowLiftAvoidanceController {
         case let .completed(actualQuartzFrame, reliftCount, anomalies):
             logWriteAnomalies(anomalies, for: key, terminal: false)
             guard let frames = managedFrames[key] else { return }
+            observationWatermarks[key] = nextGeneration
             let actualAppKit = WindowLiftAvoidance.appKitFrame(
                 fromQuartz: actualQuartzFrame,
                 primaryScreenHeight: frames.primaryScreenHeight

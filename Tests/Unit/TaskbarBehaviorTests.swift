@@ -32,6 +32,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var topLevelWindows = Set<CGWindowID>()
         var enumeratedWindows: [pid_t: [CGWindowID]] = [:]
         var unreadOwners = Set<CGWindowID>()
+        var unreadPositions = Set<CGWindowID>()
     }
 
     let state: Mutex<State>
@@ -116,6 +117,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
             case kAXMinimizedAttribute as String: return (.success, window.status == .minimized ? kCFBooleanTrue : kCFBooleanFalse)
             case "AXFullScreen": return (.success, kCFBooleanFalse)
             case kAXPositionAttribute as String:
+                if value.unreadPositions.contains(id) { return (.cannotComplete, nil) }
                 var point = window.bounds!.origin
                 return (.success, AXValueCreate(.cgPoint, &point))
             case kAXSizeAttribute as String:
@@ -638,6 +640,34 @@ final class BehaviorLiftHost: WindowLiftAvoidanceHost {
     func windowGeometryChanged() {}
 }
 
+final class BehaviorLiftProbeGate: WindowLiftWindowProbing, Sendable {
+    struct State: Sendable {
+        var holdNext = false
+        var entered = false
+    }
+    let state = Mutex(State())
+    let release = DispatchSemaphore(value: 0)
+    let live: LiveWindowLiftProbe
+    init(_ desktop: BehaviorDesktop) { live = LiveWindowLiftProbe(system: desktop) }
+    func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
+                 includeLiveWindowKeys: Bool, includesTiles: Bool,
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+        let result = live.capture(on: contexts, excludingPID: excludingPID, includeLiveWindowKeys: includeLiveWindowKeys,
+                                  includesTiles: includesTiles, trackedKeys: trackedKeys)
+        let hold = state.withLock { value in
+            guard value.holdNext else { return false }
+            value.holdNext = false
+            value.entered = true
+            return true
+        }
+        if hold { _ = release.wait(timeout: .now() + 3) }
+        return result
+    }
+    func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect] {
+        live.frames(for: keys)
+    }
+}
+
 @MainActor
 final class WindowLiftBehaviorTests: XCTestCase {
     private func wait(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
@@ -646,7 +676,7 @@ final class WindowLiftBehaviorTests: XCTestCase {
         XCTAssertTrue(condition(), file: file, line: line)
     }
 
-    private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+    private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
         let screen = CGRect(x: 0, y: 0, width: width, height: height)
         let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
                                          screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
@@ -659,7 +689,7 @@ final class WindowLiftBehaviorTests: XCTestCase {
                 WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
                                                        liveWindowKeys: live, cancellation: cancellation)
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
-            windowProbe: LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop)
+            windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop)
         controller.isEnabled = true
         return (controller, host)
     }
@@ -691,6 +721,44 @@ final class WindowLiftBehaviorTests: XCTestCase {
         await wait { desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 2560, height: 1376) } }
         await controller.stopAndRestore()
         XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 2560, height: 1410))
+    }
+
+    func testAProbeCapturedBeforeTheHeightWriteCannotRestartTheCompletedAdjustment() async {
+        let desktop = BehaviorDesktop()
+        let probe = BehaviorLiftProbeGate(desktop)
+        let validationEntered = Mutex(false)
+        desktop.state.withLock {
+            $0.unreadPositions = [1001]
+            $0.beforeRead = { attribute in
+                if attribute == kAXPositionAttribute as String { validationEntered.withLock { $0 = true } }
+            }
+        }
+        let (controller, host) = makeController(desktop, probe: probe)
+        defer { probe.release.signal(); withExtendedLifetime(host) {} }
+        controller.poll()
+        await wait { validationEntered.withLock { $0 } }
+        controller.trackedProbeTimer?.invalidate()
+        controller.trackedProbeTimer = nil
+        if let prior = controller.trackedProbeTask { await prior.value }
+        probe.state.withLock { $0.holdNext = true }
+        controller.poll()
+        await wait { probe.state.withLock { $0.entered } }
+        let pendingProbe = controller.scanTask
+        controller.isEnabled = false
+        controller.updateTrackedProbeLifecycle()
+        controller.updatePollTimerLifecycle()
+        desktop.state.withLock { _ = $0.unreadPositions.remove(1001) }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        await wait { if case .lifted = controller.states[key] { return true }; return false }
+        probe.release.signal()
+        await pendingProbe?.value
+        guard case .lifted = controller.states[key] else {
+            await controller.stopAndRestore()
+            return XCTFail("A pre-write CG sample must not replace the confirmed adjusted state")
+        }
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1016))
+        XCTAssertEqual(desktop.state.withLock { $0.writes }, ["1001:AXSize"])
+        await controller.stopAndRestore()
     }
 
     func testManualGeometryAfterAdjustmentIsNotOverwrittenDuringStop() async {
