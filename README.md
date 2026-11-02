@@ -1,8 +1,4 @@
-# ProperWM
-
-ProperWM is a lightweight window manager for macOS, focused on open windows without unnecessary extras.
-
-It brings your open windows together in a compact taskbar, making it easier to keep track of your work and move between tasks. It is designed for everyday multitasking, helping you find the window you need when several applications or displays are in use.
+Provides a taskbar for switching between open windows in the current Space on each display.
 
 Requires macOS 26 or later. Supports Apple Silicon Macs.
 
