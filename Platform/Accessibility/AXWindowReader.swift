@@ -119,11 +119,12 @@ enum AXWindowFrameWriteFailure: Error, Equatable {
     case capabilityQueryFailed(attribute: AXWindowFrameAttribute, error: AXError)
     case attributeNotSettable(AXWindowFrameAttribute)
     case valueCreationFailed(AXWindowFrameAttribute)
+    case operationBudgetExhausted
     case writeFailed(attribute: AXWindowFrameAttribute, error: AXError)
     case verificationUnavailable
     case verificationMismatch(expected: CGRect, actual: CGRect)
 
-    fileprivate var mayHaveMutatedWindow: Bool {
+    var mayHaveMutatedWindow: Bool {
         switch self {
         case .writeFailed, .verificationUnavailable, .verificationMismatch:
             return true
@@ -132,7 +133,8 @@ enum AXWindowFrameWriteFailure: Error, Equatable {
              .initialFrameMismatch,
              .capabilityQueryFailed,
              .attributeNotSettable,
-             .valueCreationFailed:
+             .valueCreationFailed,
+             .operationBudgetExhausted:
             return false
         }
     }
@@ -249,6 +251,12 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
     private var readMessagingTimeout: TimeInterval = 0.1
 
     init(accessibility: any AccessibilityOperations = NativeAccessibilityOperations()) { self.accessibility = accessibility }
+
+    func withOperationBudget(_ budget: OperationReadBudget) -> Self {
+        var reader = self
+        reader.budget = budget
+        return reader
+    }
 
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult {
         readWindows(forPID: pid, messagingTimeout: messagingTimeout, cancellation: cancellation)
@@ -434,7 +442,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return nil
         }
 
-        let deadline = ProcessInfo.processInfo.systemUptime + messagingTimeout
+        let deadline = ProcessInfo.processInfo.systemUptime + min(messagingTimeout, budget?.remaining ?? messagingTimeout)
         let appElement = accessibility.application(pid)
 
         func remainingTimeout() -> TimeInterval? {
@@ -766,9 +774,18 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         _ attribute: CFString,
         on element: AXUIElement
     ) -> AXWindowAttributeSettableStatus {
+        guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
+        if let budget { applyMessagingTimeout(min(readMessagingTimeout, budget.remaining), to: element) }
         let (result, isSettable) = accessibility.isSettable(element, attribute)
         guard result == .success else { return .unread(result) }
         return isSettable ? .settable : .notSettable
+    }
+
+    private func setGeometryAttribute(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError? {
+        guard budget?.canContinue ?? true else { return nil }
+        if let budget { applyMessagingTimeout(min(readMessagingTimeout, budget.remaining), to: element) }
+        guard budget?.canContinue ?? true else { return nil }
+        return accessibility.set(element, attribute, value)
     }
 
     private func writeSize(
@@ -814,11 +831,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         }
 
         recordAttempt(expectedFrame)
-        let writeResult = accessibility.set(
+        guard let writeResult = setGeometryAttribute(
             element,
             kAXSizeAttribute as CFString,
             sizeValue
-        )
+        ) else { return .failure(.operationBudgetExhausted) }
         guard writeResult == .success else {
             return .failure(.writeFailed(attribute: .size, error: writeResult))
         }
@@ -904,11 +921,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
         if let sizeValue {
             recordAttempt(CGRect(origin: initialFrame.origin, size: targetFrame.size))
-            let result = accessibility.set(
+            guard let result = setGeometryAttribute(
                 element,
                 kAXSizeAttribute as CFString,
                 sizeValue
-            )
+            ) else { return .failure(.operationBudgetExhausted) }
             guard result == .success else {
                 return .failure(.writeFailed(attribute: .size, error: result))
             }
@@ -921,11 +938,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 return .failure(.verificationUnavailable)
             }
             recordAttempt(targetFrame)
-            let result = accessibility.set(
+            guard let result = setGeometryAttribute(
                 element,
                 kAXPositionAttribute as CFString,
                 positionValue
-            )
+            ) else { return .failure(needsSize ? .verificationUnavailable : .operationBudgetExhausted) }
             guard result == .success else {
                 return .failure(.writeFailed(attribute: .position, error: result))
             }
@@ -1002,7 +1019,9 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     private func applyMessagingTimeout(_ timeout: TimeInterval?, to element: AXUIElement) {
         guard let timeout else { return }
-        _ = accessibility.setTimeout(element, Float(timeout))
+        let boundedTimeout = min(timeout, budget?.remaining ?? timeout)
+        guard boundedTimeout > 0 else { return }
+        _ = accessibility.setTimeout(element, Float(boundedTimeout))
     }
 
     private func bestMatch(
@@ -1093,6 +1112,7 @@ extension AXWindowFrameWriteFailure {
         case let .capabilityQueryFailed(attribute, error): return "capabilityQueryFailed(\(attribute.diagnosticDescription),\(error.rawValue))"
         case let .attributeNotSettable(attribute): return "attributeNotSettable(\(attribute.diagnosticDescription))"
         case let .valueCreationFailed(attribute): return "valueCreationFailed(\(attribute.diagnosticDescription))"
+        case .operationBudgetExhausted: return "operationBudgetExhausted"
         case let .writeFailed(attribute, error): return "writeFailed(\(attribute.diagnosticDescription),\(error.rawValue))"
         case .verificationUnavailable: return "verificationUnavailable"
         case let .verificationMismatch(expected, actual):
