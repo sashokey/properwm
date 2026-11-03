@@ -7,17 +7,13 @@ import os
 @MainActor
 final class DebugRuntimeState: ObservableObject {
     @Published private(set) var feedbackEntriesByWindowID: [String: IntentFeedbackState.Entry] = [:]
-    @Published private(set) var observationStatusText: String = "正在启动"
 
     func setFeedbackEntries(_ entries: [String: IntentFeedbackState.Entry]) {
         guard entries != feedbackEntriesByWindowID else { return }
         feedbackEntriesByWindowID = entries
     }
 
-    func setObservationStatusText(_ text: String) {
-        guard text != observationStatusText else { return }
-        observationStatusText = text
-    }
+
 }
 
 @MainActor
@@ -38,7 +34,6 @@ final class AppRuntime: ObservableObject {
     private let isAccessibilityTrusted: () -> Bool
     private var snapshotSubscription: AnyCancellable?
     private var feedbackTimer: Timer?
-    private var startedAt: Date?
 
     private let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
     private static let chipProbeEnabled = DebugSwitch.chipProbe.isEnabled(in: ProcessInfo.processInfo.environment)
@@ -67,7 +62,6 @@ final class AppRuntime: ObservableObject {
         guard snapshotSubscription == nil else { return }
         work.restart()
         let generation = work.generation
-        startedAt = Date()
         hasRequiredPermissions = isAccessibilityTrusted()
         snapshotSubscription = tracker.snapshots
             .receive(on: DispatchQueue.main)
@@ -97,7 +91,6 @@ final class AppRuntime: ObservableObject {
         intentPipeline.reset()
         publishFeedbackEntries()
         snapshot = .empty
-        startedAt = nil
     }
 
     isolated deinit { stop() }
@@ -217,11 +210,7 @@ final class AppRuntime: ObservableObject {
         publishFeedbackEntries()
         reconcileOptimisticStates()
         updateFeedbackTimer()
-        if let startedAt {
-            let ms = Int(Date().timeIntervalSince(startedAt) * 1000)
-            debugState.setObservationStatusText(hasRequiredPermissions ? "实时 \(ms)ms" : "仅窗口列表")
-            self.startedAt = nil
-        }
+
     }
 
     private func reconcileTitleSettle(with newSnapshot: DockSnapshot) {

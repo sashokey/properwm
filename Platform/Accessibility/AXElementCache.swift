@@ -87,17 +87,3 @@ final class AXElementCache: @unchecked Sendable {
     #endif
 }
 
-/// 缓存条目的**保留判定**，抽成纯函数便于单测：这条规则一旦写错，要么留下指向已销毁窗口的
-/// 陈旧元素（可能操作到错误的窗口），要么把最小化后离开 AX 的窗口误删（缓存就白建了）。
-enum AXElementCacheRetention {
-    /// - Parameters:
-    ///   - cachedCGWindowIDs: 该 pid 当前缓存着的窗口
-    ///   - liveCGWindowIDs: CG **全列表**（不是 on-screen 集合，也不是 AX 列表）
-    /// - Returns: 应当删除的窗口
-    static func expired(
-        cachedCGWindowIDs: Set<CGWindowID>,
-        liveCGWindowIDs: Set<CGWindowID>
-    ) -> Set<CGWindowID> {
-        cachedCGWindowIDs.subtracting(liveCGWindowIDs)
-    }
-}

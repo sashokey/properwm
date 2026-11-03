@@ -19,40 +19,24 @@ final class AXElementCacheTests: XCTestCase {
         XCTAssertEqual(CFGetTypeID(returned.e), AXUIElementGetTypeID())
     }
 
-    // MARK: - 保留判定
-
-    /// 出列只认 **CG 全列表**：CG 里没有了才是真关掉了。
-    func testExpiredIsExactlyWhatLeftTheCGList() {
-        let expired = AXElementCacheRetention.expired(
-            cachedCGWindowIDs: [1, 2, 3],
-            liveCGWindowIDs: [2, 3, 4]
-        )
-        XCTAssertEqual(expired, [1])
-    }
-
-    /// **仍在 CG 里就必须留着**，哪怕这一轮 AX 完全没报到它。
-    /// Safari 系窗口最小化后会整个从 `AXWindows` 里消失（幽灵座位自愈那条规则的前提），
-    /// 而那正是「点最小化的窗口点回来」要用缓存的时刻。按 AX 缺席删 = 缓存对最该救的场景失效。
     func testWindowStillInCGListSurvivesEvenWhenAXNoLongerReportsIt() {
-        let expired = AXElementCacheRetention.expired(
-            cachedCGWindowIDs: [7],
-            liveCGWindowIDs: [7]
-        )
-        XCTAssertTrue(expired.isEmpty)
+        let cache = AXElementCache()
+        let element = AXUIElementCreateApplication(getpid())
+        cache.store(pid: 42, cgWindowID: 7, element: element)
+        cache.retain(pid: 42, liveCGWindowIDs: [7])
+        XCTAssertEqual(cache.element(pid: 42, cgWindowID: 7).map { CFEqual($0, element) }, true)
     }
 
-    func testEmptyCacheExpiresNothing() {
-        XCTAssertTrue(
-            AXElementCacheRetention.expired(cachedCGWindowIDs: [], liveCGWindowIDs: [1, 2]).isEmpty
-        )
-    }
-
-    /// CG 全列表读空（极端情况）时，缓存整体作废——这与「CG 在场才保住座位」的既有规则同向。
-    func testEmptyLiveListExpiresEverything() {
-        XCTAssertEqual(
-            AXElementCacheRetention.expired(cachedCGWindowIDs: [1, 2], liveCGWindowIDs: []),
-            [1, 2]
-        )
+    func testSuccessfulEmptyLiveListExpiresAllHandlesForOnlyThatProcess() {
+        let cache = AXElementCache()
+        let element = AXUIElementCreateApplication(getpid())
+        cache.store(pid: 42, cgWindowID: 1, element: element)
+        cache.store(pid: 42, cgWindowID: 2, element: element)
+        cache.store(pid: 43, cgWindowID: 3, element: element)
+        cache.retain(pid: 42, liveCGWindowIDs: [])
+        XCTAssertNil(cache.element(pid: 42, cgWindowID: 1))
+        XCTAssertNil(cache.element(pid: 42, cgWindowID: 2))
+        XCTAssertNotNil(cache.element(pid: 43, cgWindowID: 3))
     }
 
     // MARK: - 存取

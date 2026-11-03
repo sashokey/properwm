@@ -106,11 +106,6 @@ struct DockWindowEligibilityPolicy {
         return nil
     }
 
-    static func matchesFilteredTitle(_ title: String?) -> Bool {
-        guard let title else { return false }
-        return DockWindowEligibilityPolicy().filteredTitles.contains(title.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
     private func hasTitle(_ title: String?) -> Bool {
         guard let title else { return false }
         return title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
