@@ -1,6 +1,6 @@
 {
-  "version": "1.1.8",
+  "version": "1.1.9",
   "prerelease": false,
   "draft": false,
-  "notes": "## Fixed\n\n- Keep taskbar captions on one line when an application supplies a title containing line or paragraph separators, including the Chrome Find in page case.\n- Measure button width and label height from the same displayed text, preserving the existing baseline, spacing and tail truncation. Original window titles and Accessibility labels remain unchanged.\n\n## Verification\n\nThe complete test suite, constrained-executor checks, offscreen AppKit rendering at 1x and 2x in light and dark appearance, WindowLab replays, tooling checks and Apple Silicon Release build pass. Regression tests detect both the original two-line rendering and the inconsistent width calculation."
+  "notes": "## Fixed\n\n- Vertically center taskbar captions with the application icon and the visible button, including when the bottom edge has an enlarged click target.\n- Align text to the screen’s backing pixels using native AppKit behavior, preserving crisp rendering on 1x and 2x displays, including color emoji and fallback glyphs.\n\n## Verification\n\nThe complete test suite, constrained-executor checks, tooling, localization, deployment checks, Apple Silicon Release build and WindowLab replays pass. Independent offscreen raster regressions compare captions against a standard AppKit Auto Layout centerY reference at real 1x and 2x backing scales in both appearances. These regressions fail on the previous implementation."
 }
