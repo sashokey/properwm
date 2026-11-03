@@ -514,7 +514,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         // CG 全列表（下面那行 retain）、destroy 通知和进程消失。
         if AXElementCache.isEnabled {
             for (c, s) in eligibleByCgID { elementCache.store(pid: pid, cgWindowID: c, element: s.element) }
-            elementCache.retain(pid: pid, liveCGWindowIDs: cgIDs)
+            if !cgSnapshot.captureFailed { elementCache.retain(pid: pid, liveCGWindowIDs: cgIDs) }
         }
 
         let before = seatSignature(app)
@@ -533,11 +533,12 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             let visible = !s.isMinimized && !app.isHidden
             let fresh = visible ? WindowDisplayAttribution.displayUUID(for: s.bounds, table: displayTable) : nil
             let displayUUID = fresh ?? previousDisplayUUID
+            let former = history.subtracting([s.cgWindowID!])
             return WindowEntry(cgWindowID: s.cgWindowID!, token: token,
                                title: s.titleRead.resolvedTitle(previousTitle: previousTitle),
                                bounds: s.bounds, isMinimized: s.isMinimized, isFocused: s.isFocusedWindow,
                                everSeenVisible: wasEverVisible || !s.isMinimized,
-                               formerCgIDs: history.subtracting([s.cgWindowID!]).intersection(cgIDs),
+                               formerCgIDs: cgSnapshot.captureFailed ? former : former.intersection(cgIDs),
                                displayUUID: displayUUID,
                                createdAt: createdAtByToken[token] ?? now)
         }
@@ -576,9 +577,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     episodeID: &seat.absenceEpisodeID
                 )
                 // X 仍可见。检查「拖当前标签出去」：X 移到了新 frame，旧 frame 上来了别的合格窗口 Y。
-                if let seatKey, fk(snapX.bounds) != seatKey,
+                if !snapX.isMinimized, let seatKey, seatsAtFrame(seatKey) == 1, fk(snapX.bounds) != seatKey,
                    let Y = eligibleByFrame[seatKey]?.first(where: { s in
-                       guard let c = s.cgWindowID, c != X, !usedEligible.contains(c) else { return false }
+                       guard let c = s.cgWindowID, c != X, !s.isMinimized,
+                             !usedEligible.contains(c), app.windowsByID[c] == nil else { return false }
                        return fk(s.bounds) == seatKey
                    }), let yc = Y.cgWindowID {
                     // 座位留旧 frame、顶替成 Y，token 不变。X 被赶出成独立窗口 → 【不】记入历史
@@ -613,11 +615,13 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 }
             } else {
                 // X 离开 AX：旧 frame 有没有新当前标签顶上 → 切标签
-                if let seatKey, seatsAtFrame(seatKey) == 1,
-                   let Y = eligibleByFrame[seatKey]?.first(where: { s in
+                let replacements = seatKey.flatMap { eligibleByFrame[$0] }?.filter { s in
                        guard let c = s.cgWindowID, !usedEligible.contains(c), app.windowsByID[c] == nil else { return false }
-                       return fk(s.bounds) == seatKey
-                   }), let yc = Y.cgWindowID {
+                       return !cgSnapshot.captureFailed || (!s.isMinimized && seat.formerCgIDs.contains(c))
+                } ?? []
+                if let seatKey, seatsAtFrame(seatKey) == 1,
+                   let Y = replacements.first, !cgSnapshot.captureFailed || replacements.count == 1,
+                   let yc = Y.cgWindowID {
                     if inventoryLog.isEnabled, let episodeID = seat.absenceEpisodeID {
                         heldLogDeduplicator.clear(pid: pid, seatToken: seat.token, episodeID: episodeID)
                     }
@@ -637,6 +641,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     // 否则 Y 关掉时没有 destroy 通知 → 没有 tombstone；Ghostty 关掉的窗口还赖在 CG 全列表里，
                     // 座位会走「仍在 CG」保留分支永久留下幽灵卡（2026-08-23 最小化标签组关最后一个标签实测）。
                     subscribeWindow(pid: pid, element: Y.element, cgWindowID: yc, context: reconcileContext)
+                } else if cgSnapshot.captureFailed && !isTombstoned(X) {
+                    seat.isFocused = false
+                    place(seat)
                 } else if cgIDs.contains(X) && !isTombstoned(X) {
                     // X 离开 AX 但仍在 CG。区分「最小化/隐藏(保座位)」vs「关窗后窗口赖在 CG(该删)」:
                     // 信号 = 离开 AX 前最后一次是不是 min(最小化会先经 Miniaturized 通知标 min；关窗不会)。
@@ -741,9 +748,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         // **最小化折叠**：最小化一个多标签窗口时,Ghostty 会把该窗口的【所有标签】一下子都暴露成
         // AX 窗口(平时只暴露当前标签)。它们都 min=true——是同一个(已最小化)窗口的后台标签,折叠进
         // 已落座的座位,不另建座位（否则有几个标签就裂几张卡）。
-        // 判定三级(TabFoldDecision)：成员关系(曾任该座位活跃标签,与几何无关) → frame 精确匹配
-        // → 尺寸兜底(同宽高+屏幕外,救"窗口移动后后台标签 AX 坐标过时")。折叠且归属唯一时把
-        // 候选记入座位历史(成员学习),下次折叠不再依赖几何。
         // 非 min 的同 frame 窗口是"两个独立窗口重叠"的合法场景,照常各自建座位。
         // 并入标签的成员学习：归属座位这轮一定在 Pass A 落座（它 AX 在场），在 Pass B 之前回写，
         // 同一轮若紧接着最小化爆发也能按成员折叠。
@@ -752,19 +756,15 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         }
         var placedForFold: [TabFoldDecision.PlacedSeat] = newOrder.compactMap { id in
             guard let e = newByID[id] else { return nil }
-            return TabFoldDecision.PlacedSeat(activeCgID: e.cgWindowID, bounds: e.bounds,
-                                              isMinimized: e.isMinimized, formerCgIDs: e.formerCgIDs)
+            return TabFoldDecision.PlacedSeat(activeCgID: e.cgWindowID, formerCgIDs: e.formerCgIDs)
         }
         for s in eligible {
             guard let c = s.cgWindowID, !usedEligible.contains(c), newByID[c] == nil else { continue }
             let verdict = TabFoldDecision.verdict(
                 candidateCgID: c,
-                candidateBounds: s.bounds,
                 candidateIsMinimized: s.isMinimized,
-                candidateIsOnScreen: onScreenCGIDs.contains(c),
                 candidateIsKnownShadow: shadowPool.contains(c),
-                placedSeats: placedForFold,
-                frameKey: fk
+                placedSeats: placedForFold
             )
             switch verdict {
             case .fold(let owner, _):
@@ -773,13 +773,12 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             case .newSeat:
                 let hadPlacedSeat = !placedForFold.isEmpty
                 if s.isMinimized, !placedForFold.isEmpty {
-                    // 诊断（常驻）：min=true 候选在已有落座座位时四级判定全失败走到新建座位 =
                     // 潜在分裂点，dump 全部判定输入抓现场。placed 为空（seed 时本就最小化的
                     // 独立窗口）是正确新建，不打。正常路径零输出——别再当遗留清掉。
                     let cand = WindowFrameMatchPolicy.signature(for: s.bounds)
-                    let placedDesc = placedForFold.map { p in
+                    let placedDesc = newOrder.compactMap { newByID[$0] }.map { p in
                         let b = WindowFrameMatchPolicy.signature(for: p.bounds)
-                        return "(cg=\(p.activeCgID) min=\(p.isMinimized) b=[\(b)] hist=\(p.formerCgIDs.sorted()))"
+                        return "(cg=\(p.cgWindowID) min=\(p.isMinimized) b=[\(b)] hist=\(p.formerCgIDs.sorted()))"
                     }.joined(separator: " ")
                     print("[tabfold] 分裂点 pid=\(pid) 为 min 窗口新建座位 cg=\(c) b=[\(cand)] onScreen=\(onScreenCGIDs.contains(c)) shadow=\(shadowPool.contains(c)) pool=\(shadowPool.count) placed=\(placedDesc)")
                 }
@@ -851,8 +850,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 }
                 place(entry)
                 subscribeWindow(pid: pid, element: s.element, cgWindowID: c, context: reconcileContext)
-                placedForFold.append(TabFoldDecision.PlacedSeat(activeCgID: entry.cgWindowID, bounds: entry.bounds,
-                                                                isMinimized: entry.isMinimized, formerCgIDs: entry.formerCgIDs))
+                placedForFold.append(TabFoldDecision.PlacedSeat(activeCgID: entry.cgWindowID, formerCgIDs: entry.formerCgIDs))
             }
         }
 
@@ -903,7 +901,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         // 现身 AX（活跃标签/真可见窗口/拽出标签）→ 出池；在 CG 却不在 AX 且不是在座 activeCgID
         // （min 保留的 Safari 式真窗口、grace 暂留座位不入池，防座位丢失后被误折叠）→ 入池。
         // min=true 现身 AX 的不出池——那正是最小化爆发时刻，池子要撑住整个最小化期。
-        let shouldUpdateShadowPool = !eligible.isEmpty || cgPidIDs.isEmpty
+        let shouldUpdateShadowPool = !cgSnapshot.captureFailed && (!eligible.isEmpty || cgPidIDs.isEmpty)
         if shouldUpdateShadowPool {
             var pool = app.shadowTabCgIDs
             pool.formIntersection(cgPidIDs)

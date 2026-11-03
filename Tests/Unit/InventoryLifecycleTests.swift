@@ -41,6 +41,235 @@ private final class LifecycleProcess: AppTrackerProcessProviding, Sendable {
 
 @MainActor
 final class InventoryLifecycleTests: XCTestCase {
+    func testMovingEitherOverlappingIndependentWindowPreservesBothSeatsAndTokens() throws {
+        for movedID: CGWindowID in [77, 88] {
+            let tracker = inventoryTracker()
+            defer { tracker.stop() }
+            let original = inventoryFrame
+            let moved = original.offsetBy(dx: 260, dy: 90)
+            tracker.installFixtureForTesting(inventoryApp(entries: [
+                inventorySeat(77, token: "independent-X", bounds: original),
+                inventorySeat(88, token: "independent-Y", bounds: original)
+            ]))
+            for _ in 0..<3 {
+                reconcileInventory(tracker, eligible: [
+                    inventoryWindow(77, bounds: movedID == 77 ? moved : original),
+                    inventoryWindow(88, bounds: movedID == 88 ? moved : original)
+                ], cg: inventoryCG(ids: [77, 88], onScreen: [77, 88]))
+                let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+                XCTAssertEqual(app.windowOrder, [77, 88])
+                XCTAssertEqual(app.windowsByID.count, 2)
+                XCTAssertEqual(app.windowsByID[77]?.token, "independent-X")
+                XCTAssertEqual(app.windowsByID[88]?.token, "independent-Y")
+                XCTAssertEqual(app.windowsByID[movedID]?.bounds, moved)
+            }
+        }
+    }
+
+    func testIndependentWindowEnteringVacatedFrameDoesNotTakeAnotherSeatsToken() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "independent-X", bounds: inventoryFrame),
+            inventorySeat(88, token: "independent-Y", bounds: inventoryFrame.offsetBy(dx: 500, dy: 0))
+        ]))
+        for _ in 0..<3 {
+            reconcileInventory(tracker, eligible: [
+                inventoryWindow(77, bounds: inventoryFrame.offsetBy(dx: 200, dy: 100)),
+                inventoryWindow(88, bounds: inventoryFrame)
+            ], cg: inventoryCG(ids: [77, 88], onScreen: [77, 88]))
+            let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+            XCTAssertEqual(app.windowOrder, [77, 88])
+            XCTAssertEqual(app.windowsByID[77]?.token, "independent-X")
+            XCTAssertEqual(app.windowsByID[88]?.token, "independent-Y")
+        }
+    }
+
+    func testIndependentMinimizedWindowsAtStartupKeepSeatsWithMatchingFramesOrSizes() throws {
+        for secondBounds in [inventoryFrame, inventoryFrame.offsetBy(dx: 300, dy: 80)] {
+            let tracker = inventoryTracker()
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(inventoryApp(entries: []))
+            var originalTokens: [String] = []
+            for round in 0..<3 {
+                reconcileInventory(tracker, eligible: [
+                    inventoryWindow(77, bounds: inventoryFrame, minimized: true),
+                    inventoryWindow(88, bounds: secondBounds, minimized: true)
+                ], cg: inventoryCG(ids: [77, 88]))
+                let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+                XCTAssertEqual(app.windowOrder, [77, 88])
+                XCTAssertEqual(app.windowsByID.count, 2)
+                XCTAssertEqual(Set(app.windowsByID.values.map(\.token)).count, 2)
+                XCTAssertTrue(app.windowsByID.values.allSatisfy(\.isMinimized))
+                if round == 0 { originalTokens = app.windowOrder.compactMap { app.windowsByID[$0]?.token } }
+                else { XCTAssertEqual(app.windowOrder.compactMap { app.windowsByID[$0]?.token }, originalTokens) }
+            }
+        }
+    }
+
+    func testObservedNativeTabSwitchStillFoldsKnownMembersAfterMoveAndMinimize() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "native-tab-seat", bounds: inventoryFrame)
+        ]))
+        reconcileInventory(tracker, eligible: [inventoryWindow(88, bounds: inventoryFrame)],
+                           cg: inventoryCG(ids: [77, 88], onScreen: [88]))
+        let switched = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+        XCTAssertEqual(switched.windowOrder, [88])
+        XCTAssertEqual(switched.windowsByID[88]?.formerCgIDs, [77])
+        let moved = CGRect(x: 450, y: 220, width: 1100, height: 710)
+        for _ in 0..<3 {
+            reconcileInventory(tracker, eligible: [
+                inventoryWindow(77, bounds: inventoryFrame, minimized: true),
+                inventoryWindow(88, bounds: moved, minimized: true)
+            ], cg: inventoryCG(ids: [77, 88]))
+            let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+            XCTAssertEqual(app.windowOrder, [88])
+            XCTAssertEqual(app.windowsByID[88]?.token, "native-tab-seat")
+            XCTAssertEqual(app.windowsByID[88]?.formerCgIDs, [77])
+        }
+    }
+
+    func testNativeTabTearOutRetainsOriginalSeatAndAllocatesIndependentWindow() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "native-tab-seat", bounds: inventoryFrame)
+        ]))
+        reconcileInventory(tracker, eligible: [
+            inventoryWindow(77, bounds: inventoryFrame.offsetBy(dx: 300, dy: 0)),
+            inventoryWindow(88, bounds: inventoryFrame)
+        ], cg: inventoryCG(ids: [77, 88], onScreen: [77, 88]))
+        let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+        XCTAssertEqual(app.windowOrder, [88, 77])
+        XCTAssertEqual(app.windowsByID[88]?.token, "native-tab-seat")
+        XCTAssertNotEqual(app.windowsByID[77]?.token, "native-tab-seat")
+        XCTAssertFalse(app.windowsByID[88]?.formerCgIDs.contains(77) ?? true)
+    }
+
+    func testFailedCGCapturePreservesAXAbsentMinimizedSeatHistoryAndCachedHandle() throws {
+        let tracker = inventoryTracker()
+        let cache = AXElementCache.shared
+        defer { tracker.stop(); cache.removeAll(pid: inventoryPID) }
+        var seat = inventorySeat(77, token: "held-minimized", bounds: inventoryFrame, minimized: true)
+        seat.formerCgIDs = [91]
+        seat.minAbsentSince = Date(timeIntervalSince1970: 10)
+        seat.absenceEpisodeID = UUID()
+        var app = inventoryApp(entries: [seat])
+        app.shadowTabCgIDs = [92]
+        tracker.installFixtureForTesting(app)
+        let handle = AXUIElementCreateApplication(inventoryPID)
+        cache.store(pid: inventoryPID, cgWindowID: 77, element: handle)
+        for cg in [AppTrackerCGWindowSnapshot.failed, inventoryCG(ids: [77, 91, 92])] {
+            reconcileInventory(tracker, eligible: [], cg: cg)
+            let after = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+            XCTAssertEqual(after.windowOrder, [77])
+            XCTAssertEqual(after.windowsByID[77]?.token, "held-minimized")
+            XCTAssertEqual(after.windowsByID[77]?.formerCgIDs, [91])
+            XCTAssertEqual(after.windowsByID[77]?.minAbsentSince, seat.minAbsentSince)
+            XCTAssertEqual(after.windowsByID[77]?.absenceEpisodeID, seat.absenceEpisodeID)
+            XCTAssertEqual(after.shadowTabCgIDs, [92])
+            XCTAssertEqual(cache.element(pid: inventoryPID, cgWindowID: 77).map { CFEqual($0, handle) }, true)
+            tracker.rebuildSnapshotForTesting()
+            XCTAssertEqual(tracker.snapshot.windows.values.map(\.cgWindowID), [77])
+        }
+    }
+
+    func testFailedCGCaptureAcceptsPositiveAXUpdatesWithoutPurgingOtherSeatsOrHistory() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop(); AXElementCache.shared.removeAll(pid: inventoryPID) }
+        var visible = inventorySeat(77, token: "visible-seat", bounds: inventoryFrame)
+        visible.formerCgIDs = [91]
+        var app = inventoryApp(entries: [visible,
+            inventorySeat(88, token: "minimized-seat", bounds: inventoryFrame.offsetBy(dx: 600, dy: 0), minimized: true)])
+        app.shadowTabCgIDs = [92]
+        tracker.installFixtureForTesting(app)
+        reconcileInventory(tracker, eligible: [
+            inventoryWindow(77, bounds: inventoryFrame.offsetBy(dx: 30, dy: 20), title: "Updated"),
+            inventoryWindow(99, bounds: inventoryFrame.offsetBy(dx: 600, dy: 0), title: "New")
+        ], cg: .failed)
+        let after = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+        XCTAssertEqual(after.windowOrder, [77, 88, 99])
+        XCTAssertEqual(after.windowsByID[77]?.title, "Updated")
+        XCTAssertEqual(after.windowsByID[77]?.token, "visible-seat")
+        XCTAssertEqual(after.windowsByID[77]?.formerCgIDs, [91])
+        XCTAssertEqual(after.windowsByID[88]?.token, "minimized-seat")
+        XCTAssertEqual(after.windowsByID[99]?.title, "New")
+        XCTAssertEqual(after.shadowTabCgIDs, [92])
+        XCTAssertNotNil(AXElementCache.shared.element(pid: inventoryPID, cgWindowID: 99))
+    }
+
+    func testKnownNativeTabSwitchPreservesItsSeatDuringFailedCGAndRecovery() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop(); AXElementCache.shared.removeAll(pid: inventoryPID) }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "native-tab-seat", bounds: inventoryFrame)
+        ]))
+        reconcileInventory(tracker, eligible: [inventoryWindow(88, bounds: inventoryFrame)],
+                           cg: inventoryCG(ids: [77, 88], onScreen: [88]))
+        XCTAssertEqual(tracker.fixtureAppForTesting(pid: inventoryPID)?.windowsByID[88]?.formerCgIDs, [77])
+        for cg in [AppTrackerCGWindowSnapshot.failed, inventoryCG(ids: [77, 88], onScreen: [77])] {
+            reconcileInventory(tracker, eligible: [inventoryWindow(77, bounds: inventoryFrame)], cg: cg)
+            let app = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+            XCTAssertEqual(app.windowOrder, [77])
+            XCTAssertEqual(app.windowsByID[77]?.token, "native-tab-seat")
+            XCTAssertEqual(app.windowsByID[77]?.formerCgIDs, [88])
+        }
+    }
+
+    func testSuccessfulEmptyCGCaptureRemovesClosedSeatAndCachedHandle() throws {
+        let tracker = inventoryTracker()
+        let cache = AXElementCache.shared
+        defer { tracker.stop(); cache.removeAll(pid: inventoryPID) }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "closed-seat", bounds: inventoryFrame, minimized: true)
+        ]))
+        cache.store(pid: inventoryPID, cgWindowID: 77, element: AXUIElementCreateApplication(inventoryPID))
+        reconcileInventory(tracker, eligible: [], cg: inventoryCG(ids: []))
+        let after = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+        XCTAssertTrue(after.windowOrder.isEmpty)
+        XCTAssertTrue(after.windowsByID.isEmpty)
+        XCTAssertNil(cache.element(pid: inventoryPID, cgWindowID: 77))
+    }
+
+    private var inventoryPID: pid_t { 45454 }
+    private var inventoryFrame: CGRect { CGRect(x: 60, y: 40, width: 800, height: 600) }
+
+    private func inventoryTracker() -> AppTracker {
+        AppTracker(reader: FocusLifecycleReader(blockFirst: false), processProvider: LifecycleProcess(),
+                   cgSnapshotProvider: { .failed }, onScreenWindowIDsProvider: { [] })
+    }
+
+    private func inventoryApp(entries: [WindowEntry]) -> AppEntry {
+        AppEntry(pid: inventoryPID, bundleIdentifier: "test.Inventory", appName: "Inventory",
+                 activationPolicy: .regular, executablePath: nil,
+                 windowsByID: Dictionary(uniqueKeysWithValues: entries.map { ($0.cgWindowID, $0) }),
+                 windowOrder: entries.map(\.cgWindowID), isHidden: false)
+    }
+
+    private func inventorySeat(_ id: CGWindowID, token: String, bounds: CGRect, minimized: Bool = false) -> WindowEntry {
+        WindowEntry(cgWindowID: id, token: token, title: "Window \(id)", bounds: bounds,
+                    isMinimized: minimized, isFocused: false, everSeenVisible: true)
+    }
+
+    private func inventoryWindow(_ id: CGWindowID, bounds: CGRect, minimized: Bool = false,
+                                 title: String? = nil) -> AXWindowSnapshot {
+        AXWindowSnapshot(pid: inventoryPID, cgWindowID: id, titleRead: .value(title ?? "Window \(id)"),
+                         bounds: bounds, role: kAXWindowRole as String, subrole: kAXStandardWindowSubrole as String,
+                         isMinimized: minimized, isFocusedWindow: false, element: AXUIElementCreateApplication(inventoryPID))
+    }
+
+    private func inventoryCG(ids: Set<CGWindowID>, onScreen: Set<CGWindowID> = []) -> AppTrackerCGWindowSnapshot {
+        AppTrackerCGWindowSnapshot(allWindowIDs: ids, onScreenWindowIDs: onScreen,
+                                   windowIDsByPID: [inventoryPID: ids], alphaByWindowID: [:])
+    }
+
+    private func reconcileInventory(_ tracker: AppTracker, eligible: [AXWindowSnapshot], cg: AppTrackerCGWindowSnapshot) {
+        tracker.reconcileFixtureForTesting(pid: inventoryPID, cgSnapshot: cg, now: Date(timeIntervalSince1970: 100),
+                                           eligible: eligible, readOutcome: .success(count: eligible.count))
+    }
+
     func testFocusedWindowReadDoesNotEnumerateWindowsOrReadTheirContent() {
         let desktop = BehaviorDesktop()
         let attributes = Mutex<[String]>([])
