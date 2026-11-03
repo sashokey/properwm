@@ -21,6 +21,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var cgOwnerOverride: pid_t?
         var originOverride: ApplicationOrigin?
         var beforeRead: (@Sendable (String) -> Void)?
+        var afterAttributeWrite: (@Sendable (CGWindowID, String) -> Void)?
         var rejectMinimizedAttribute = false
         var transientMinimizeReads = 0
         var minimizeButtonReads = 0
@@ -42,10 +43,10 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
     let closeButtons: [CGWindowID: AXUIElement]
     let minimizeButtons: [CGWindowID: AXUIElement]
 
-    init() {
+    init(browserPID: pid_t = -42000) {
         let windows = [("editor-a", Int32(-41000), UInt32(1001), "Editor"),
                        ("editor-b", Int32(-41000), UInt32(1002), "Editor"),
-                       ("browser-c", Int32(-42000), UInt32(2001), "Browser")].map { id, pid, number, app in
+                       ("browser-c", browserPID, UInt32(2001), "Browser")].map { id, pid, number, app in
             WindowRecord(id: WindowID(rawValue: id), appID: AppID(rawValue: app), pid: pid,
                 bundleIdentifier: "test." + app, title: id,
                 bounds: CGRect(x: 0, y: 30, width: 1920, height: 1050),
@@ -60,7 +61,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
                     2001: AXUIElementCreateApplication(-52001)]
         closeButtons = Dictionary(uniqueKeysWithValues: [UInt32(1001), 1002, 2001].map { ($0, AXUIElementCreateApplication(-60000 - Int32($0))) })
         minimizeButtons = Dictionary(uniqueKeysWithValues: [UInt32(1001), 1002, 2001].map { ($0, AXUIElementCreateApplication(-70000 - Int32($0))) })
-        applications = [-41000: AXUIElementCreateApplication(-41000), -42000: AXUIElementCreateApplication(-42000)]
+        applications = [-41000: AXUIElementCreateApplication(-41000), browserPID: AXUIElementCreateApplication(browserPID)]
     }
 
     func publish() {
@@ -158,6 +159,7 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
             return .success
         }
         publish()
+        if result == .success { state.withLock { $0.afterAttributeWrite }?(id, attribute as String) }
         return result
     }
 
@@ -668,6 +670,22 @@ final class BehaviorLiftProbeGate: WindowLiftWindowProbing, Sendable {
     }
 }
 
+final class BehaviorLiftWriteGate: Sendable {
+    let entered = Mutex(false)
+    let timedOut = Mutex(false)
+    let release = DispatchSemaphore(value: 0)
+
+    func didWrite(_ id: CGWindowID, attribute: String) {
+        guard id == 1001, attribute == kAXSizeAttribute as String else { return }
+        let first = entered.withLock { value in
+            let first = !value
+            value = true
+            return first
+        }
+        if first, release.wait(timeout: .now() + 3) == .timedOut { timedOut.withLock { $0 = true } }
+    }
+}
+
 @MainActor
 final class WindowLiftBehaviorTests: XCTestCase {
     private func wait(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
@@ -676,7 +694,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
         XCTAssertTrue(condition(), file: file, line: line)
     }
 
-    private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+    private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil,
+                                geometryObserver: FrontmostWindowGeometryObserver? = nil) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
         let screen = CGRect(x: 0, y: 0, width: width, height: height)
         let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
                                          screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
@@ -689,7 +708,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
                 WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
                                                        liveWindowKeys: live, cancellation: cancellation)
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
-            windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop)
+            windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
+            makeGeometryObserver: { geometryObserver ?? FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) })
         controller.isEnabled = true
         return (controller, host)
     }
@@ -707,6 +727,119 @@ final class WindowLiftBehaviorTests: XCTestCase {
         XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
         XCTAssertEqual(controller.pendingRestorations.count, 0)
         XCTAssertTrue(desktop.state.withLock { $0.writes.contains("1001:AXSize") })
+    }
+
+    func testApplicationSwitchDuringHeightWriteDoesNotExpandThePreviousWindow() async {
+        let nextApplication = NSRunningApplication.current
+        for animated in [false, true] {
+            let desktop = BehaviorDesktop(browserPID: nextApplication.processIdentifier)
+            let gate = BehaviorLiftWriteGate()
+            desktop.state.withLock { $0.afterAttributeWrite = { gate.didWrite($0, attribute: $1) } }
+            let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            let (controller, host) = makeController(desktop, geometryObserver: observer)
+            defer { gate.release.signal(); withExtendedLifetime(host) {} }
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": animated ? "1" : "0"])
+            for task in observer.work.pendingForTesting { await task.value }
+            await wait { gate.entered.withLock { $0 } }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            let writer = controller.writeTasks[key]
+            XCTAssertNotNil(writer)
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            let observationGeneration = observer.work.generation
+            _ = desktop.setFrontmost(pid: nextApplication.processIdentifier, windowID: 2001, mode: 0)
+            NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+                object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: nextApplication])
+            await wait { observer.work.generation != observationGeneration }
+            gate.release.signal()
+            await writer?.value
+            XCTAssertFalse(gate.timedOut.withLock { $0 }, "The activation must be delivered before the write is released")
+            if let adjusted = desktop.state.withLock({ $0.windows[1001]?.bounds }) {
+                XCTAssertEqual(adjusted.origin, CGPoint(x: 0, y: 30))
+                XCTAssertEqual(adjusted.width, 1920)
+                XCTAssertLessThanOrEqual(adjusted.maxY, 1048, "Keep the bottom above the 32-point taskbar, animated=\(animated)")
+                XCTAssertGreaterThanOrEqual(adjusted.maxY, 1044, "Preserve the bounded native sizing tolerance")
+            } else { XCTFail("The adjusted window must remain available") }
+            XCTAssertNotNil(controller.managedFrames[key], "Keep restoration metadata after a focus change")
+            XCTAssertTrue({ if case .lifted = controller.states[key] { return true }; return false }())
+            XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.bounds },
+                           CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            await controller.stopAndRestore()
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                           CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        }
+    }
+
+    func testApplicationSwitchBeforeTheFirstHeightWriteLeavesTheWindowUntouched() async {
+        let nextApplication = NSRunningApplication.current
+        let desktop = BehaviorDesktop(browserPID: nextApplication.processIdentifier)
+        let validationStarted = Mutex(false)
+        desktop.state.withLock {
+            $0.unreadPositions = [1001]
+            $0.beforeRead = { attribute in
+                if attribute == kAXPositionAttribute as String { validationStarted.withLock { $0 = true } }
+            }
+        }
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+        let (controller, host) = makeController(desktop, geometryObserver: observer)
+        defer { withExtendedLifetime(host) {} }
+        controller.isEnabled = false
+        controller.start(environment: [:])
+        for task in observer.work.pendingForTesting { await task.value }
+        await wait { validationStarted.withLock { $0 } }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        let writer = controller.writeTasks[key]
+        XCTAssertNotNil(writer)
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        let observationGeneration = observer.work.generation
+        _ = desktop.setFrontmost(pid: nextApplication.processIdentifier, windowID: 2001, mode: 0)
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+            object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: nextApplication])
+        await wait { observer.work.generation != observationGeneration }
+        await writer?.value
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                       CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertFalse(desktop.state.withLock { $0.writes.contains("1001:AXSize") })
+        XCTAssertNil(controller.managedFrames[key])
+        await controller.stopAndRestore()
+    }
+
+    func testManualGeometryDuringAFocusSwitchIsPreservedByTheInFlightWriter() async {
+        let nextApplication = NSRunningApplication.current
+        let desktop = BehaviorDesktop(browserPID: nextApplication.processIdentifier)
+        let gate = BehaviorLiftWriteGate()
+        desktop.state.withLock { $0.afterAttributeWrite = { gate.didWrite($0, attribute: $1) } }
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+        let (controller, host) = makeController(desktop, geometryObserver: observer)
+        defer { gate.release.signal(); withExtendedLifetime(host) {} }
+        controller.isEnabled = false
+        controller.start(environment: [:])
+        for task in observer.work.pendingForTesting { await task.value }
+        await wait { gate.entered.withLock { $0 } }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        let writer = controller.writeTasks[key]
+        XCTAssertNotNil(writer)
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        let observationGeneration = observer.work.generation
+        _ = desktop.setFrontmost(pid: nextApplication.processIdentifier, windowID: 2001, mode: 0)
+        let manualFrame = CGRect(x: 300, y: 200, width: 600, height: 400)
+        desktop.state.withLock { $0.windows[1001]?.bounds = manualFrame }
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+            object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: nextApplication])
+        await wait { observer.work.generation != observationGeneration }
+        gate.release.signal()
+        await writer?.value
+        XCTAssertFalse(gate.timedOut.withLock { $0 })
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
+        XCTAssertNil(controller.managedFrames[key])
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
     }
 
     func testChromeFullscreenReturnAndRepeatedMaximizeTraverseTheProductionWriter() async {

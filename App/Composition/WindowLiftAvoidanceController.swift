@@ -563,7 +563,7 @@ final class WindowLiftAvoidanceController {
                 .processIdentifier
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.cancelWrites(except: activePID)
+                self.cancelUnstartedWrites(except: activePID)
                 self.geometryObserver?.activate(pid: activePID)
                 self.requestEventPoll()
             }
@@ -2162,8 +2162,8 @@ final class WindowLiftAvoidanceController {
         }
     }
 
-    private func cancelWrites(except activePID: pid_t?) {
-        for (key, task) in writeTasks where key.pid != activePID {
+    private func cancelUnstartedWrites(except activePID: pid_t?) {
+        for (key, task) in writeTasks where key.pid != activePID && validationGenerations[key] != nil {
             task.cancel()
         }
     }
