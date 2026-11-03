@@ -11,6 +11,9 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
     let transientFailures = Mutex(0)
     let registered = Mutex<[AXElementKey: Set<String>]>([:])
     let applicationNotifications = Mutex<Set<String>>([])
+    let applicationCalls = Mutex<[String]>([])
+    let applicationResults = Mutex<[String: [AXError]]>([:])
+    let blockedApplicationNotification = Mutex<String?>(nil)
     let gate = DispatchSemaphore(value: 0)
     let blockWindows: Bool
     @MainActor var attachments = 0
@@ -29,7 +32,25 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
             }
             if failed { return .cannotComplete }
             _ = registered.withLock { $0[element, default: []].insert(notification) }
-        } else { _ = applicationNotifications.withLock { $0.insert(notification) } }
+        } else {
+            applicationCalls.withLock { $0.append(notification) }
+            let blocked = blockedApplicationNotification.withLock { value in
+                guard value == notification else { return false }
+                value = nil
+                return true
+            }
+            if blocked { _ = gate.wait(timeout: .now() + 2) }
+            let result = applicationResults.withLock { values -> AXError in
+                guard var remaining = values[notification], !remaining.isEmpty else { return .success }
+                let result = remaining.removeFirst()
+                values[notification] = remaining
+                return result
+            }
+            if result == .success || result == .notificationAlreadyRegistered {
+                _ = applicationNotifications.withLock { $0.insert(notification) }
+            }
+            return result
+        }
         return .success
     }
     func remove(_ notification: String, element: AXElementKey) {
@@ -43,6 +64,160 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
 
 @MainActor
 final class WindowObservationLifecycleTests: XCTestCase {
+    func testApplicationObserverFactoryFailureBacksOffThenRecoversOnFallback() async {
+        let fixture = ObservationFixture()
+        let attempts = Mutex(0)
+        let now = Mutex<TimeInterval>(100)
+        let observer = AppWindowObserver(pid: 42, clock: { now.withLock { $0 } }, makeSession: { _, _ in
+            let attempt = attempts.withLock { $0 += 1; return $0 }
+            return attempt == 1 ? nil : fixture
+        })
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertFalse(observer.isActive)
+        for _ in 0..<20 { observer.start() }
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(attempts.withLock { $0 }, 1)
+        XCTAssertEqual(fixture.attachments, 0)
+        now.withLock { $0 = 101 }
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertTrue(observer.isActive)
+        XCTAssertEqual(attempts.withLock { $0 }, 2)
+        XCTAssertEqual(fixture.attachments, 1)
+        XCTAssertEqual(fixture.applicationNotifications.withLock { $0.count }, 3)
+        observer.stop()
+    }
+
+    func testApplicationObserverRetriesOnlyTransientApplicationNotifications() async {
+        let fixture = ObservationFixture()
+        fixture.applicationResults.withLock { $0[kAXWindowCreatedNotification] = [.cannotComplete, .success] }
+        let now = Mutex<TimeInterval>(100)
+        let callback = Mutex<(@Sendable (AXElementKey, String) -> Void)?>(nil)
+        let observer = AppWindowObserver(pid: 42, clock: { now.withLock { $0 } }, makeSession: { _, receive in
+            callback.withLock { $0 = receive }
+            return fixture
+        })
+        var createdPIDs: [pid_t] = []
+        observer.onWindowCreated = { createdPIDs.append($0) }
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertFalse(observer.isActive)
+        _ = observer.registerWindow(AXUIElementCreateApplication(42), cgWindowID: 1)
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertTrue(observer.isCovered(cgWindowID: 1))
+        let instance = observer.subscribedElement(cgWindowID: 1)?.instanceID
+        for _ in 0..<20 { observer.start() }
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(fixture.applicationCalls.withLock { $0.count }, 3)
+        now.withLock { $0 = 101 }
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertTrue(observer.isActive)
+        XCTAssertEqual(fixture.applicationCalls.withLock { $0 }, [
+            kAXWindowCreatedNotification, kAXFocusedWindowChangedNotification,
+            kAXMainWindowChangedNotification, kAXWindowCreatedNotification
+        ])
+        XCTAssertEqual(fixture.attachments, 1)
+        XCTAssertTrue(observer.isCovered(cgWindowID: 1))
+        XCTAssertEqual(observer.subscribedElement(cgWindowID: 1)?.instanceID, instance)
+        if fixture.applicationNotifications.withLock({ $0.contains(kAXWindowCreatedNotification) }) {
+            callback.withLock { $0 }?(AXElementKey(e: AXUIElementCreateApplication(42)), kAXWindowCreatedNotification)
+        }
+        await waitUntil { createdPIDs == [42] }
+        observer.stop()
+    }
+
+    func testUnsupportedApplicationNotificationKeepsFallbackWithoutRetryLoop() async {
+        let fixture = ObservationFixture()
+        fixture.applicationResults.withLock { $0[kAXWindowCreatedNotification] = [.notificationUnsupported] }
+        let now = Mutex<TimeInterval>(100)
+        let observer = AppWindowObserver(pid: 42, clock: { now.withLock { $0 } }, makeSession: { _, _ in fixture })
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertFalse(observer.isActive)
+        for _ in 0..<20 {
+            now.withLock { $0 += 60 }
+            observer.start()
+            for task in observer.pendingWorkForTesting { await task.value }
+        }
+        XCTAssertFalse(observer.isActive)
+        XCTAssertEqual(fixture.applicationCalls.withLock { $0.count }, 3)
+        XCTAssertEqual(fixture.attachments, 1)
+        observer.stop()
+    }
+
+    func testAlreadyRegisteredApplicationNotificationsProvideEventCoverage() async {
+        let fixture = ObservationFixture()
+        fixture.applicationResults.withLock {
+            $0[kAXWindowCreatedNotification] = [.notificationAlreadyRegistered]
+            $0[kAXFocusedWindowChangedNotification] = [.notificationAlreadyRegistered]
+            $0[kAXMainWindowChangedNotification] = [.notificationAlreadyRegistered]
+        }
+        let observer = AppWindowObserver(pid: 42, makeSession: { _, _ in fixture })
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertTrue(observer.isActive)
+        XCTAssertEqual(fixture.attachments, 1)
+        observer.stop()
+    }
+
+    func testStopDuringApplicationFactoryRecoveryRejectsLateSessionAndCallbacks() async {
+        let fixture = ObservationFixture()
+        let attempts = Mutex(0)
+        let now = Mutex<TimeInterval>(100)
+        let callback = Mutex<(@Sendable (AXElementKey, String) -> Void)?>(nil)
+        let entered = Mutex(false)
+        let gate = DispatchSemaphore(value: 0)
+        let observer = AppWindowObserver(pid: 42, clock: { now.withLock { $0 } }, makeSession: { _, receive in
+            let attempt = attempts.withLock { $0 += 1; return $0 }
+            guard attempt > 1 else { return nil }
+            callback.withLock { $0 = receive }
+            entered.withLock { $0 = true }
+            _ = gate.wait(timeout: .now() + 2)
+            return fixture
+        })
+        var created = 0
+        observer.onWindowCreated = { _ in created += 1 }
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        now.withLock { $0 = 101 }
+        observer.start()
+        await waitUntil { entered.withLock { $0 } }
+        let pending = observer.pendingWorkForTesting
+        observer.stop()
+        gate.signal()
+        for task in pending { await task.value }
+        callback.withLock { $0 }?(AXElementKey(e: AXUIElementCreateApplication(42)), kAXWindowCreatedNotification)
+        await Task.yield()
+        XCTAssertFalse(observer.isActive)
+        XCTAssertEqual(fixture.attachments, 0)
+        XCTAssertTrue(fixture.applicationCalls.withLock { $0.isEmpty })
+        XCTAssertEqual(created, 0)
+    }
+
+    func testStopDuringApplicationNotificationRecoveryDoesNotReattachSession() async {
+        let fixture = ObservationFixture()
+        fixture.applicationResults.withLock { $0[kAXWindowCreatedNotification] = [.cannotComplete, .success] }
+        let now = Mutex<TimeInterval>(100)
+        let observer = AppWindowObserver(pid: 42, clock: { now.withLock { $0 } }, makeSession: { _, _ in fixture })
+        observer.start()
+        for task in observer.pendingWorkForTesting { await task.value }
+        XCTAssertFalse(observer.isActive)
+        fixture.blockedApplicationNotification.withLock { $0 = kAXWindowCreatedNotification }
+        now.withLock { $0 = 101 }
+        observer.start()
+        await waitUntil { fixture.applicationCalls.withLock { $0.count } == 4 }
+        let pending = observer.pendingWorkForTesting
+        observer.stop()
+        fixture.gate.signal()
+        for task in pending { await task.value }
+        XCTAssertFalse(observer.isActive)
+        XCTAssertEqual(fixture.attachments, 1)
+        XCTAssertEqual(fixture.detachments, 1)
+        XCTAssertEqual(fixture.applicationCalls.withLock { $0.count }, 4)
+    }
+
     func testGeometryRegistrationRetriesTransientFailureOnFallbackWithoutBusyLoop() async {
         let fixture = ObservationFixture()
         fixture.transientFailures.withLock { $0 = 1 }

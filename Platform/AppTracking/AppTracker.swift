@@ -2317,6 +2317,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     /// 尚未落地的 pid 因 pending 存在被跳过，天然不堆积。
     private func schedulePeriodicBatchRead(cgSnapshot: AppTrackerCGWindowSnapshot, timeout: TimeInterval) {
         guard work.isActive else { return }
+        for observer in observers.values { observer.start() }
         var batch: [(pid: pid_t, request: PendingEventRead)] = []
         for pid in appOrder {
             guard pendingEventReads[pid] == nil, let app = apps[pid] else { continue }

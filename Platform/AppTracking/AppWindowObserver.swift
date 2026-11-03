@@ -15,7 +15,11 @@ final class AppWindowObserver {
     private let makeSession: Factory
     private let queue = DispatchQueue(label: "io.github.sashokey.properwm.window-subscriptions", qos: .utility)
     private let work = AsyncWorkScope()
+    private var isRunning = false
     private var isStarting = false
+    private var applicationItems: [String: WindowSubscriptionItemState] = [:]
+    private var applicationRetryAt: TimeInterval = 0
+    private var applicationRetryStep = 0
     private var waitingWindows: [CGWindowID: AXElementKey] = [:]
     private struct RegistrationWork {
         let id = UUID()
@@ -26,7 +30,9 @@ final class AppWindowObserver {
     private static let instanceIDs = WindowSubscriptionInstanceIDs()
     private let clock: @Sendable () -> TimeInterval
 
-    var isActive: Bool { session != nil }
+    var isActive: Bool {
+        session != nil && Self.applicationNotifications.allSatisfy { applicationItems[$0] == .done }
+    }
     var onWindowCreated: ((pid_t) -> Void)?
     var onWindowDestroyed: ((pid_t, CGWindowID) -> Void)?
     var onWindowMinimized: ((pid_t, CGWindowID) -> Void)?
@@ -43,6 +49,9 @@ final class AppWindowObserver {
     }
 
     nonisolated static let retryTimeLimit: TimeInterval = 0.05
+    private static let applicationNotifications = [
+        kAXWindowCreatedNotification, kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification
+    ]
     private static let dropsDestroyNotifications = DebugSwitch.simulateNoDestroy.isEnabled()
 
     init(pid: pid_t, clock: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
@@ -54,10 +63,23 @@ final class AppWindowObserver {
 
     isolated deinit { stop() }
 
+    private struct ApplicationAttemptResult: Sendable {
+        let session: (any WindowObservationSession)?
+        let results: [String: AXError]
+    }
+
     func start() {
-        guard session == nil, !isStarting else { return }
+        if !isRunning {
+            isRunning = true
+            work.restart()
+        }
+        guard !isStarting, clock() >= applicationRetryAt else { return }
+        let notifications = Self.applicationNotifications.filter {
+            applicationItems[$0] != .done && applicationItems[$0] != .unsupported
+        }
+        guard session == nil || !notifications.isEmpty else { return }
         isStarting = true
-        work.restart()
+        let currentSession = session
         let makeSession = makeSession
         let pid = pid
         let queue = queue
@@ -71,24 +93,43 @@ final class AppWindowObserver {
         let cancellation = OperationCancellation()
         work.launch { [weak self] generation in
             let created = await AsyncWorkScope.performBlocking(on: queue, cancellation: cancellation) {
-                let session = makeSession(pid, receive)
-                guard !cancellation.isCancelled else { return nil as (any WindowObservationSession)? }
-                _ = session?.add(kAXWindowCreatedNotification, element: nil)
-                guard !cancellation.isCancelled else { return nil as (any WindowObservationSession)? }
-                _ = session?.add(kAXFocusedWindowChangedNotification, element: nil)
-                guard !cancellation.isCancelled else { return nil as (any WindowObservationSession)? }
-                _ = session?.add(kAXMainWindowChangedNotification, element: nil)
-                return session
+                let session = currentSession ?? makeSession(pid, receive)
+                var results: [String: AXError] = [:]
+                for notification in notifications {
+                    guard !cancellation.isCancelled else { break }
+                    if let session { results[notification] = session.add(notification, element: nil) }
+                }
+                return ApplicationAttemptResult(session: session, results: results)
             }
             await MainActor.run { [weak self] in
                 guard let self, self.work.isCurrent(generation) else { return }
                 self.isStarting = false
-                guard let session = created ?? nil else { return }
-                self.session = session
-                session.attach()
-                let windows = self.waitingWindows
-                self.waitingWindows.removeAll()
-                for (id, key) in windows { _ = self.registerWindow(key.e, cgWindowID: id) }
+                guard let created else { return }
+                for (notification, result) in created.results {
+                    switch result {
+                    case .success, .notificationAlreadyRegistered: self.applicationItems[notification] = .done
+                    case .notificationUnsupported: self.applicationItems[notification] = .unsupported
+                    default: self.applicationItems[notification] = .failed
+                    }
+                }
+                if let session = created.session, self.session == nil {
+                    self.session = session
+                    session.attach()
+                    let windows = self.waitingWindows
+                    self.waitingWindows.removeAll()
+                    for (id, key) in windows { _ = self.registerWindow(key.e, cgWindowID: id) }
+                }
+                let needsRetry = self.session == nil || Self.applicationNotifications.contains {
+                    self.applicationItems[$0] != .done && self.applicationItems[$0] != .unsupported
+                }
+                if needsRetry {
+                    let delays = WindowSubscriptionLedger<AXElementKey>.backoff
+                    self.applicationRetryAt = self.clock() + delays[min(self.applicationRetryStep, delays.count - 1)]
+                    self.applicationRetryStep = min(self.applicationRetryStep + 1, delays.count - 1)
+                } else {
+                    self.applicationRetryAt = 0
+                    self.applicationRetryStep = 0
+                }
             }
         }
     }
@@ -98,7 +139,11 @@ final class AppWindowObserver {
         work.stop()
         session?.detach()
         session = nil
+        isRunning = false
         isStarting = false
+        applicationItems.removeAll()
+        applicationRetryAt = 0
+        applicationRetryStep = 0
         waitingWindows.removeAll()
         inFlight.removeAll()
         subscriptions.removeAll()
