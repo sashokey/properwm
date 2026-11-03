@@ -99,8 +99,9 @@ final class TaskbarButtonView: NSButton {
         iconView.frame = CGRect(x: iconX, y: 6, width: TaskbarMetrics.iconSize, height: TaskbarMetrics.iconSize)
         let font = titleLabel.font ?? NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
         let height = ceil((titleLabel.stringValue as NSString).size(withAttributes: [.font: font]).height)
-        let titleRect = CGRect(x: TaskbarMetrics.labelInset, y: floor((contentBounds.height - height) / 2),
+        var titleRect = CGRect(x: TaskbarMetrics.labelInset, y: iconView.frame.midY - height / 2,
                                width: max(0, bounds.width - TaskbarMetrics.labelInset - TaskbarMetrics.labelTrailingInset), height: height)
+        titleRect.origin.y = backingAlignedRect(titleRect, options: [.alignAllEdgesNearest, .alignRectFlipped]).minY
         titleLabel.frame = titleLabel.frame(forAlignmentRect: titleRect)
         updateIndicator()
         groupIndicator.frame = CGRect(x: bounds.maxX - 3, y: 3, width: 2, height: 22)

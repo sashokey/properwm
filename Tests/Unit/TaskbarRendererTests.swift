@@ -860,6 +860,7 @@ final class TaskbarRendererTests: XCTestCase {
                     let textRect = button.titleLabel.alignmentRect(forFrame: button.titleLabel.frame)
                     XCTAssertEqual(textRect.minX, 28)
                     XCTAssertEqual(textRect.maxX, width - 8)
+                    XCTAssertEqual(textRect.midY, scale == 1 ? 14.5 : 14, accuracy: 0.000_001)
                     XCTAssertEqual(button.selectionView.frame, button.bounds)
                     XCTAssertEqual(button.indicator.frame, CGRect(x: active ? 8.5 : 12,
                                                                  y: 25, width: active ? 11 : 4, height: 2))

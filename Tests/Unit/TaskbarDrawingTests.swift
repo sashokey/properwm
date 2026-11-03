@@ -63,7 +63,7 @@ final class TaskbarDrawingTests: XCTestCase {
         return contrast
     }
 
-    func testExplicitLineSeparatorsRenderOneCenteredCaptionWithoutChangingTheTitle() throws {
+    func testExplicitLineSeparatorsRenderOneCaptionWithoutChangingTheTitle() throws {
         let expectedTitle = "Find in page Your Repositories"
         for separator in ["\n", "\r\n", "\r", "\u{2028}", "\u{2029}"] {
             let rawTitle = "Find in page" + separator + "Your Repositories"
@@ -88,6 +88,88 @@ final class TaskbarDrawingTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testCaptionUsesNativePixelAlignmentAroundTheTaskbarCenter() throws {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 400, height: 64),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        defer { panel.close() }
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 64))
+        panel.contentView = content
+        for scale: CGFloat in [1, 2] {
+            content.bounds.size = CGSize(width: 400 * panel.backingScaleFactor / scale,
+                                         height: 64 * panel.backingScaleFactor / scale)
+            for title in [".", "Windows", "sash", "Find in page\nYour Repositories", "Settings 😀", "設定"] {
+                for height: CGFloat in [28, 30] {
+                    let view = button(dark: true)
+                    view.frame = CGRect(x: 10, y: 2, width: 140, height: height)
+                    view.title = title
+                    content.addSubview(view)
+                    defer { view.removeFromSuperview() }
+                    view.layoutSubtreeIfNeeded()
+                    XCTAssertEqual(view.convertToBacking(CGRect(x: 0, y: 0, width: 1, height: 1)).width, scale)
+                    let caption = view.titleLabel.alignmentRect(forFrame: view.titleLabel.frame)
+                    XCTAssertEqual(view.frame.minY + view.iconView.frame.midY, 16, accuracy: 0.000_001)
+                    XCTAssertEqual(view.frame.minY + caption.midY, scale == 1 ? 16.5 : 16, accuracy: 0.000_001,
+                                   "title=\(title.debugDescription), scale=\(scale), height=\(height)")
+                }
+            }
+        }
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testCaptionRasterMatchesNativeCenterAlignmentAtBothBackingScales() throws {
+        let panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 400, height: 64),
+                            styleMask: .borderless, backing: .buffered, defer: true)
+        defer { panel.close() }
+        let content = NSView(frame: CGRect(x: 0, y: 0, width: 400, height: 64))
+        panel.contentView = content
+        for dark in [false, true] {
+            for scale: CGFloat in [1, 2] {
+                content.bounds.size = CGSize(width: 400 * panel.backingScaleFactor / scale,
+                                             height: 64 * panel.backingScaleFactor / scale)
+                for title in ["Windows", "sash", "A long window title that must truncate", "Settings 😀", "設定"] {
+                    let view = button(dark: dark)
+                    view.title = title
+                    content.addSubview(view)
+                    defer { view.removeFromSuperview() }
+                    let reference = CaptionAlignmentReferenceView(frame: view.frame)
+                    reference.appearance = view.appearance
+                    reference.wantsLayer = true
+                    content.addSubview(reference)
+                    defer { reference.removeFromSuperview() }
+                    let label = NSTextField(labelWithString: title)
+                    label.font = NSFont.systemFont(ofSize: 12)
+                    label.textColor = .labelColor
+                    label.lineBreakMode = .byTruncatingTail
+                    label.maximumNumberOfLines = 1
+                    label.usesSingleLineMode = true
+                    label.translatesAutoresizingMaskIntoConstraints = false
+                    reference.addSubview(label)
+                    let icon = NSImageView()
+                    icon.translatesAutoresizingMaskIntoConstraints = false
+                    reference.addSubview(icon)
+                    NSLayoutConstraint.activate([
+                        icon.leadingAnchor.constraint(equalTo: reference.leadingAnchor, constant: 6),
+                        icon.topAnchor.constraint(equalTo: reference.topAnchor, constant: 6),
+                        icon.widthAnchor.constraint(equalToConstant: 16),
+                        icon.heightAnchor.constraint(equalToConstant: 16),
+                        label.leadingAnchor.constraint(equalTo: reference.leadingAnchor, constant: 28),
+                        label.trailingAnchor.constraint(equalTo: reference.trailingAnchor, constant: -8),
+                        label.centerYAnchor.constraint(equalTo: icon.centerYAnchor)
+                    ])
+                    let expected = try render(reference, scale: scale)
+                    let actual = try render(view, scale: scale)
+                    XCTAssertEqual(view.convertToBacking(CGRect(x: 0, y: 0, width: 1, height: 1)).width, scale)
+                    XCTAssertFalse(changedPixels(try render(CaptionAlignmentReferenceView(frame: view.frame), scale: scale),
+                                                expected, region: CGRect(x: 28, y: 0, width: 104, height: 28), scale: scale).isEmpty)
+                    XCTAssertTrue(changedPixels(expected, actual,
+                        region: CGRect(x: 28, y: 0, width: 104, height: 28), scale: scale).isEmpty,
+                        "Native centered caption differs: title=\(title.debugDescription), dark=\(dark), scale=\(scale), expected=\(label.alignmentRect(forFrame: label.frame)), actual=\(view.titleLabel.alignmentRect(forFrame: view.titleLabel.frame))")
+                }
+            }
+        }
+        XCTAssertFalse(panel.isVisible)
     }
 
     func testNativeIconAndLabelActuallyDrawAtBothScales() throws {
@@ -260,4 +342,16 @@ final class TaskbarDrawingTests: XCTestCase {
             view.cancelOperation(nil)
         }
     }
+}
+
+@MainActor
+private final class CaptionAlignmentReferenceView: NSView {
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { nil }
 }
