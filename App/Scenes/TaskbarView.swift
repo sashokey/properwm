@@ -47,7 +47,7 @@ final class TaskbarContentView: NSView {
     private let popup: any TaskbarPopupPresenting
     private let contextMenu: any TaskbarContextMenuPresenting
     private var listGroupID: String?
-    private var listSignature: [String] = []
+    private var listSignature: [StripItem] = []
     private weak var windowList: TaskbarWindowListView?
     private var hoverTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
@@ -134,7 +134,7 @@ final class TaskbarContentView: NSView {
             let liveList = listGroupID == "overflow"
                 ? groups.filter { result.overflowGroups.contains($0.id) }.flatMap(\.windows)
                 : result.combinedGroups.contains(listGroupID) ? groups.first { $0.id == listGroupID }?.windows ?? [] : []
-            if liveList.map(\.id) != listSignature { dismissPopups() }
+            if !listMatches(liveList) { dismissPopups() }
             else { windowList?.updateTitles(windows: liveList) }
         }
         let animateLayout = animateNextLayout || (changed && draggedGroupID != nil)
@@ -256,10 +256,14 @@ final class TaskbarContentView: NSView {
         return window.convertToScreen(convert(rect, to: nil))
     }
 
+    private func listMatches(_ windows: [TaskbarWindowPresentation]) -> Bool {
+        listSignature.elementsEqual(windows.map(\.item)) { $0.representsSameWindow(as: $1) }
+    }
+
     private func showWindowList(group: TaskbarGroupPresentation, anchor: CGRect, focusForKeyboard: Bool = false) {
         guard let screen = window?.screen ?? NSScreen.main else { return }
         dismissTask?.cancel()
-        if listGroupID == group.id && listSignature == group.windows.map(\.id) && popup.isPresented {
+        if listGroupID == group.id && listMatches(group.windows) && popup.isPresented {
             if focusForKeyboard { popup.focusForKeyboard() }
             return
         }
@@ -275,7 +279,7 @@ final class TaskbarContentView: NSView {
         if focusForKeyboard { popup.focusForKeyboard() }
         windowList = view
         listGroupID = group.id
-        listSignature = group.windows.map(\.id)
+        listSignature = group.windows.map(\.item)
         view.onHover = { [weak self] entered in
             if entered { self?.dismissTask?.cancel() }
             else { self?.scheduleDismiss() }
@@ -424,14 +428,24 @@ final class TaskbarContentView: NSView {
     }
 
     func scheduleFileHover(buttonID: String) {
+        guard let button = layoutResult.buttons.first(where: { $0.id == buttonID }),
+              let group = groups.first(where: { $0.id == button.groupID }) else {
+            cancelFileHover()
+            return
+        }
+        let expectedWindow = group.windows.first(where: { button.windowIDs.contains($0.id) })
         fileHover.schedule(target: buttonID, after: .milliseconds(600)) { [weak self] in
-            guard let self,
-                  let button = self.layoutResult.buttons.first(where: { $0.id == buttonID }),
-                  let group = self.groups.first(where: { $0.id == button.groupID }) else { return }
-            if button.isCombined { self.showWindowList(group: group, anchor: button.frame) }
-            else if let item = group.windows.first(where: { button.windowIDs.contains($0.id) }) {
-                self.activateIfLive(item, dismiss: true)
+            guard let self else { return }
+            guard let button = self.layoutResult.buttons.first(where: { $0.id == buttonID }),
+                  let group = self.groups.first(where: { $0.id == button.groupID }) else {
+                self.cancelFileHover()
+                return
             }
+            if button.isCombined { self.showWindowList(group: group, anchor: button.frame) }
+            else if let expectedWindow,
+                    group.windows.contains(where: { $0.item.representsSameWindow(as: expectedWindow.item) }) {
+                self.activateIfLive(expectedWindow, dismiss: true)
+            } else { self.cancelFileHover() }
         }
     }
 

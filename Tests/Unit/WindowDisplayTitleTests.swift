@@ -50,14 +50,14 @@ final class WindowDisplayTitleTests: XCTestCase {
         )
     }
 
-    func testTaskbarNameUsesLocalizedDisplayName() {
+    func testLiteralProperWMTitleAndFallbackRemainUnchanged() {
         XCTAssertEqual(
             WindowDisplayTitle.resolve(rawTitle: "ProperWM", fallbackName: "Fallback"),
-            String(localized: "Taskbar")
+            "ProperWM"
         )
         XCTAssertEqual(
             WindowDisplayTitle.resolve(rawTitle: nil, fallbackName: "ProperWM"),
-            String(localized: "Taskbar")
+            "ProperWM"
         )
     }
 

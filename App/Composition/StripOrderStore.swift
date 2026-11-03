@@ -6,6 +6,7 @@ final class StripOrderStore: ObservableObject {
 
     private let orderKey = "properwm.windowOrder"
     private let bootKey = "properwm.windowOrderBootTime"
+    private let applicationsKey = "properwm.windowOrderApplications"
     private let bootTime: Int
 
     private var absentSince: [String: Date] = [:]
@@ -33,6 +34,7 @@ final class StripOrderStore: ObservableObject {
            defaults.integer(forKey: bootKey) == bootTime,
            let saved = defaults.stringArray(forKey: orderKey) {
             liveOrder = saved
+            stickyAppKeys = defaults.dictionary(forKey: applicationsKey) as? [String: String] ?? [:]
         }
     }
 
@@ -42,11 +44,11 @@ final class StripOrderStore: ObservableObject {
         let currentSet = Set(current)
         let anchors = absentRankAnchors(current: currentSet, now: now())
         let effectiveCurrent = current + anchors
-        let ordered = StripOrdering.reconcile(
+        let ordered = preservingApplicationOrder(StripOrdering.reconcile(
             remembered: liveOrder,
             current: effectiveCurrent,
             appKeyOf: merged
-        )
+        ), appKeys: merged)
         let anchorSet = Set(anchors)
         return ordered.filter { !anchorSet.contains($0) }
     }
@@ -71,6 +73,7 @@ final class StripOrderStore: ObservableObject {
             ))
             lastProjectionSample = projectionSample
         }
+        let rememberedAppKeys = stickyAppKeys
         stickyAppKeys.merge(appKeyOf) { _, new in new }
 
         let currentSet = Set(current)
@@ -89,7 +92,7 @@ final class StripOrderStore: ObservableObject {
             current: effectiveCurrent,
             appKeyOf: stickyAppKeys
         )
-        let next = reconcileResult.order
+        let next = preservingApplicationOrder(reconcileResult.order, appKeys: stickyAppKeys, rememberedAppKeys: rememberedAppKeys)
         absentSince = absentSince.filter { now.timeIntervalSince($0.value) <= Self.rankRetentionGrace }
         for (chipID, since) in expiredMemory {
             inventoryLog.record(.orderMemoryDropped(InventoryOrderMemoryDroppedPayload(
@@ -109,8 +112,8 @@ final class StripOrderStore: ObservableObject {
                 reason: placement.reason.rawValue
             )))
         }
-        if next != liveOrder {
-            liveOrder = next
+        if next != liveOrder || rememberedAppKeys != stickyAppKeys {
+            if next != liveOrder { liveOrder = next }
             persistLiveOrder()
         }
 
@@ -131,8 +134,26 @@ final class StripOrderStore: ObservableObject {
         if next != liveOrder { liveOrder = next; persistLiveOrder() }
     }
 
+    private func preservingApplicationOrder(_ order: [String], appKeys: [String: String],
+                                             rememberedAppKeys: [String: String]? = nil) -> [String] {
+        let remembered = rememberedAppKeys ?? stickyAppKeys
+        let retainedIDs = Set(order)
+        var ranks: [String: Int] = [:]
+        for id in liveOrder where retainedIDs.contains(id) {
+            if let app = remembered[id], ranks[app] == nil { ranks[app] = ranks.count }
+        }
+        guard !ranks.isEmpty else { return order }
+        return order.enumerated().sorted { lhs, rhs in
+            let left = appKeys[lhs.element].flatMap { ranks[$0] } ?? .max
+            let right = appKeys[rhs.element].flatMap { ranks[$0] } ?? .max
+            return left == right ? lhs.offset < rhs.offset : left < right
+        }.map(\.element)
+    }
+
     private func persistLiveOrder() {
         defaults.set(StripOrdering.persistableLiveOrder(liveOrder), forKey: orderKey)
+        let liveIDs = Set(liveOrder)
+        defaults.set(stickyAppKeys.filter { liveIDs.contains($0.key) }, forKey: applicationsKey)
         defaults.set(bootTime, forKey: bootKey)
     }
 

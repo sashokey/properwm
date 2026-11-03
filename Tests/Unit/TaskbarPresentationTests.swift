@@ -67,6 +67,11 @@ final class TaskbarPresentationTests: XCTestCase {
         XCTAssertTrue(after[0].windows[2].isActive)
     }
 
+    func testExternalWindowNamedProperWMPreservesItsTitle() {
+        let result = groups([item("external-document", title: "ProperWM")], order: ["external-document"])
+        XCTAssertEqual(result[0].windows[0].title, "ProperWM")
+    }
+
     func testWindowTitlesStayCompleteEvenForOneWindowPerApplication() {
         let result = groups([item("a", title: "Project — Editor")], order: ["a"])
         XCTAssertEqual(result[0].windows[0].title, "Project — Editor")

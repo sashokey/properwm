@@ -198,6 +198,49 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertNil(content.buttonViews["window:window-0"]?.toolTip)
     }
 
+    func testOpenListsDismissWhenTheSameSeatChangesItsActionIdentity() async throws {
+        for width: CGFloat in [60, 200] {
+            for replaceProcess in [false, true] {
+                let clock = Clock()
+                let popup = Popup()
+                let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup,
+                                                 delay: { await clock.sleep($0) })
+                let initial = groups(generation: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0)))
+                var activated: [String] = []
+                var closed: [String] = []
+                content.actions.activate = { activated.append($0) }
+                content.actions.close = { closed.append($0) }
+                content.update(groups: initial)
+                let button = width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"]
+                XCTAssertTrue(try XCTUnwrap(button).accessibilityPerformPress())
+                let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+                let oldRow = try XCTUnwrap(list.cells.first)
+                oldRow.scheduleFileHover()
+                let record = WindowRecord(id: WindowID(rawValue: replaceProcess ? "window-0" : "replacement-tab"),
+                    appID: AppID(rawValue: "editor"), pid: 100, bundleIdentifier: "test.editor", title: "Replacement tab",
+                    bounds: CGRect(x: 0, y: 0, width: 1430, height: 760), status: .active,
+                    cgWindowID: replaceProcess ? 1 : 99, groupID: "window-0", displayUUID: "left",
+                    processGeneration: ProcessGeneration(timeval(tv_sec: replaceProcess ? 20 : 10, tv_usec: 0)))
+                let replacement = TaskbarWindowPresentation(item: StripItem(record: record), title: record.title, isActive: true)
+                let updated = [TaskbarGroupPresentation(id: "test.editor", name: "Editor",
+                    windows: [replacement] + Array(initial[0].windows.dropFirst()))]
+                content.update(groups: updated)
+                XCTAssertFalse(popup.isPresented)
+                await clock.advance()
+                oldRow.activate()
+                oldRow.close()
+                XCTAssertTrue(activated.isEmpty)
+                XCTAssertTrue(closed.isEmpty)
+                let reopenedButton = width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"]
+                XCTAssertTrue(try XCTUnwrap(reopenedButton).accessibilityPerformPress())
+                let reopened = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+                XCTAssertEqual(reopened.cells.first?.title, "Replacement tab")
+                reopened.cells.first?.activate()
+                XCTAssertEqual(activated, [replaceProcess ? "window-0" : "replacement-tab"])
+            }
+        }
+    }
+
     func testCombinedButtonOpensAnOrderedIconAndTitleListWithoutActivatingAWindow() {
         let popup = Popup()
         let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 200, height: 32), popup: popup)
@@ -215,6 +258,31 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertTrue(list?.cells[1].accessibilityPerformPress() == true)
         XCTAssertEqual(activated, ["window-1"])
         XCTAssertFalse(popup.isPresented)
+    }
+
+    func testTitleOnlyUpdateKeepsTheOpenListAndItsWindowActions() throws {
+        for width: CGFloat in [60, 200] {
+            let popup = Popup()
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup)
+            let initial = groups()
+            var activated: [String] = []
+            content.actions.activate = { activated.append($0) }
+            content.update(groups: initial)
+            let button = width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"]
+            XCTAssertTrue(try XCTUnwrap(button).accessibilityPerformPress())
+            let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
+            let record = WindowRecord(id: WindowID(rawValue: "window-0"), appID: AppID(rawValue: "editor"), pid: 100,
+                bundleIdentifier: "test.editor", title: "Renamed document", bounds: CGRect(x: 0, y: 0, width: 1430, height: 760),
+                status: .active, cgWindowID: 1, groupID: "window-0", displayUUID: "left")
+            let renamed = TaskbarWindowPresentation(item: StripItem(record: record), title: record.title, isActive: true)
+            content.update(groups: [TaskbarGroupPresentation(id: "test.editor", name: "Editor",
+                windows: [renamed] + Array(initial[0].windows.dropFirst()))])
+            XCTAssertTrue(popup.content === list)
+            XCTAssertEqual(popup.presentations, 1)
+            XCTAssertEqual(list.cells.first?.title, "Renamed document")
+            list.cells.first?.activate()
+            XCTAssertEqual(activated, ["window-0"])
+        }
     }
 
     func testFreedSpaceDismissesTheNowUnnecessaryGroupList() {
@@ -293,6 +361,32 @@ final class TaskbarRendererTests: XCTestCase {
         await clock.advance()
         XCTAssertEqual(activated, ["window-1"])
         XCTAssertEqual(popup.presentations, 0)
+    }
+
+    func testPendingFileHoverRejectsAReplacementWindowAndAllowsAFreshHover() async {
+        for replaceProcess in [false, true] {
+            let clock = Clock()
+            let popup = Popup()
+            let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: popup,
+                                             delay: { await clock.sleep($0) })
+            var activated: [String] = []
+            content.actions.activate = { activated.append($0) }
+            content.update(groups: groups(count: 1, generation: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))))
+            content.scheduleFileHover(buttonID: "window:window-0")
+            let record = WindowRecord(id: WindowID(rawValue: replaceProcess ? "window-0" : "replacement-tab"),
+                appID: AppID(rawValue: "editor"), pid: 100, bundleIdentifier: "test.editor", title: "Replacement tab",
+                bounds: CGRect(x: 0, y: 0, width: 1430, height: 760), status: .active,
+                cgWindowID: replaceProcess ? 1 : 99, groupID: "window-0", displayUUID: "left",
+                processGeneration: ProcessGeneration(timeval(tv_sec: replaceProcess ? 20 : 10, tv_usec: 0)))
+            let replacement = TaskbarWindowPresentation(item: StripItem(record: record), title: record.title, isActive: true)
+            content.update(groups: [TaskbarGroupPresentation(id: "test.editor", name: "Editor", windows: [replacement])])
+            await clock.advance()
+            XCTAssertTrue(activated.isEmpty)
+            content.scheduleFileHover(buttonID: "window:window-0")
+            await clock.advance()
+            XCTAssertEqual(activated, [replaceProcess ? "window-0" : "replacement-tab"])
+            XCTAssertEqual(popup.presentations, 0)
+        }
     }
 
     func testPopupClosesOnItsOwnFocusLossAndIgnoresOtherWindows() {

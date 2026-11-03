@@ -6,7 +6,7 @@ enum WindowDisplayTitle {
         let title = rawTitle.map(bounded).flatMap { title in
             title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
         } ?? bounded(fallbackName)
-        return title == "ProperWM" ? String(localized: "Taskbar") : title
+        return title
     }
 
     static func bounded(_ value: String) -> String { BoundedText.utf8(value) }
