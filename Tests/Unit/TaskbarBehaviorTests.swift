@@ -773,7 +773,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
     }
 
     private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil,
-                                geometryObserver: FrontmostWindowGeometryObserver? = nil) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+                                geometryObserver: FrontmostWindowGeometryObserver? = nil,
+                                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
         let screen = CGRect(x: 0, y: 0, width: width, height: height)
         let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
                                          screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
@@ -787,9 +788,162 @@ final class WindowLiftBehaviorTests: XCTestCase {
                                                        liveWindowKeys: live, cancellation: cancellation)
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
             windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
-            makeGeometryObserver: { geometryObserver ?? FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) })
+            makeGeometryObserver: { geometryObserver ?? FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) },
+            uptime: uptime)
         controller.isEnabled = true
         return (controller, host)
+    }
+
+    func testInactiveManagedWindowRegainsBottomClearanceWithoutReactivation() async {
+        for elapsed: TimeInterval in [0.25, 2] {
+            let desktop = BehaviorDesktop()
+            let clock = Mutex<TimeInterval>(10)
+            let otherFrame = CGRect(x: 200, y: 140, width: 900, height: 600)
+            desktop.state.withLock { $0.windows[2001]?.bounds = otherFrame }
+            let (controller, host) = makeController(desktop, uptime: { clock.withLock { $0 } })
+            defer { withExtendedLifetime(host) {} }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            let adjusted = CGRect(x: 0, y: 30, width: 1920, height: 1016)
+            controller.poll()
+            await wait {
+                desktop.state.withLock { $0.windows[1001]?.bounds == adjusted }
+                    && controller.writeTasks[key] == nil
+            }
+
+            clock.withLock { $0 += elapsed }
+            _ = desktop.setFrontmost(pid: -42000, windowID: 2001, mode: 0)
+            desktop.state.withLock { $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1050) }
+            controller.poll()
+            await controller.scanTask?.value
+            await controller.writeTasks[key]?.value
+
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, adjusted)
+            XCTAssertFalse(desktop.app(-41000)?.isActive ?? true)
+            XCTAssertEqual(desktop.state.withLock { $0.focused }, 2001)
+            XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.bounds }, otherFrame)
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1002]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            await controller.stopAndRestore()
+        }
+    }
+
+    func testFocusNotificationDuringBackgroundMaintenanceValidationDoesNotCancelClearance() async {
+        let nextApplication = NSRunningApplication.current
+        let desktop = BehaviorDesktop(browserPID: nextApplication.processIdentifier)
+        desktop.state.withLock { $0.windows[2001]?.bounds = CGRect(x: 200, y: 140, width: 900, height: 600) }
+        let observer = FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+        let (controller, host) = makeController(desktop, geometryObserver: observer)
+        let gate = BehaviorReadGate()
+        defer { gate.release.signal(); withExtendedLifetime(host) {} }
+        controller.isEnabled = false
+        controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "0"])
+        for task in observer.work.pendingForTesting { await task.value }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        let adjusted = CGRect(x: 0, y: 30, width: 1920, height: 1016)
+        await wait {
+            desktop.state.withLock { $0.windows[1001]?.bounds == adjusted }
+                && controller.writeTasks[key] == nil
+        }
+
+        _ = desktop.setFrontmost(pid: nextApplication.processIdentifier, windowID: 2001, mode: 0)
+        desktop.state.withLock {
+            $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1050)
+            $0.beforeRead = { gate.read($0) }
+        }
+        controller.poll()
+        await wait { gate.entered.withLock { $0 } }
+        guard gate.entered.withLock({ $0 }) else { await controller.stopAndRestore(); return }
+        let writer = controller.writeTasks[key]
+        XCTAssertNotNil(writer)
+        let previousGeneration = observer.work.generation
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+            object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: nextApplication])
+        await wait { observer.work.generation != previousGeneration }
+        gate.release.signal()
+        await writer?.value
+
+        XCTAssertFalse(gate.timedOut.withLock { $0 })
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, adjusted)
+        XCTAssertFalse(desktop.app(-41000)?.isActive ?? true)
+        await controller.stopAndRestore()
+    }
+
+    func testBackgroundMaintenancePreservesAWindowMovedDuringValidation() async {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.windows[2001]?.bounds = CGRect(x: 200, y: 140, width: 900, height: 600) }
+        let (controller, host) = makeController(desktop)
+        let gate = BehaviorReadGate()
+        defer { gate.release.signal(); withExtendedLifetime(host) {} }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        controller.poll()
+        await wait {
+            desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 1920, height: 1016) }
+                && controller.writeTasks[key] == nil
+        }
+        let writes = desktop.state.withLock { $0.writes.filter { $0 == "1001:AXSize" }.count }
+        _ = desktop.setFrontmost(pid: -42000, windowID: 2001, mode: 0)
+        desktop.state.withLock {
+            $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1050)
+            $0.beforeRead = { gate.read($0) }
+        }
+        controller.poll()
+        await wait { gate.entered.withLock { $0 } }
+        let writer = controller.writeTasks[key]
+        let manualFrame = CGRect(x: 320, y: 160, width: 620, height: 420)
+        desktop.state.withLock { $0.windows[1001]?.bounds = manualFrame }
+        gate.release.signal()
+        await writer?.value
+
+        XCTAssertFalse(gate.timedOut.withLock { $0 })
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
+        XCTAssertEqual(desktop.state.withLock { $0.writes.filter { $0 == "1001:AXSize" }.count }, writes)
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
+    }
+
+    func testBackgroundMaintenanceRejectsReusedProcessGeneration() async {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.windows[2001]?.bounds = CGRect(x: 200, y: 140, width: 900, height: 600) }
+        let (controller, host) = makeController(desktop)
+        defer { withExtendedLifetime(host) {} }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        controller.poll()
+        await wait {
+            desktop.state.withLock { $0.windows[1001]?.bounds == CGRect(x: 0, y: 30, width: 1920, height: 1016) }
+                && controller.writeTasks[key] == nil
+        }
+        let writes = desktop.state.withLock { $0.writes.filter { $0 == "1001:AXSize" }.count }
+        let nativeFrame = CGRect(x: 0, y: 30, width: 1920, height: 1050)
+        _ = desktop.setFrontmost(pid: -42000, windowID: 2001, mode: 0)
+        desktop.state.withLock {
+            $0.windows[1001]?.bounds = nativeFrame
+            $0.generationsByPID[-41000] = ProcessGeneration(timeval(tv_sec: 11, tv_usec: 1))
+        }
+        controller.poll()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, nativeFrame)
+        XCTAssertEqual(desktop.state.withLock { $0.writes.filter { $0 == "1001:AXSize" }.count }, writes)
+        XCTAssertNil(controller.managedFrames[key])
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, nativeFrame)
+    }
+
+    func testUnmanagedInactiveMaximizedWindowsRemainUntouched() async {
+        let desktop = BehaviorDesktop()
+        let otherFrame = CGRect(x: 200, y: 140, width: 900, height: 600)
+        desktop.state.withLock { $0.windows[2001]?.bounds = otherFrame }
+        _ = desktop.setFrontmost(pid: -42000, windowID: 2001, mode: 0)
+        let (controller, host) = makeController(desktop)
+        defer { withExtendedLifetime(host) {} }
+        controller.poll()
+        await controller.scanTask?.value
+
+        XCTAssertTrue(desktop.state.withLock { $0.writes.isEmpty })
+        XCTAssertTrue(controller.managedFrames.isEmpty)
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.bounds }, otherFrame)
+        await controller.stopAndRestore()
     }
 
     func testNativeValidationDoesNotBlockIndependentAsyncProgress() async {

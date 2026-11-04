@@ -294,7 +294,11 @@ final class WindowLiftAvoidanceController {
     var managedFrames: [WindowLiftAvoidance.WindowKey: ManagedFrames] = [:]
     private var suppressedFrames: [WindowLiftAvoidance.WindowKey: WindowLiftAvoidance.Suppression] = [:]
     private var observationWatermarks: [WindowLiftAvoidance.WindowKey: UInt64] = [:]
-    private var validationGenerations: [WindowLiftAvoidance.WindowKey: UInt64] = [:]
+    private struct PendingValidation {
+        let generation: UInt64
+        let requiresActiveApplication: Bool
+    }
+    private var pendingValidations: [WindowLiftAvoidance.WindowKey: PendingValidation] = [:]
     private var lastTraceClassifications: [
         WindowLiftAvoidance.WindowKey: WindowLiftAvoidance.FrameClassification
     ] = [:]
@@ -852,18 +856,21 @@ final class WindowLiftAvoidanceController {
         traceClassification(classification, for: key)
 
         if case let .writing(attempt) = state,
-           validationGenerations[key] == attempt.generation,
+           pendingValidations[key]?.generation == attempt.generation,
            classification == .external {
             // The bounded CG/AX confirmation owns zoom-tail movement until it either stabilizes or
             // returns candidateMoved. No AX write has happened yet, so never suppress this frame.
             return true
         }
 
+        let maintainsManagedFrame: Bool
         if case .lifted = state, classification == .native {
-            guard system.app(key.pid)?.isActive == true,
-                  hostContexts().contains(context) else {
+            guard hostContexts().contains(context) else {
                 return true
             }
+            maintainsManagedFrame = true
+        } else {
+            maintainsManagedFrame = false
         }
 
         let transition = WindowLiftAvoidance.reduce(
@@ -885,7 +892,8 @@ final class WindowLiftAvoidanceController {
             transition,
             for: candidate,
             context: context,
-            operationGeneration: observationGeneration
+            operationGeneration: observationGeneration,
+            requiresActiveApplication: !maintainsManagedFrame
         )
         return true
     }
@@ -1078,7 +1086,8 @@ final class WindowLiftAvoidanceController {
         _ transition: WindowLiftAvoidance.Transition,
         for candidate: WindowLiftCGCandidate,
         context: WindowLiftAvoidanceContext,
-        operationGeneration: UInt64
+        operationGeneration: UInt64,
+        requiresActiveApplication: Bool = true
     ) {
         sessionContexts[candidate.key] = context
         if transition.action == .clear {
@@ -1113,7 +1122,8 @@ final class WindowLiftAvoidanceController {
                 targetFrame: targetFrame,
                 context: context,
                 generation: generation,
-                isRelift: isRelift
+                isRelift: isRelift,
+                requiresActiveApplication: requiresActiveApplication
             )
         }
     }
@@ -1124,7 +1134,8 @@ final class WindowLiftAvoidanceController {
         targetFrame: CGRect,
         context: WindowLiftAvoidanceContext,
         generation: UInt64,
-        isRelift: Bool
+        isRelift: Bool,
+        requiresActiveApplication: Bool
     ) {
         let key = candidate.key
         guard case let .writing(attempt) = states[key],
@@ -1145,7 +1156,7 @@ final class WindowLiftAvoidanceController {
         managedFrames[key] = frames
         let nativeQuartz = frames.nativeQuartz
         let targetQuartz = frames.targetQuartz
-        validationGenerations[key] = generation
+        pendingValidations[key] = PendingValidation(generation: generation, requiresActiveApplication: requiresActiveApplication)
 
         let animate = usesAnimatedLift
         let reader = self.reader
@@ -1979,10 +1990,12 @@ final class WindowLiftAvoidanceController {
         generation: UInt64,
         context: WindowLiftAvoidanceContext
     ) -> Bool {
-        guard let expected = managedFrames[key]?.processGeneration,
+        guard let validation = pendingValidations[key], validation.generation == generation,
+              let expected = managedFrames[key]?.processGeneration,
               system.generation(key.pid) == expected,
               hostContexts().contains(context),
-              system.app(key.pid)?.isActive == true,
+              let app = system.app(key.pid), !app.isTerminated,
+              !validation.requiresActiveApplication || app.isActive,
               case let .writing(attempt) = states[key],
               attempt.generation == generation else {
             return false
@@ -1995,9 +2008,9 @@ final class WindowLiftAvoidanceController {
         generation: UInt64,
         context: WindowLiftAvoidanceContext
     ) -> Bool {
-        guard validationGenerations[key] == generation else { return false }
-        validationGenerations.removeValue(forKey: key)
-        return canContinueOperation(for: key, generation: generation, context: context)
+        guard canContinueOperation(for: key, generation: generation, context: context) else { return false }
+        pendingValidations.removeValue(forKey: key)
+        return true
     }
 
     private func finishOperation(
@@ -2014,8 +2027,8 @@ final class WindowLiftAvoidanceController {
         guard case let .writing(attempt) = states[key], attempt.generation == generation else {
             return
         }
-        if validationGenerations[key] == generation {
-            validationGenerations.removeValue(forKey: key)
+        if pendingValidations[key]?.generation == generation {
+            pendingValidations.removeValue(forKey: key)
         }
         writeTasks.removeValue(forKey: key)
         let finishedAt = uptime()
@@ -2160,7 +2173,7 @@ final class WindowLiftAvoidanceController {
     }
 
     private func cancelUnstartedWrites(except activePID: pid_t?) {
-        for (key, task) in writeTasks where key.pid != activePID && validationGenerations[key] != nil {
+        for (key, task) in writeTasks where key.pid != activePID && pendingValidations[key]?.requiresActiveApplication == true {
             task.cancel()
         }
     }
@@ -2206,7 +2219,7 @@ final class WindowLiftAvoidanceController {
             managedFrames.removeValue(forKey: key)
             suppressedFrames.removeValue(forKey: key)
             observationWatermarks.removeValue(forKey: key)
-            validationGenerations.removeValue(forKey: key)
+            pendingValidations.removeValue(forKey: key)
             lastTraceClassifications.removeValue(forKey: key)
         }
         stopTrackedProbe()
@@ -2319,7 +2332,7 @@ final class WindowLiftAvoidanceController {
             observationWatermarks[key] ?? 0,
             nextGeneration
         )
-        validationGenerations.removeValue(forKey: key)
+        pendingValidations.removeValue(forKey: key)
         let previous = states.removeValue(forKey: key)
         let frames = managedFrames.removeValue(forKey: key)
         switch (suppression, frames) {
