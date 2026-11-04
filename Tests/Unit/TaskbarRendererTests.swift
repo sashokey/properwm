@@ -138,7 +138,7 @@ final class TaskbarRendererTests: XCTestCase {
         let item = StripItem(record: record)
         let presentation = TaskbarPresentation.groups(items: [item], order: [item.id],
             filter: StripDisplayFilter(scope: "left", connectedUUIDs: ["left"], primaryUUID: "left"),
-            titles: [:], optimisticStates: [:], appName: { _ in "Chrome" })
+            optimisticStates: [:], appName: { _ in "Chrome" })
         let view = makeView()
         view.taskbarContent.update(groups: presentation)
         let button = try XCTUnwrap(view.taskbarContent.buttonViews["window:multiline"])

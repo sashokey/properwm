@@ -61,7 +61,6 @@ final class TaskbarPresenter {
         }
         runtime.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         runtime.$optimisticStatesByWindowID.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
-        runtime.$heldLabelTitlesByChipID.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         ordering.$liveOrder.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         topology.$table.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         spaces.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
@@ -92,7 +91,6 @@ final class TaskbarPresenter {
         let filter = StripDisplayFilter(scope: displayUUID, connectedUUIDs: topology.table.connectedUUIDs,
                                         primaryUUID: topology.table.primaryUUID)
         let groups = TaskbarPresentation.groups(items: items, order: order, filter: filter,
-                                                titles: runtime.heldLabelTitlesByChipID,
                                                 optimisticStates: runtime.optimisticStatesByWindowID,
                                                 spaces: spaces.snapshot) { item in
             if let bundleID = item.bundleIdentifier { return AppDisplayNameResolver.displayName(for: bundleID) }

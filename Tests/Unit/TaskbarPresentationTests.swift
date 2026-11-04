@@ -14,7 +14,7 @@ final class TaskbarPresentationTests: XCTestCase {
                         optimistic: [String: OptimisticWindowState] = [:]) -> [TaskbarGroupPresentation] {
         TaskbarPresentation.groups(items: items, order: order,
                                     filter: StripDisplayFilter(scope: scope, connectedUUIDs: ["left", "right"], primaryUUID: "left"),
-                                    titles: [:], optimisticStates: optimistic, appName: { $0.appID })
+                                    optimisticStates: optimistic, appName: { $0.appID })
     }
 
     func testCollidingBundleIdentifiersFromDifferentBundlesStaySeparate() {
@@ -102,7 +102,7 @@ final class TaskbarPresentationTests: XCTestCase {
             memberships: Dictionary(uniqueKeysWithValues: items.map { ($0.spaceIdentity!, Set([$0.id == "fullscreen" ? 2 : 1])) }))
         let result = TaskbarPresentation.groups(items: items, order: items.map(\.id),
             filter: StripDisplayFilter(scope: "left", connectedUUIDs: ["left"], primaryUUID: "left"),
-            titles: [:], optimisticStates: [:], spaces: spaces, appName: { $0.appID })
+            optimisticStates: [:], spaces: spaces, appName: { $0.appID })
         XCTAssertEqual(result[0].windows.map(\.id), ["a", "b"])
         let button = TaskbarButtonLayout(id: "group:editor", groupID: result[0].id, windowIDs: result[0].windows.map(\.id), isCombined: true, frame: .zero)
         XCTAssertEqual(TaskbarContextMenuModel.actions(button: button, group: result[0]), [.closeWindows(["a", "b"]), .quitApplication])

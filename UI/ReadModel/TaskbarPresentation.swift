@@ -19,7 +19,7 @@ struct TaskbarGroupPresentation: Equatable {
 
 enum TaskbarPresentation {
     static func groups(items: [StripItem], order: [String], filter: StripDisplayFilter,
-                       titles: [String: String], optimisticStates: [String: OptimisticWindowState],
+                       optimisticStates: [String: OptimisticWindowState],
                        spaces: WindowSpaceSnapshot = WindowSpaceSnapshot(),
                        appName: (StripItem) -> String) -> [TaskbarGroupPresentation] {
         let lookup = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -36,7 +36,7 @@ enum TaskbarPresentation {
             let status = optimisticStates[item.actionWindowID]?.status.rawValue ?? item.status
             members[key, default: []].append(TaskbarWindowPresentation(
                 item: item,
-                title: WindowDisplayTitle.resolve(rawTitle: titles[item.id] ?? item.title, fallbackName: name),
+                title: WindowDisplayTitle.resolve(rawTitle: item.title, fallbackName: name),
                 isActive: status == WindowStatus.active.rawValue
             ))
         }

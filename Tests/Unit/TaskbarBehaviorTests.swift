@@ -318,6 +318,53 @@ final class TaskbarBehaviorTests: XCTestCase {
     }
 
     private func ready(_ fixture: Fixture) async { await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).count == 3 } }
+
+    private func drainTaskbarUpdates() async {
+        for _ in 0..<3 {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async { continuation.resume() }
+            }
+        }
+    }
+
+    func testRepeatedBrowserTabChangesUpdateTheNativeCaptionWithoutWaitingForQuiet() async throws {
+        let fixture = Fixture()
+        defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-browser-c"])
+        let order = fixture.view.taskbarContent.groups.flatMap(\.windows).map(\.id)
+
+        for title in ["Home — Chrome", "New Tab — Chrome", "Home — Chrome", "New Tab — Chrome", "Home — Chrome", "Documentation — Chrome"] {
+            fixture.desktop.state.withLock { $0.windows[2001]?.title = title }
+            fixture.desktop.publish()
+            await drainTaskbarUpdates()
+
+            XCTAssertEqual(fixture.runtime.snapshot.windows[WindowID(rawValue: "browser-c")]?.title, title)
+            XCTAssertEqual(button.titleLabel.stringValue, title)
+            XCTAssertEqual(button.accessibilityLabel(), title)
+            XCTAssertTrue(fixture.view.taskbarContent.buttonViews["window:tabgrp-browser-c"] === button)
+            XCTAssertEqual(fixture.view.taskbarContent.groups.flatMap(\.windows).map(\.id), order)
+        }
+    }
+
+    func testChatTitleReplacesTransientApplicationNameOnEveryNavigation() async throws {
+        let fixture = Fixture()
+        defer { fixture.stop() }
+        await ready(fixture)
+        let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-editor-a"])
+
+        for title in ["ChatGPT", "First conversation", "ChatGPT", "Second conversation", "ChatGPT", "Third conversation"] {
+            fixture.desktop.state.withLock { $0.windows[1001]?.title = title }
+            fixture.desktop.publish()
+            await drainTaskbarUpdates()
+
+            XCTAssertEqual(fixture.runtime.snapshot.windows[WindowID(rawValue: "editor-a")]?.title, title)
+            XCTAssertEqual(button.titleLabel.stringValue, title)
+            XCTAssertEqual(button.accessibilityLabel(), title)
+            XCTAssertEqual(fixture.view.taskbarContent.groups.flatMap(\.windows).first(where: { $0.item.actionWindowID == "editor-a" })?.title, title)
+        }
+    }
+
     private func press(_ id: String, _ fixture: Fixture) throws {
         XCTAssertTrue(try XCTUnwrap(fixture.view.taskbarContent.buttonViews["window:tabgrp-\(id)"]).accessibilityPerformPress())
     }

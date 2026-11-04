@@ -22,10 +22,6 @@ final class AppRuntime: ObservableObject {
     @Published private(set) var hasRequiredPermissions: Bool = false
     let debugState: DebugRuntimeState
     @Published private(set) var optimisticStatesByWindowID: [String: OptimisticWindowState] = [:]
-    @Published private(set) var heldLabelTitlesByChipID: [String: String] = [:]
-    private var titleSettle = WindowTitleSettle()
-    private var titleSettleTimer: Timer?
-    private let titleSettleEnabled = DebugSwitch.titleSettle.isEnabled(in: ProcessInfo.processInfo.environment)
     private let tracker: any WindowInventoryTracking
     private let work = WindowActionQueue()
     private var actionTokens: [String: UUID] = [:]
@@ -83,11 +79,7 @@ final class AppRuntime: ObservableObject {
         snapshotSubscription = nil
         feedbackTimer?.invalidate()
         feedbackTimer = nil
-        titleSettleTimer?.invalidate()
-        titleSettleTimer = nil
         optimisticStatesByWindowID.removeAll()
-        heldLabelTitlesByChipID.removeAll()
-        titleSettle = WindowTitleSettle()
         intentPipeline.reset()
         publishFeedbackEntries()
         snapshot = .empty
@@ -203,7 +195,6 @@ final class AppRuntime: ObservableObject {
     private func handleSnapshotUpdate(_ newSnapshot: DockSnapshot) {
         work.retain(windowIDs: Set(newSnapshot.windows.keys.map(\.rawValue)))
         if snapshot != newSnapshot { snapshot = newSnapshot }
-        reconcileTitleSettle(with: newSnapshot)
         let trusted = isAccessibilityTrusted()
         if hasRequiredPermissions != trusted { hasRequiredPermissions = trusted }
         intentPipeline.reconcile(with: newSnapshot)
@@ -211,28 +202,6 @@ final class AppRuntime: ObservableObject {
         reconcileOptimisticStates()
         updateFeedbackTimer()
 
-    }
-
-    private func reconcileTitleSettle(with newSnapshot: DockSnapshot) {
-        guard titleSettleEnabled else { return }
-        var rawTitles: [String: String] = [:]
-        for item in StripItem.openWindows(from: newSnapshot) {
-            rawTitles[item.id] = item.title
-        }
-        let now = ProcessInfo.processInfo.systemUptime
-        let held = titleSettle.observe(rawTitles: rawTitles, now: now)
-        if held != heldLabelTitlesByChipID { heldLabelTitlesByChipID = held }
-
-        titleSettleTimer?.invalidate()
-        titleSettleTimer = nil
-        guard let releaseAt = titleSettle.nextReleaseAt else { return }
-        let delay = max(0.05, releaseAt - now + 0.05)
-        titleSettleTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, self.isRunning else { return }
-                self.reconcileTitleSettle(with: self.snapshot)
-            }
-        }
     }
 
     private func tickFeedback() {

@@ -21,7 +21,6 @@ enum DebugSwitch: String, CaseIterable, Sendable {
     case windowLift = "DOCK_WINDOW_LIFT"
     case windowLiftAnim = "DOCK_WINDOW_LIFT_ANIM"
     case windowLiftTiles = "DOCK_WINDOW_LIFT_TILES"
-    case titleSettle = "DOCK_TITLE_SETTLE"
     case chipProbe = "DOCK_CHIP_PROBE"
     case clickTrace = "DOCK_CLICK_TRACE"
     case hoverTrace = "DOCK_HOVER_TRACE"
@@ -35,7 +34,7 @@ enum DebugSwitch: String, CaseIterable, Sendable {
 
     var kind: Kind {
         switch self {
-        case .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles, .titleSettle:
+        case .reconcileSkip, .scanGate, .frontmostCache, .cgSnapshotReuse, .axElementCache, .absentSeatRelease, .skylightFocus, .fastWindowHandle, .handoffActiveGrace, .handoffActivePrediction, .staleActiveGuard, .fullscreenSlsVerdict, .overlayWindowWatch, .spaceMembershipRepair, .overlaySpace, .windowLift, .windowLiftAnim, .windowLiftTiles:
             return .killSwitch
         case .chipProbe, .clickTrace, .hoverTrace, .labelProbe, .windowLiftTrace, .simulateNoDestroy:
             return .trace
