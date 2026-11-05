@@ -1043,6 +1043,7 @@ final class WindowLiftBehaviorTests: XCTestCase {
         for manual in [false, true] {
             let desktop = BehaviorDesktop()
             let mutated = Mutex(false)
+            let gate = BehaviorLiftWriteGate()
             let manualFrame = CGRect(x: 300, y: 200, width: 600, height: 400)
             desktop.state.withLock { $0.afterAttributeWrite = { id, attribute in
                 guard id == 1001, attribute == kAXSizeAttribute as String else { return }
@@ -1053,20 +1054,23 @@ final class WindowLiftBehaviorTests: XCTestCase {
                 }
                 guard first else { return }
                 if manual { desktop.state.withLock { $0.windows[1001]?.bounds = manualFrame } }
+                gate.didWrite(id, attribute: attribute)
                 Thread.sleep(forTimeInterval: 1.05)
             } }
             let (controller, host) = makeController(desktop)
-            defer { withExtendedLifetime(host) {} }
+            defer { gate.release.signal(); withExtendedLifetime(host) {} }
             controller.isEnabled = false
             controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
-            await wait { mutated.withLock { $0 } }
+            await wait { gate.entered.withLock { $0 } }
             let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
             let writer = controller.writeTasks[key]
             XCTAssertNotNil(writer)
             controller.isEnabled = false
             controller.updatePollTimerLifecycle()
             controller.updateTrackedProbeLifecycle()
+            gate.release.signal()
             await writer?.value
+            XCTAssertFalse(gate.timedOut.withLock { $0 })
             let expected = manual ? manualFrame : CGRect(x: 0, y: 30, width: 1920, height: 1050)
             XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, expected,
                 "A deadline reached after mutation must drain guarded cleanup without stranding a partial animation or replacing a manual frame")
