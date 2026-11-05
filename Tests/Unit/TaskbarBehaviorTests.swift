@@ -1061,13 +1061,13 @@ final class WindowLiftBehaviorTests: XCTestCase {
             defer { gate.release.signal(); withExtendedLifetime(host) {} }
             controller.isEnabled = false
             controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
             await wait { gate.entered.withLock { $0 } }
             let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
             let writer = controller.writeTasks[key]
             XCTAssertNotNil(writer)
-            controller.isEnabled = false
-            controller.updatePollTimerLifecycle()
-            controller.updateTrackedProbeLifecycle()
             gate.release.signal()
             await writer?.value
             XCTAssertFalse(gate.timedOut.withLock { $0 })
