@@ -77,9 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissionLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "permissions")
     private lazy var statusMenuController = StatusMenuController(
         settingsCoordinator: settingsCoordinator,
-        onMenuVisibilityChanged: { [weak self] isOpen in
-            self?.panelCoordinator?.setTaskbarMenuOpen(isOpen)
-        }, statusItem: environment.makeStatusItem(), quit: environment.terminate
+        statusItem: environment.makeStatusItem(), quit: environment.terminate
     )
 
     override convenience init() { self.init(environment: ApplicationEnvironment()) }

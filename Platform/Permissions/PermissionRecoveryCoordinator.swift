@@ -53,7 +53,6 @@ final class PermissionRecoveryCoordinator: ObservableObject {
     @Published private(set) var presentation: PermissionPresentation?
 
     private weak var handler: PermissionEffectHandler?
-    private let permissionService: PermissionService
     private let installLocation: AppInstallLocation
     private let now: () -> TimeInterval
     private let makeModel: (PermissionEpisodePurpose, UInt64) -> AccessibilityPermissionModel
@@ -78,7 +77,6 @@ final class PermissionRecoveryCoordinator: ObservableObject {
         makeModel: ((PermissionEpisodePurpose, UInt64) -> AccessibilityPermissionModel)? = nil
     ) {
         self.handler = handler
-        self.permissionService = permissionService
         self.installLocation = installLocation
         self.now = now
         self.makeModel = makeModel ?? { _, _ in

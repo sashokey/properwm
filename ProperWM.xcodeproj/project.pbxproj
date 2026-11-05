@@ -28,11 +28,8 @@
 		E90000000000000000002003 /* FullscreenWindowClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E90000000000000000000003 /* FullscreenWindowClassifier.swift */; };
 		F1D0000000000000000000E1 /* OverlaySpaceHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D0000000000000000000E0 /* OverlaySpaceHost.swift */; };
 		D20000000000000000000003 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
-		D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000006 /* AccessoryWindowPresentation.swift */; };
 		D20000000000000000000013 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* SettingsCoordinator.swift */; };
-		D20000000000000000000016 /* AccessoryWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000006 /* AccessoryWindowPresentation.swift */; };
 		D20000000000000000000017 /* SettingsCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000007 /* SettingsCoordinatorTests.swift */; };
-		D20000000000000000000019 /* AccessoryWindowPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */; };
 		A00000000000000000001040 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000066 /* AppDelegate.swift */; };
 		A00000000000000000001046 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000006C /* PanelCoordinator.swift */; };
 		B10000000000000000000122 /* TaskbarScreenOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000121 /* TaskbarScreenOrchestrator.swift */; };
@@ -311,9 +308,7 @@
 		E90000000000000000000003 /* FullscreenWindowClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenWindowClassifier.swift; sourceTree = "<group>"; };
 		F1D0000000000000000000E0 /* OverlaySpaceHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlaySpaceHost.swift; sourceTree = "<group>"; };
 		D10000000000000000000003 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
-		D10000000000000000000006 /* AccessoryWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessoryWindowPresentation.swift; sourceTree = "<group>"; };
 		D10000000000000000000007 /* SettingsCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinatorTests.swift; sourceTree = "<group>"; };
-		D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessoryWindowPresentationTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000068 /* AppWindowObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWindowObserver.swift; sourceTree = "<group>"; };
 		A00000000000000000000069 /* AppTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTracker.swift; sourceTree = "<group>"; };
 		A00000000000000000009600 /* TabFoldDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabFoldDecision.swift; sourceTree = "<group>"; };
@@ -631,7 +626,6 @@
 				B69E6E7F499B8E166A4F9EBE /* BoundedText.swift */,
 				A00000000000000000009AB0 /* HoverTrace.swift */,
 				A00000000000000000009A00 /* WindowLiftAvoidance.swift */,
-				D10000000000000000000006 /* AccessoryWindowPresentation.swift */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -867,7 +861,6 @@
 				A0000000000000000000B060 /* PermissionOnboardingTests.swift */,
 				A00000000000000000008040 /* AppSettingsStoreTests.swift */,
 				D10000000000000000000007 /* SettingsCoordinatorTests.swift */,
-				D10000000000000000000009 /* AccessoryWindowPresentationTests.swift */,
 				A000000000000000000090B0 /* FullscreenClassificationTests.swift */,
 				A10CF0000000000000000010 /* AppIconStampTests.swift */,
 				A0000000000000000000FF40 /* WindowDisplayTitleTests.swift */,
@@ -1079,7 +1072,6 @@
 					A00000000000000000001001 /* ProperWMApp.swift in Sources */,
 					A00000000000000000001040 /* AppDelegate.swift in Sources */,
 					D20000000000000000000003 /* SettingsCoordinator.swift in Sources */,
-					D20000000000000000000006 /* AccessoryWindowPresentation.swift in Sources */,
 					A00000000000000000001046 /* PanelCoordinator.swift in Sources */,
 					B10000000000000000000122 /* TaskbarScreenOrchestrator.swift in Sources */,
 					A000000000000000000010F1 /* PermissionOnboardingView.swift in Sources */,
@@ -1116,7 +1108,6 @@
 					A00000000000000000001006 /* Identifiers.swift in Sources */,
 					A00000000000000000001007 /* WindowModels.swift in Sources */,
 					A00000000000000000001008 /* SystemBoundaryModels.swift in Sources */,
-					A00000000000000000001009 /* Decisions.swift in Sources */,
 					A00000000000000000001034 /* WindowFrameMatchPolicy.swift in Sources */,
 					A0000000000000000000100E /* LifecycleActionPlanner.swift in Sources */,
 					A0000000000000000000101A /* AXWindowReader.swift in Sources */,
@@ -1254,10 +1245,8 @@
 				A0000000000000000000B062 /* PermissionOnboardingTests.swift in Sources */,
 				A00000000000000000008031 /* AppSettingsStore.swift in Sources */,
 				D20000000000000000000013 /* SettingsCoordinator.swift in Sources */,
-				D20000000000000000000016 /* AccessoryWindowPresentation.swift in Sources */,
 				D20000000000000000000067 /* HoverTrace.swift in Sources */,
 				D20000000000000000000017 /* SettingsCoordinatorTests.swift in Sources */,
-				D20000000000000000000019 /* AccessoryWindowPresentationTests.swift in Sources */,
 				A00000000000000000008041 /* AppSettingsStoreTests.swift in Sources */,
 				A00000000000000000009071 /* StatusMenuController.swift in Sources */,
 				A00000000000000000009061 /* LaunchAtLoginService.swift in Sources */,

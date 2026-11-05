@@ -61,29 +61,6 @@ final class DiagnosticEligibilityTests: XCTestCase {
     }
 }
 
-@MainActor
-final class DiagnosticSessionTests: XCTestCase {
-    func testThreeVisibilitySourcesCancellationTimeoutDedupAndRingLimit() {
-        var history = DiagnosticVisibilityHistory()
-        for source in ["ax", "green-button-prediction", "space-intent-right"] {
-            XCTAssertNotNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: true,
-                visible: false, reasons: [.fullscreen], source: source))
-            XCTAssertNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: false,
-                visible: false, reasons: [.fullscreen], source: "confirmation"))
-            XCTAssertNotNil(history.noteVisibilityChange(unit: source, screen: "display", previousVisible: false,
-                visible: true, reasons: [], source: "intent-cancel-timeout"))
-        }
-        XCTAssertEqual(history.changes.count, 6)
-        XCTAssertEqual(history.changes.first?.reasons, ["fullscreen"])
-        for i in 0..<60 {
-            history.noteVisibilityChange(unit: "loop", screen: "display", previousVisible: i % 2 != 0,
-                visible: i % 2 == 0, reasons: [], source: "timeout-recovery")
-        }
-        XCTAssertEqual(history.changes.count, 40)
-        XCTAssertTrue(history.changes.allSatisfy { $0.source == "timeout-recovery" })
-    }
-}
-
 private struct DiagnosticFixtureReader: AppTrackerWindowReading {
     let unread: Bool
     func windows(forPID pid: pid_t) -> [AXWindowSnapshot] { [] }

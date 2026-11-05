@@ -169,14 +169,18 @@ private final class LiftProbeFixture: WindowLiftWindowProbing, Sendable {
     struct State {
         var now: TimeInterval = 200
         var captures = 0
+        var candidateKeys = Set<WindowLiftAvoidance.WindowKey>()
+        var livenessKeys = Set<WindowLiftAvoidance.WindowKey>()
         var frameRequests: [Set<WindowLiftAvoidance.WindowKey>] = []
         var frames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
     }
     let state = Mutex(State())
     func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t, includeLiveWindowKeys: Bool,
-                 includesTiles: Bool, trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+                 includesTiles: Bool, trackedKeys: Set<WindowLiftAvoidance.WindowKey>, livenessKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
         state.withLock {
             $0.captures += 1
+            $0.candidateKeys = trackedKeys
+            $0.livenessKeys = livenessKeys
             return .init(candidatesByScreenIndex: [:], onScreenFrames: $0.frames, liveWindowKeys: nil)
         }
     }
@@ -197,6 +201,33 @@ private final class LiftContextHost: WindowLiftAvoidanceHost {
 
 @MainActor
 final class WindowLiftContextLifecycleTests: XCTestCase {
+    func testPollChecksSuppressedAndActiveLivenessWithoutTreatingSuppressionsAsCandidates() async {
+        let host = LiftContextHost()
+        let screen = context(x: 0)
+        host.contexts = [screen]
+        let active = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let suppressed = WindowLiftAvoidance.WindowKey(pid: -502, cgWindowID: 2)
+        let probe = LiftProbeFixture()
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil }, windowProbe: probe)
+        controller.reconcileContextsForTesting([screen])
+        for key in [active, suppressed] {
+            controller.installSessionForTesting(key: key, context: screen, frames: frames(screen), state: state(frames(screen)))
+        }
+        controller.clearManagedSession(for: suppressed, cancelWriter: false, reason: "test", suppression: .untilNative(userEra: false))
+        controller.isEnabled = true
+
+        controller.poll()
+        await controller.scanTask?.value
+
+        XCTAssertEqual(probe.state.withLock { $0.captures }, 1)
+        XCTAssertEqual(probe.state.withLock { $0.candidateKeys }, [active])
+        XCTAssertEqual(probe.state.withLock { $0.livenessKeys }, [active, suppressed])
+        XCTAssertNotNil(controller.states[active])
+        XCTAssertNil(controller.states[suppressed])
+        await controller.stopAndRestore()
+    }
+
     func testCancelledWriterIsReleasedAfterItFinishes() async {
         let host = LiftContextHost()
         let a = context(x: 0)

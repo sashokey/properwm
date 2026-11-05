@@ -665,8 +665,10 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
     private var didReportFailure = false
 
     var isEnabled: Bool { configuration.enabled }
+    #if DEBUG
     var currentFileURL: URL { configuration.directoryURL.appendingPathComponent("window-inventory.jsonl") }
     var lockFileURL: URL { configuration.directoryURL.appendingPathComponent("window-inventory.lock") }
+    #endif
 
     init(
         configuration: WindowInventoryLogConfiguration = .live(),
@@ -714,9 +716,11 @@ final class WindowInventoryAnomalyLog: @unchecked Sendable {
         queue?.flush()
     }
 
+    #if DEBUG
     func archiveURL(_ index: Int) -> URL {
         configuration.directoryURL.appendingPathComponent("window-inventory.\(index).jsonl")
     }
+    #endif
 
     private func append(_ data: Data) throws {
         try PrivateJSONLinesFile(directory: configuration.directoryURL, name: "window-inventory.jsonl",

@@ -20,7 +20,7 @@ final class PanelCoordinator: NSObject {
     var fullscreenReconcileTimer: Timer?
     var fullscreenProbeWorker: FullscreenProbeWorker?
     var fullscreenFrameProvider: (() -> CGRect?)?
-    var fullscreenSpaceProvider: (() -> Bool?)?
+    var fullscreenSpaceProvider: (@Sendable (String) -> Bool?)?
     var workspaceObserverTokens: [NSObjectProtocol] = []
     var fullscreenProbeGeneration: UInt64 = 0
     var fullscreenSpaceHoldGeneration: UInt64 = 0
@@ -36,10 +36,7 @@ final class PanelCoordinator: NSObject {
     var spaceMembershipRepairInFlight = false
     var lastActiveApplicationPID: pid_t?
     var visibilityState = PanelVisibilityState()
-    var isTaskbarMenuOpen = false
     var panelsAreVisible = true
-    var diagnosticFullscreenSource = "not recorded"
-    var diagnosticFullscreenVerdict: Bool?
     var onAccessoryWillOpen: ((PanelCoordinator, AccessoryKind) -> Void)?
 
     enum AccessoryKind { case popup }
@@ -47,7 +44,6 @@ final class PanelCoordinator: NSObject {
 
     let unitPlacement: TaskbarUnitPlacement
     let overlaySpaceHost: OverlaySpaceHost?
-    let stripSurfaceID = "strip-" + UUID().uuidString
     let displayTopologyStore: DisplayTopologyStore
     let screenProvider: @MainActor () -> [NSScreen]
     let mainScreenProvider: @MainActor () -> NSScreen?
@@ -96,7 +92,6 @@ final class PanelCoordinator: NSObject {
     }
 
     func tearDown() {
-        DiagnosticVisibilityRecorder.shared.history.remove(unit: stripSurfaceID)
         guard !isSuspendedForPermissionLoss else { return }
         isSuspendedForPermissionLoss = true
         fullscreenProbeGeneration &+= 1
@@ -123,7 +118,6 @@ final class PanelCoordinator: NSObject {
     }
 
     var currentScreen: NSScreen? { dockPanel.flatMap { panelCurrentScreen(panel: $0) } }
-    var isLogicallyVisible: Bool { panelsAreVisible }
     func windowLiftAvoidanceContext() -> WindowLiftAvoidanceContext? {
         guard visibilityState.isVisible,
               panelsAreVisible,

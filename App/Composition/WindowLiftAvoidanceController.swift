@@ -45,9 +45,11 @@ enum WindowLiftCGWindowProbe {
         includeLiveWindowKeys: Bool,
         includesTiles: Bool,
         trackedKeys: Set<WindowLiftAvoidance.WindowKey>,
+        livenessKeys: Set<WindowLiftAvoidance.WindowKey>? = nil,
         system: any WindowSystemAccess = NativeWindowSystem()
     ) -> WindowLiftCGScanResult {
-        let onScreenList = system.windowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) ?? []
+        let onScreenCapture = system.windowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        let onScreenList = onScreenCapture ?? []
 
         var onScreenFrames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
         for info in onScreenList {
@@ -57,8 +59,13 @@ enum WindowLiftCGWindowProbe {
         }
 
         let liveWindowKeys: Set<WindowLiftAvoidance.WindowKey>?
-        if includeLiveWindowKeys,
-           let fullList = system.windowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) {
+        let requiredLiveKeys = livenessKeys ?? trackedKeys
+        let onScreenKeys = Set(onScreenList.compactMap(windowKey(in:)))
+        if !includeLiveWindowKeys {
+            liveWindowKeys = nil
+        } else if onScreenCapture != nil, requiredLiveKeys.isSubset(of: onScreenKeys) {
+            liveWindowKeys = onScreenKeys
+        } else if let fullList = system.windowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) {
             liveWindowKeys = Set(fullList.compactMap(windowKey(in:)))
         } else {
             liveWindowKeys = nil
@@ -193,7 +200,8 @@ enum WindowLiftCGWindowProbe {
 protocol WindowLiftWindowProbing: Sendable {
     func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
                  includeLiveWindowKeys: Bool, includesTiles: Bool,
-                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>,
+                 livenessKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult
     func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect]
 }
 
@@ -201,9 +209,10 @@ struct LiveWindowLiftProbe: WindowLiftWindowProbing {
     var system: any WindowSystemAccess = NativeWindowSystem()
     func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
                  includeLiveWindowKeys: Bool, includesTiles: Bool,
-                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>,
+                 livenessKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
         WindowLiftCGWindowProbe.capture(on: contexts, excludingPID: excludingPID,
-            includeLiveWindowKeys: includeLiveWindowKeys, includesTiles: includesTiles, trackedKeys: trackedKeys, system: system)
+            includeLiveWindowKeys: includeLiveWindowKeys, includesTiles: includesTiles, trackedKeys: trackedKeys, livenessKeys: livenessKeys, system: system)
     }
 
     func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect] {
@@ -615,11 +624,12 @@ final class WindowLiftAvoidanceController {
         let selfPID = pid_t(ProcessInfo.processInfo.processIdentifier)
         let includesTiles = includesTiles
         let trackedKeys = Set(states.keys)
+        let livenessKeys = trackedKeys.union(suppressedFrames.keys)
         let probe = windowProbe
         scanTask = Task.detached { [weak self] in
             guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
                 probe.capture(on: contexts, excludingPID: selfPID, includeLiveWindowKeys: tracked,
-                              includesTiles: includesTiles, trackedKeys: trackedKeys)
+                              includesTiles: includesTiles, trackedKeys: trackedKeys, livenessKeys: livenessKeys)
             }) else { return }
             guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in

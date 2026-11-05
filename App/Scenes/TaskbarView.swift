@@ -62,6 +62,7 @@ final class TaskbarContentView: NSView {
     private var localDragMonitor: Any?
     private var groupDrag = TaskbarGroupDrag()
     private var suppressClick = false
+    private var measuredLayoutGroups: [String: TaskbarLayoutGroup]?
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: TaskbarMetrics.height) }
@@ -101,6 +102,7 @@ final class TaskbarContentView: NSView {
 
     func update(groups: [TaskbarGroupPresentation]) {
         self.groups = groups
+        measuredLayoutGroups = nil
         groupDrag.reconcile(liveGroups: groups.map(\.id))
         if let draggedGroupID, groups.first(where: { $0.id == draggedGroupID })?.windows.map(\.id) != dragMembers {
             endGroupDrag(event: nil, cancelled: true)
@@ -111,16 +113,18 @@ final class TaskbarContentView: NSView {
 
     override func layout() {
         super.layout()
-        let font = NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
         let groupLookup = Dictionary(groups.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let displayed = groupDrag.order(groups.map(\.id)).compactMap { groupLookup[$0] }
-        let inputs = displayed.map { group in
-            TaskbarLayoutGroup(id: group.id,
-                               desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine(group.name) as NSString).size(withAttributes: [.font: font]).width),
-                               windows: group.windows.map {
-                TaskbarLayoutWindow(id: $0.id, desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine($0.title) as NSString).size(withAttributes: [.font: font]).width))
-            })
+        if measuredLayoutGroups == nil {
+            let font = NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)
+            measuredLayoutGroups = Dictionary(groups.map { group in
+                (group.id, TaskbarLayoutGroup(id: group.id,
+                    desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine(group.name) as NSString).size(withAttributes: [.font: font]).width),
+                    windows: group.windows.map {
+                        TaskbarLayoutWindow(id: $0.id, desiredWidth: TaskbarMetrics.buttonWidth(textWidth: (WindowDisplayTitle.singleLine($0.title) as NSString).size(withAttributes: [.font: font]).width))
+                    }))
+            }, uniquingKeysWith: { first, _ in first })
         }
+        let inputs = groupDrag.order(groups.map(\.id)).compactMap { measuredLayoutGroups?[$0] }
         var result = TaskbarLayout.resolve(groups: inputs, width: bounds.width)
         if let draggedGroupID,
            Set(result.buttons.filter { $0.groupID == draggedGroupID }.map(\.id)) != dragButtonIDs {
@@ -357,13 +361,23 @@ final class TaskbarContentView: NSView {
 
     private func moveGroupDrag(event: NSEvent) {
         guard let id = draggedGroupID else { return }
+        layoutSubtreeIfNeeded()
         dragPointer = convert(event.locationInWindow, from: nil)
+        let previousTarget = groupDrag.target
         if bounds.contains(dragPointer), let frames = dragFrames(in: layoutResult) {
             groupDrag.update(groupID: id, draggedFrame: frames.displayed,
                              buttons: layoutResult.buttons, liveGroups: groups.map(\.id))
         }
-        needsLayout = true
-        layoutSubtreeIfNeeded()
+        if groupDrag.target != previousTarget {
+            needsLayout = true
+            layoutSubtreeIfNeeded()
+        } else if let frames = dragFrames(in: layoutResult) {
+            for layout in layoutResult.buttons where layout.groupID == id {
+                guard let view = buttonViews[layout.id] else { continue }
+                view.layer?.removeAllAnimations()
+                view.frame = interactionFrame(for: layout.frame).offsetBy(dx: frames.displayed.minX - frames.slot.minX, dy: 0)
+            }
+        }
     }
 
     private func endGroupDrag(event: NSEvent?, cancelled: Bool) {

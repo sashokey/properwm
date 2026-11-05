@@ -229,7 +229,9 @@ final class TaskbarDrawingTests: XCTestCase {
                     icon: { _ in NSImage(systemSymbolName: "doc.text.fill", accessibilityDescription: nil) },
                     activate: { _ in }, close: { _ in }, fileHover: { _ in })
                 list.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-                let row = try XCTUnwrap(list.cells.first)
+                list.tableView.scrollRowToVisible(0)
+                list.layoutSubtreeIfNeeded()
+                let row = try XCTUnwrap(list.tableView.view(atColumn: 0, row: 0, makeIfNecessary: true) as? TaskbarWindowListRow)
                 row.wantsLayer = true
                 row.keyboardSelected = true
                 row.imageView?.isHidden = true

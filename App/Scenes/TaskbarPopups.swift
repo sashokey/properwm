@@ -170,7 +170,13 @@ private final class TaskbarWindowTable: NSTableView {
 
 @MainActor
 final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NSTableViewDelegate {
-    private(set) var cells: [TaskbarWindowListRow] = []
+    private var windows: [TaskbarWindowPresentation]
+    private let delay: TaskbarDelayedAction.Delay
+    private let iconProvider: (TaskbarWindowPresentation) -> NSImage?
+    private let activateWindow: (TaskbarWindowPresentation) -> Void
+    private let closeWindow: (TaskbarWindowPresentation) -> Void
+    private let fileHoverWindow: (TaskbarWindowPresentation) -> Void
+    private let cellIdentifier = NSUserInterfaceItemIdentifier("window-cell")
     let tableView: NSTableView = TaskbarWindowTable()
     let scrollView = NSScrollView()
     var onHover: ((Bool) -> Void)?
@@ -185,6 +191,12 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
          activate: @escaping (TaskbarWindowPresentation) -> Void,
          close: @escaping (TaskbarWindowPresentation) -> Void,
          fileHover: @escaping (TaskbarWindowPresentation) -> Void) {
+        self.windows = windows
+        self.delay = delay
+        iconProvider = icon
+        activateWindow = activate
+        closeWindow = close
+        fileHoverWindow = fileHover
         let cellHeight = TaskbarMetrics.windowListRowHeight
         let size = CGSize(width: TaskbarMetrics.windowListWidth,
                           height: min(max(cellHeight, availableHeight), cellHeight * CGFloat(windows.count)))
@@ -225,16 +237,6 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
         tableView.target = self
         tableView.action = #selector(activateSelectedWindow)
         (tableView as? TaskbarWindowTable)?.handleKey = { [weak self] in self?.handleKey($0) ?? false }
-        for (index, item) in windows.enumerated() {
-            let cell = TaskbarWindowListRow(window: item, icon: icon(item), delay: delay,
-                                          activate: { activate(item) }, close: { close(item) },
-                                          fileHover: { fileHover(item) })
-            cell.onDragPresence = { [weak self] inside in self?.setPointerPresence(inside) }
-            cell.onHighlightChanged = { [weak self] selected in
-                self?.tableView.rowView(atRow: index, makeIfNecessary: false)?.isSelected = selected
-            }
-            cells.append(cell)
-        }
         scrollView.documentView = tableView
         contentView = scrollView
         tableView.reloadData()
@@ -243,9 +245,35 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
 
     required init?(coder: NSCoder) { nil }
 
-    func numberOfRows(in tableView: NSTableView) -> Int { cells.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { windows.count }
 
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { cells[row] }
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard windows.indices.contains(row) else { return nil }
+        let item = windows[row]
+        let image = iconProvider(item)
+        let activate: () -> Void = { [weak self] in self?.activateWindow(item) }
+        let close: () -> Void = { [weak self] in self?.closeWindow(item) }
+        let fileHover: () -> Void = { [weak self] in self?.fileHoverWindow(item) }
+        let cell: TaskbarWindowListRow
+        if let reusable = tableView.makeView(withIdentifier: cellIdentifier, owner: self) as? TaskbarWindowListRow {
+            cell = reusable
+            cell.configure(window: item, icon: image, activate: activate, close: close, fileHover: fileHover)
+        } else {
+            cell = TaskbarWindowListRow(window: item, icon: image, delay: delay,
+                                       activate: activate, close: close, fileHover: fileHover)
+            cell.identifier = cellIdentifier
+        }
+        cell.onDragPresence = { [weak self] inside in self?.setPointerPresence(inside) }
+        cell.onHighlightChanged = { [weak self] selected in
+            self?.tableView.rowView(atRow: row, makeIfNecessary: false)?.isSelected = selected
+        }
+        cell.keyboardSelected = tableView.selectedRowIndexes.contains(row)
+        return cell
+    }
+
+    func tableView(_ tableView: NSTableView, didRemove rowView: NSTableRowView, forRow row: Int) {
+        (rowView.view(atColumn: 0) as? TaskbarWindowListRow)?.cancelFileHover()
+    }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         let view = NSTableRowView()
@@ -255,16 +283,18 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
-        for (index, cell) in cells.enumerated() { cell.keyboardSelected = tableView.selectedRowIndexes.contains(index) }
+        tableView.enumerateAvailableRowViews { rowView, index in
+            (rowView.view(atColumn: 0) as? TaskbarWindowListRow)?.keyboardSelected = tableView.selectedRowIndexes.contains(index)
+        }
     }
 
     @objc private func activateSelectedWindow() {
         let index = tableView.clickedRow >= 0 ? tableView.clickedRow : tableView.selectedRow
-        if cells.indices.contains(index) { cells[index].activate() }
+        if windows.indices.contains(index) { activateWindow(windows[index]) }
     }
 
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard !cells.isEmpty else { return false }
+        guard !windows.isEmpty else { return false }
         switch event.keyCode {
         case 53:
             onCancel?()
@@ -272,13 +302,13 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
         case 125, 126:
             let delta = event.keyCode == 125 ? 1 : -1
             let selected = tableView.selectedRow
-            let index = selected >= 0 ? (selected + delta + cells.count) % cells.count : (delta > 0 ? 0 : cells.count - 1)
+            let index = selected >= 0 ? (selected + delta + windows.count) % windows.count : (delta > 0 ? 0 : windows.count - 1)
             tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             tableView.scrollRowToVisible(index)
             return true
         case 36, 49:
             let index = tableView.selectedRow
-            if cells.indices.contains(index) { cells[index].activate() }
+            if windows.indices.contains(index) { activateWindow(windows[index]) }
             return true
         default: return false
         }
@@ -289,13 +319,20 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
     }
 
     func cancelPendingActions() {
-        for cell in cells { cell.cancelFileHover() }
+        tableView.enumerateAvailableRowViews { rowView, _ in
+            (rowView.view(atColumn: 0) as? TaskbarWindowListRow)?.cancelFileHover()
+        }
     }
 
     func updateTitles(windows: [TaskbarWindowPresentation]) {
         let titles = Dictionary(windows.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
-        for cell in cells {
-            if let title = titles[cell.item.id] { cell.title = title }
+        self.windows = self.windows.map { item in
+            TaskbarWindowPresentation(item: item.item, title: titles[item.id] ?? item.title, isActive: item.isActive)
+        }
+        tableView.enumerateAvailableRowViews { rowView, _ in
+            guard let cell = rowView.view(atColumn: 0) as? TaskbarWindowListRow,
+                  let title = titles[cell.item.id] else { return }
+            cell.title = title
         }
     }
 
@@ -318,17 +355,17 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
 
 @MainActor
 final class TaskbarWindowListRow: NSTableCellView {
-    let item: TaskbarWindowPresentation
+    private(set) var item: TaskbarWindowPresentation
     var title: String {
         didSet {
             textField?.stringValue = title
             setAccessibilityLabel(title)
         }
     }
-    let icon: NSImage?
-    let activate: () -> Void
-    let close: () -> Void
-    let fileHover: () -> Void
+    private(set) var icon: NSImage?
+    private(set) var activate: () -> Void
+    private(set) var close: () -> Void
+    private(set) var fileHover: () -> Void
     let closeButton = NSButton()
     var onDragPresence: ((Bool) -> Void)?
     var onHighlightChanged: ((Bool) -> Void)?
@@ -377,13 +414,29 @@ final class TaskbarWindowListRow: NSTableCellView {
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel(window.title)
-        setAccessibilityCustomActions([NSAccessibilityCustomAction(name: String(localized: "Close window"), handler: { close(); return true })])
+        setAccessibilityCustomActions([NSAccessibilityCustomAction(name: String(localized: "Close window"), handler: { [weak self] in self?.close(); return true })])
         registerForDraggedTypes([.fileURL])
         needsLayout = true
     }
 
     required init?(coder: NSCoder) { nil }
     isolated deinit { delayedActivation.cancel() }
+
+    func configure(window: TaskbarWindowPresentation, icon: NSImage?, activate: @escaping () -> Void,
+                   close: @escaping () -> Void, fileHover: @escaping () -> Void) {
+        cancelFileHover()
+        onHighlightChanged = nil
+        hovered = false
+        keyboardSelected = false
+        item = window
+        title = window.title
+        self.icon = icon
+        imageView?.image = icon
+        self.activate = activate
+        self.close = close
+        self.fileHover = fileHover
+    }
+
 
     override func layout() {
         super.layout()

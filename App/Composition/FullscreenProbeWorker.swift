@@ -7,24 +7,46 @@ struct FullscreenProbeRequest: Sendable {
     let spaceGeneration: UInt64?
     let finalConfirmation: Bool
     let source: String
+    let displayUUID: String?
+
+    init(pid: pid_t?, screenFrame: CGRect, generation: UInt64, spaceGeneration: UInt64?,
+         finalConfirmation: Bool, source: String, displayUUID: String? = nil) {
+        self.pid = pid
+        self.screenFrame = screenFrame
+        self.generation = generation
+        self.spaceGeneration = spaceGeneration
+        self.finalConfirmation = finalConfirmation
+        self.source = source
+        self.displayUUID = displayUUID
+    }
 }
 
 struct FullscreenAXProbe: Sendable {
     let verdict: FullscreenAXVerdict
     let overlayWindowID: UInt32?
+    let spaceVerdict: Bool?
+
+    init(verdict: FullscreenAXVerdict, overlayWindowID: UInt32?, spaceVerdict: Bool? = nil) {
+        self.verdict = verdict
+        self.overlayWindowID = overlayWindowID
+        self.spaceVerdict = spaceVerdict
+    }
 }
 
 @MainActor
 final class FullscreenProbeWorker {
     private let read: @Sendable (FullscreenProbeRequest) -> FullscreenAXProbe
+    private let readSpace: @Sendable (FullscreenProbeRequest) -> Bool?
     private let deliver: (FullscreenProbeRequest, FullscreenAXProbe) -> Void
     private let work = AsyncWorkScope()
     private var inFlight = false
     private var pending: FullscreenProbeRequest?
 
     init(read: @escaping @Sendable (FullscreenProbeRequest) -> FullscreenAXProbe,
+         readSpace: @escaping @Sendable (FullscreenProbeRequest) -> Bool? = { _ in nil },
          deliver: @escaping (FullscreenProbeRequest, FullscreenAXProbe) -> Void) {
         self.read = read
+        self.readSpace = readSpace
         self.deliver = deliver
     }
 
@@ -33,9 +55,13 @@ final class FullscreenProbeWorker {
         guard !inFlight else { pending = request; return }
         inFlight = true
         let read = read
+        let readSpace = readSpace
         work.launch { [weak self] generation in
             guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), operation: {
-                read(request)
+                let probe = read(request)
+                let spaceVerdict = probe.verdict == .fullscreen ? nil : readSpace(request)
+                return FullscreenAXProbe(verdict: probe.verdict, overlayWindowID: probe.overlayWindowID,
+                                         spaceVerdict: spaceVerdict)
             }) else { return }
             await MainActor.run { [weak self] in
                 guard let self, self.work.isCurrent(generation) else { return }

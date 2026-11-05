@@ -30,8 +30,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
     private var isSuspended = false
     private var topologyRefreshController: DisplayTopologyRefreshController?
 
-    private var menuTrackingDepth = 0
-
     init(
         runtime: AppRuntime,
         stripOrderStore: StripOrderStore,
@@ -73,7 +71,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         let snapshot = seedController.prepareForTopologyChange()
         spaceStore.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
         rebuildUnits(reason: "start", snapshot: snapshot)
-        observeMenuTracking()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersChanged),
@@ -94,10 +91,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
         topologyRefreshController?.cancel()
         topologyRefreshController = nil
         NotificationCenter.default.removeObserver(self)
-    }
-
-    func setTaskbarMenuOpen(_ open: Bool) {
-        units.forEach { $0.coordinator.setTaskbarMenuOpen(open) }
     }
 
     private func rebuildUnits(reason: String, snapshot: ScreenTopologySnapshot) {
@@ -180,33 +173,6 @@ final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
 
     func windowGeometryChanged() {
         units.forEach { $0.coordinator.windowGeometryChanged() }
-    }
-
-    private func observeMenuTracking() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(menuTrackingDidBegin),
-            name: NSMenu.didBeginTrackingNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(menuTrackingDidEnd),
-            name: NSMenu.didEndTrackingNotification,
-            object: nil
-        )
-    }
-
-    @objc private func menuTrackingDidBegin() {
-        menuTrackingDepth += 1
-        guard menuTrackingDepth == 1 else { return }
-        setTaskbarMenuOpen(true)
-    }
-
-    @objc private func menuTrackingDidEnd() {
-        menuTrackingDepth = max(0, menuTrackingDepth - 1)
-        guard menuTrackingDepth == 0 else { return }
-        setTaskbarMenuOpen(false)
     }
 
 }

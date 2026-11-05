@@ -409,8 +409,13 @@ final class TaskbarBehaviorTests: XCTestCase {
         let button = try XCTUnwrap(fixture.view.taskbarContent.buttonViews.values.first { $0.isCombined })
         XCTAssertTrue(button.accessibilityPerformPress())
         let list = try XCTUnwrap(fixture.popup.content as? TaskbarWindowListView)
-        XCTAssertEqual(list.cells.map(\.item.id), ["tabgrp-editor-a", "tabgrp-editor-b"])
-        XCTAssertTrue(list.cells[1].accessibilityPerformPress())
+        let rows = try (0..<list.tableView.numberOfRows).map { index in
+            list.tableView.scrollRowToVisible(index)
+            list.layoutSubtreeIfNeeded()
+            return try XCTUnwrap(list.tableView.view(atColumn: 0, row: index, makeIfNecessary: true) as? TaskbarWindowListRow)
+        }
+        XCTAssertEqual(rows.map(\.item.id), ["tabgrp-editor-a", "tabgrp-editor-b"])
+        XCTAssertTrue(rows[1].accessibilityPerformPress())
         await wait { fixture.desktop.state.withLock { $0.focused == 1002 } }
         await wait { fixture.view.taskbarContent.groups.flatMap(\.windows).first { $0.id == "tabgrp-editor-b" }?.isActive == true }
         XCTAssertFalse(fixture.popup.isPresented)
@@ -610,7 +615,10 @@ final class TaskbarBehaviorTests: XCTestCase {
         await wait { fixture.popup.content is TaskbarWindowListView }
         XCTAssertEqual(fixture.desktop.state.withLock { $0.focused }, 1001)
         let list = try XCTUnwrap(fixture.popup.content as? TaskbarWindowListView)
-        list.cells[1].scheduleFileHover()
+        list.tableView.scrollRowToVisible(1)
+        list.layoutSubtreeIfNeeded()
+        let row = try XCTUnwrap(list.tableView.view(atColumn: 0, row: 1, makeIfNecessary: true) as? TaskbarWindowListRow)
+        row.scheduleFileHover()
         await wait { fixture.desktop.state.withLock { $0.focused == 1002 && $0.windows[1002]?.status == .active } }
         XCTAssertEqual(fixture.desktop.state.withLock { $0.windows[1001]?.status }, .inactive)
     }
@@ -714,9 +722,9 @@ final class BehaviorLiftProbeGate: WindowLiftWindowProbing, Sendable {
     init(_ desktop: BehaviorDesktop) { live = LiveWindowLiftProbe(system: desktop) }
     func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t,
                  includeLiveWindowKeys: Bool, includesTiles: Bool,
-                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+                 trackedKeys: Set<WindowLiftAvoidance.WindowKey>, livenessKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
         let result = live.capture(on: contexts, excludingPID: excludingPID, includeLiveWindowKeys: includeLiveWindowKeys,
-                                  includesTiles: includesTiles, trackedKeys: trackedKeys)
+                                  includesTiles: includesTiles, trackedKeys: trackedKeys, livenessKeys: livenessKeys)
         let hold = state.withLock { value in
             guard value.holdNext else { return false }
             value.holdNext = false

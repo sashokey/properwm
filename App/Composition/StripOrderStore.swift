@@ -19,7 +19,6 @@ final class StripOrderStore: ObservableObject {
     private let inventoryLog: WindowInventoryAnomalyLog
     private var lastProjectionSample: InventoryOrderProjectionSample?
 
-    var isInventoryLogEnabled: Bool { inventoryLog.isEnabled }
 
     init(defaults: UserDefaults = .standard,
          now: @escaping () -> Date = Date.init,

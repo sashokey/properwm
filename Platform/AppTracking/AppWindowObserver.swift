@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Synchronization
 
 struct AXElementKey: Hashable, @unchecked Sendable {
     let e: AXUIElement
@@ -12,6 +13,19 @@ final class AppWindowObserver {
     typealias Factory = @Sendable (pid_t, @escaping @Sendable (AXElementKey, String) -> Void) -> (any WindowObservationSession)?
     let pid: pid_t
     private var session: (any WindowObservationSession)?
+    private final class CleanupSession: Sendable {
+        let session: any WindowObservationSession
+        let cancellation = OperationCancellation()
+        let pending = Mutex<[UUID: AXElementKey]>([:])
+
+        init(session: any WindowObservationSession) { self.session = session }
+
+        func stop() {
+            cancellation.cancel()
+            pending.withLock { $0.removeAll() }
+        }
+    }
+    private var cleanupSession: CleanupSession?
     private let makeSession: Factory
     private let queue = DispatchQueue(label: "io.github.sashokey.properwm.window-subscriptions", qos: .utility)
     private let work = AsyncWorkScope()
@@ -114,6 +128,7 @@ final class AppWindowObserver {
                 }
                 if let session = created.session, self.session == nil {
                     self.session = session
+                    self.cleanupSession = CleanupSession(session: session)
                     session.attach()
                     let windows = self.waitingWindows
                     self.waitingWindows.removeAll()
@@ -137,6 +152,8 @@ final class AppWindowObserver {
     func stop() {
         for registration in inFlight.values { registration.cancellation.cancel() }
         work.stop()
+        cleanupSession?.stop()
+        cleanupSession = nil
         session?.detach()
         session = nil
         isRunning = false
@@ -195,9 +212,16 @@ final class AppWindowObserver {
     }
 
     private func remove(_ key: AXElementKey) {
-        guard let session else { return }
-        queue.async {
-            for item in WindowSubscriptionItem.allCases { session.remove(item.notificationName, element: key) }
+        guard let cleanupSession else { return }
+        let id = UUID()
+        cleanupSession.pending.withLock { $0[id] = key }
+        queue.async { [weak cleanupSession] in
+            guard let cleanupSession, !cleanupSession.cancellation.isCancelled,
+                  let key = cleanupSession.pending.withLock({ $0.removeValue(forKey: id) }) else { return }
+            for item in WindowSubscriptionItem.allCases {
+                guard !cleanupSession.cancellation.isCancelled else { break }
+                cleanupSession.session.remove(item.notificationName, element: key)
+            }
         }
     }
 

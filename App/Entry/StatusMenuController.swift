@@ -22,7 +22,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         launchAtLogin: launchAtLoginItem, hideStatusBarIcon: hideStatusBarIconItem, quit: quit
     )
     private let settingsCoordinator: SettingsCoordinator
-    private let onMenuVisibilityChanged: (Bool) -> Void
     private let launchAtLoginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private let hideStatusBarIconItem = NSMenuItem(title: String(localized: "Hide Status Bar Icon"), action: #selector(toggleStatusBarIcon), keyEquivalent: "")
     private var subscriptions = Set<AnyCancellable>()
@@ -30,12 +29,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     init(
         settingsCoordinator: SettingsCoordinator,
-        onMenuVisibilityChanged: @escaping (Bool) -> Void,
         statusItem: any StatusItemPresenting = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength),
         quit: @escaping @MainActor () -> Void = { NSApp.terminate(nil) }
     ) {
         self.settingsCoordinator = settingsCoordinator
-        self.onMenuVisibilityChanged = onMenuVisibilityChanged
         self.statusItem = statusItem
         self.quit = quit
         super.init()
@@ -66,12 +63,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         updateStatusBarIconState()
-        onMenuVisibilityChanged(true)
         refreshSystemState()
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        onMenuVisibilityChanged(false)
         refreshSystemState()
     }
 

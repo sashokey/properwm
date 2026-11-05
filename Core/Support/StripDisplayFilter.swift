@@ -5,8 +5,6 @@ struct StripDisplayFilter: Equatable {
     let connectedUUIDs: Set<String>
     let primaryUUID: String?
 
-    static let unfiltered = StripDisplayFilter(scope: nil, connectedUUIDs: [], primaryUUID: nil)
-
     func shows(displayUUID: String?) -> Bool {
         guard let scope else { return true }
         return resolvedWindowDisplayUUID(displayUUID) == scope

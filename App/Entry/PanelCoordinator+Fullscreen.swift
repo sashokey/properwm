@@ -14,8 +14,17 @@ struct FullscreenSpaceHold {
 extension PanelCoordinator {
 
     func setupFullscreenMonitor() {
+        let readsSpaces = Self.slsVerdictEnabled
+        let readSpace = fullscreenSpaceProvider ?? { uuid in
+            guard let layout = ManagedSpaceLayoutReader.layout(forDisplayUUID: uuid) else { return nil }
+            return layout.fullscreenSpaceIDs.contains(layout.currentSpaceID)
+        }
         fullscreenProbeWorker = FullscreenProbeWorker(
             read: { Self.detectFullscreenViaAX(pid: $0.pid, screenCGFrame: $0.screenFrame) },
+            readSpace: { request in
+                guard readsSpaces, let uuid = request.displayUUID else { return nil }
+                return readSpace(uuid)
+            },
             deliver: { [weak self] request, result in self?.receiveFullscreenProbe(result, request: request) }
         )
         let nc = NSWorkspace.shared.notificationCenter
@@ -101,30 +110,34 @@ extension PanelCoordinator {
         let expectedSpaceHoldGeneration = explicitSpaceHoldGeneration ?? fullscreenSpaceHold?.generation
         fullscreenProbeWorker?.request(FullscreenProbeRequest(
             pid: frontPID, screenFrame: screenCGFrame, generation: probeGeneration,
-            spaceGeneration: expectedSpaceHoldGeneration, finalConfirmation: isFinalSpaceHoldWindowedConfirmation, source: source
+            spaceGeneration: expectedSpaceHoldGeneration, finalConfirmation: isFinalSpaceHoldWindowedConfirmation, source: source,
+            displayUUID: currentPanelDisplayUUID()
         ))
     }
 
     func receiveFullscreenProbe(_ probe: FullscreenAXProbe, request: FullscreenProbeRequest) {
         guard !isSuspendedForPermissionLoss, request.generation == fullscreenProbeGeneration else { return }
+        if let displayUUID = request.displayUUID {
+            guard displayUUID == currentPanelDisplayUUID(), request.screenFrame == currentPanelScreenCGFrame() else { return }
+        }
         let fullscreen: Bool
         let source: String
         switch probe.verdict {
         case .unknown:
-            guard Self.slsVerdictEnabled, fullscreenVerdictFromSpaceLayout() == true else { return }
+            guard Self.slsVerdictEnabled, probe.spaceVerdict == true else { return }
             fullscreen = true
             source = request.source + "-sls"
         case .fullscreen:
             fullscreen = true
             source = request.source
         case .windowed:
-            fullscreen = Self.slsVerdictEnabled && fullscreenVerdictFromSpaceLayout() == true
+            fullscreen = Self.slsVerdictEnabled && probe.spaceVerdict == true
             source = fullscreen ? request.source + "-sls" : request.source
         case .notOnThisScreen:
             guard Self.slsVerdictEnabled else {
                 return
             }
-            if let fromSpace = fullscreenVerdictFromSpaceLayout() {
+            if let fromSpace = probe.spaceVerdict {
                 fullscreen = fromSpace
                 source = request.source + "-sls"
             } else if request.finalConfirmation {
@@ -224,8 +237,6 @@ extension PanelCoordinator {
         }
         visibilityState.setFullscreen(isFullscreen)
         if isFullscreen { dismissTaskbarPopups() }
-        diagnosticFullscreenSource = source
-        diagnosticFullscreenVerdict = isFullscreen
         reconcilePanelVisibility()
         logFullscreenVerdict(isFullscreen, source: source)
     }
@@ -373,12 +384,9 @@ extension PanelCoordinator {
         return (info[kCGWindowLayer as String] as? NSNumber)?.intValue
     }
 
-    private func fullscreenVerdictFromSpaceLayout() -> Bool? {
-        if let fullscreenSpaceProvider { return fullscreenSpaceProvider() }
-        guard let panel = dockPanel,
-              let screen = panelCurrentScreen(panel: panel),
-              let uuid = DisplayIdentity.uuidString(for: screen),
-              let layout = ManagedSpaceLayoutReader.layout(forDisplayUUID: uuid) else { return nil }
-        return layout.fullscreenSpaceIDs.contains(layout.currentSpaceID)
+    private func currentPanelDisplayUUID() -> String? {
+        if let fixedUnitDisplayUUID { return fixedUnitDisplayUUID }
+        guard let panel = dockPanel, let screen = panelCurrentScreen(panel: panel) else { return nil }
+        return DisplayIdentity.uuidString(for: screen)
     }
 }

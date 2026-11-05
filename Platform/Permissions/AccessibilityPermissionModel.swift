@@ -15,7 +15,6 @@ final class AccessibilityPermissionModel: ObservableObject {
 
     /// 一次性回调。触发后立即置 nil，避免排队的定时器再喂一次。
     var onGranted: (() -> Void)?
-    var onTrustStatusChanged: ((Bool) -> Void)?
 
     private let permissionService: PermissionService
     private let installLocation: AppInstallLocation
@@ -25,7 +24,6 @@ final class AccessibilityPermissionModel: ObservableObject {
     private var timer: Timer?
     private var didRequestPrompt = false
     private var didNotifyGranted = false
-    private var lastObservedTrust: Bool
 
     init(
         permissionService: PermissionService = PermissionService(),
@@ -39,7 +37,6 @@ final class AccessibilityPermissionModel: ObservableObject {
         self.installLocation = installLocation
         self.now = now
         self.stallAfter = stallAfter
-        self.lastObservedTrust = trusted
         self.state = .initial(installLocation: installLocation, isTrusted: trusted)
     }
 
@@ -77,11 +74,6 @@ final class AccessibilityPermissionModel: ObservableObject {
         if pollingStartedAt == nil { pollingStartedAt = now() }
 
         let trusted = permissionService.hasRequiredPermissions()
-        if trusted != lastObservedTrust {
-            lastObservedTrust = trusted
-            onTrustStatusChanged?(trusted)
-        }
-
         let elapsed = max(0, now() - (pollingStartedAt ?? now()))
         state = state.updated(isTrusted: trusted, elapsed: elapsed, stallAfter: stallAfter)
         guard state == .granted else { return }

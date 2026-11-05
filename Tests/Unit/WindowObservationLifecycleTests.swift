@@ -8,6 +8,8 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
     let calls = Mutex<[Bool]>([])
     let windowCalls = Mutex(0)
     let removals = Mutex(0)
+    let blockNextRemoval = Mutex(false)
+    let removalGate = DispatchSemaphore(value: 0)
     let transientFailures = Mutex(0)
     let registered = Mutex<[AXElementKey: Set<String>]>([:])
     let applicationNotifications = Mutex<Set<String>>([])
@@ -55,8 +57,14 @@ private final class ObservationFixture: WindowObservationSession, Sendable {
     }
     func remove(_ notification: String, element: AXElementKey) {
         calls.withLock { $0.append(Thread.isMainThread) }
-        _ = registered.withLock { $0[element]?.remove(notification) }
         removals.withLock { $0 += 1 }
+        let blocked = blockNextRemoval.withLock { value in
+            let blocked = value
+            value = false
+            return blocked
+        }
+        if blocked { _ = removalGate.wait(timeout: .now() + 2) }
+        _ = registered.withLock { $0[element]?.remove(notification) }
     }
     @MainActor func attach() { attachments += 1 }
     @MainActor func detach() { detachments += 1 }
@@ -430,6 +438,37 @@ final class WindowObservationLifecycleTests: XCTestCase {
         XCTAssertTrue(fixture.registered.withLock { $0.values.allSatisfy(\.isEmpty) })
         XCTAssertFalse(observer.isCovered(cgWindowID: 1))
         XCTAssertEqual(reports, 0)
+        observer.stop()
+    }
+
+    func testStopCancelsCleanupQueuedBehindABlockedRemoval() async {
+        let old = ObservationFixture()
+        let replacement = ObservationFixture()
+        let factoryCalls = Mutex(0)
+        let observer = AppWindowObserver(pid: 42, makeSession: { _, _ in
+            factoryCalls.withLock { calls in
+                calls += 1
+                return calls == 1 ? old : replacement
+            }
+        })
+        observer.start()
+        await waitUntil { observer.isActive }
+        for id in CGWindowID(1)...3 {
+            _ = observer.registerWindow(AXUIElementCreateApplication(pid_t(41 + id)), cgWindowID: id)
+        }
+        await waitUntil { (CGWindowID(1)...3).allSatisfy { observer.isCovered(cgWindowID: $0) } }
+        old.blockNextRemoval.withLock { $0 = true }
+        _ = observer.retainSubscriptions(keep: [2, 3])
+        await waitUntil { old.removals.withLock { $0 } == 1 }
+        _ = observer.retainSubscriptions(keep: [])
+        observer.stop()
+        old.removalGate.signal()
+        observer.start()
+        await waitUntil { replacement.attachments == 1 }
+        XCTAssertEqual(old.removals.withLock { $0 }, 1)
+        XCTAssertEqual(old.detachments, 1)
+        XCTAssertFalse(old.calls.withLock { $0.contains(true) })
+        XCTAssertTrue(observer.isActive)
         observer.stop()
     }
 

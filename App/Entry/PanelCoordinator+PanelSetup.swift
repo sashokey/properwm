@@ -25,7 +25,6 @@ extension PanelCoordinator {
             contextMenuVisibilityChanged: { [weak self] visible in
                 guard let self else { return }
                 if visible { self.onAccessoryWillOpen?(self, .popup) }
-                self.setTaskbarMenuOpen(visible)
             }
         )
         return true

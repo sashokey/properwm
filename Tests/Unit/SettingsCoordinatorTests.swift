@@ -206,13 +206,12 @@ final class StatusMenuControllerTests: XCTestCase {
     }
 
     private func makeController(item: StatusItem, launch: LaunchServiceStub,
-                                menuVisibility: @escaping (Bool) -> Void = { _ in },
                                 quit: @escaping @MainActor () -> Void = {}) -> StatusMenuController {
         let suite = "ProperWM.StatusMenuControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
         let coordinator = SettingsCoordinator(store: AppSettingsStore(defaults: defaults), launchAtLoginService: launch)
-        return StatusMenuController(settingsCoordinator: coordinator, onMenuVisibilityChanged: menuVisibility,
+        return StatusMenuController(settingsCoordinator: coordinator,
                                     statusItem: item, quit: quit)
     }
 
@@ -220,9 +219,7 @@ final class StatusMenuControllerTests: XCTestCase {
         let item = StatusItem()
         let launch = LaunchServiceStub(state: .off)
         var quits = 0
-        var menuVisibility: [Bool] = []
-        let controller = makeController(item: item, launch: launch,
-                                        menuVisibility: { menuVisibility.append($0) }, quit: { quits += 1 })
+        let controller = makeController(item: item, launch: launch, quit: { quits += 1 })
         let menu = try XCTUnwrap(item.menu)
         XCTAssertEqual(menu.items.map(\.title), ["Open at Login", "Hide Status Bar Icon", "", "Quit"])
         XCTAssertEqual(menu.items[1].state, .off)
@@ -233,7 +230,6 @@ final class StatusMenuControllerTests: XCTestCase {
         controller.menuWillOpen(menu)
         controller.menuDidClose(menu)
         XCTAssertFalse(item.isVisible)
-        XCTAssertEqual(menuVisibility, [true, false])
         XCTAssertEqual(quits, 0)
         XCTAssertTrue(launch.requests.isEmpty)
     }

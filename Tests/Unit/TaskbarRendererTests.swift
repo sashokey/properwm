@@ -214,7 +214,7 @@ final class TaskbarRendererTests: XCTestCase {
                 let button = width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"]
                 XCTAssertTrue(try XCTUnwrap(button).accessibilityPerformPress())
                 let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
-                let oldRow = try XCTUnwrap(list.cells.first)
+                let oldRow = try XCTUnwrap(list.nativeRow(at: 0))
                 oldRow.scheduleFileHover()
                 let record = WindowRecord(id: WindowID(rawValue: replaceProcess ? "window-0" : "replacement-tab"),
                     appID: AppID(rawValue: "editor"), pid: 100, bundleIdentifier: "test.editor", title: "Replacement tab",
@@ -234,8 +234,8 @@ final class TaskbarRendererTests: XCTestCase {
                 let reopenedButton = width == 60 ? content.overflowButton : content.buttonViews["group:test.editor"]
                 XCTAssertTrue(try XCTUnwrap(reopenedButton).accessibilityPerformPress())
                 let reopened = try XCTUnwrap(popup.content as? TaskbarWindowListView)
-                XCTAssertEqual(reopened.cells.first?.title, "Replacement tab")
-                reopened.cells.first?.activate()
+                XCTAssertEqual(reopened.nativeRow(at: 0)?.title, "Replacement tab")
+                reopened.nativeRow(at: 0)?.activate()
                 XCTAssertEqual(activated, [replaceProcess ? "window-0" : "replacement-tab"])
             }
         }
@@ -251,11 +251,11 @@ final class TaskbarRendererTests: XCTestCase {
         content.update(groups: groups())
         _ = content.buttonViews["group:test.editor"]?.accessibilityPerformPress()
         let list = popup.content as? TaskbarWindowListView
-        XCTAssertEqual(list?.cells.map(\.item.title), groups()[0].windows.map(\.title))
-        XCTAssertTrue(list?.cells.allSatisfy { $0.icon === icon } == true)
-        XCTAssertEqual(list.map { value in value.cells.indices.map { value.tableView.rect(ofRow: $0).minY } }, [0, 40, 80])
+        XCTAssertEqual(list?.nativeRows.map(\.item.title), groups()[0].windows.map(\.title))
+        XCTAssertTrue(list?.nativeRows.allSatisfy { $0.icon === icon } == true)
+        XCTAssertEqual(list.map { value in (0..<value.tableView.numberOfRows).map { value.tableView.rect(ofRow: $0).minY } }, [0, 40, 80])
         XCTAssertTrue(activated.isEmpty)
-        XCTAssertTrue(list?.cells[1].accessibilityPerformPress() == true)
+        XCTAssertTrue(list?.nativeRow(at: 1)?.accessibilityPerformPress() == true)
         XCTAssertEqual(activated, ["window-1"])
         XCTAssertFalse(popup.isPresented)
     }
@@ -279,8 +279,8 @@ final class TaskbarRendererTests: XCTestCase {
                 windows: [renamed] + Array(initial[0].windows.dropFirst()))])
             XCTAssertTrue(popup.content === list)
             XCTAssertEqual(popup.presentations, 1)
-            XCTAssertEqual(list.cells.first?.title, "Renamed document")
-            list.cells.first?.activate()
+            XCTAssertEqual(list.nativeRow(at: 0)?.title, "Renamed document")
+            list.nativeRow(at: 0)?.activate()
             XCTAssertEqual(activated, ["window-0"])
         }
     }
@@ -450,7 +450,7 @@ final class TaskbarRendererTests: XCTestCase {
         let button = try XCTUnwrap(content.buttonViews["group:test.editor"])
         button.performClick(nil)
         let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
-        let row = try XCTUnwrap(list.cells.first)
+        let row = try XCTUnwrap(list.nativeRow(at: 0))
         XCTAssertEqual(row.draggingEntered(drag), .generic)
         XCTAssertTrue(list.isPointerInside)
         button.onHover?(false)
@@ -502,7 +502,7 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(popup.keyboardFocusRequests, 0)
         let list = popup.content as? TaskbarWindowListView
         XCTAssertNotNil(list)
-        list?.cells[2].scheduleFileHover()
+        list?.nativeRow(at: 2)?.scheduleFileHover()
         await clock.advance()
         XCTAssertEqual(activated, ["window-2"])
     }
@@ -517,7 +517,7 @@ final class TaskbarRendererTests: XCTestCase {
         content.update(groups: groups())
         _ = content.buttonViews["group:test.editor"]?.accessibilityPerformPress()
         let list = popup.content as? TaskbarWindowListView
-        list?.cells[0].scheduleFileHover()
+        list?.nativeRow(at: 0)?.scheduleFileHover()
         content.prepareForHiding()
         await clock.advance()
         XCTAssertFalse(activated)
@@ -686,7 +686,7 @@ final class TaskbarRendererTests: XCTestCase {
             XCTAssertTrue(hit === button)
             hit.mouseDown(with: mouseEvent(.leftMouseDown, point: point, in: content))
             hit.mouseUp(with: mouseEvent(.leftMouseUp, point: point, in: content))
-            XCTAssertEqual((popup.content as? TaskbarWindowListView)?.cells.map(\.item.id), groups()[0].windows.map(\.id))
+            XCTAssertEqual((popup.content as? TaskbarWindowListView)?.nativeRows.map(\.item.id), groups()[0].windows.map(\.id))
             XCTAssertEqual(popup.keyboardFocusRequests, 1)
             XCTAssertEqual(toggles, 0)
         }
@@ -734,7 +734,7 @@ final class TaskbarRendererTests: XCTestCase {
                 XCTAssertFalse(popup.isPresented)
             } else {
                 XCTAssertTrue(activated.isEmpty)
-                XCTAssertEqual((popup.content as? TaskbarWindowListView)?.cells.map(\.item.id), groups()[0].windows.map(\.id))
+                XCTAssertEqual((popup.content as? TaskbarWindowListView)?.nativeRows.map(\.item.id), groups()[0].windows.map(\.id))
                 XCTAssertEqual(popup.keyboardFocusRequests, 0)
             }
             XCTAssertFalse(content.performDragOperation(drag))
@@ -770,6 +770,33 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(toggles, 0)
         XCTAssertEqual(moves, 0)
         XCTAssertEqual(content.buttonViews["window:window-0"]?.frame.minX, 10)
+    }
+
+    func testDraggingInsideTheSameSlotMovesOnlyTheDraggedFramesWithoutReloadingIcons() throws {
+        let content = TaskbarContentView(frame: CGRect(x: 0, y: 0, width: 800, height: 32), popup: Popup())
+        var iconRequests: [String] = []
+        content.iconProvider = { iconRequests.append($0.id); return nil }
+        content.update(groups: twoGroups())
+        let button = try XCTUnwrap(content.buttonViews["window:window-0"])
+        let neighbor = try XCTUnwrap(content.buttonViews["window:browser-window"])
+        let start = CGPoint(x: button.frame.midX, y: 16)
+        button.mouseDown(with: mouseEvent(.leftMouseDown, point: start, in: content))
+        button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: CGPoint(x: start.x + 10, y: 16), in: content))
+        let layout = content.layoutResult
+        let firstFrame = button.frame
+        let neighborFrame = neighbor.frame
+        iconRequests.removeAll()
+        for offset in 11...30 {
+            button.mouseDragged(with: mouseEvent(.leftMouseDragged, point: CGPoint(x: start.x + CGFloat(offset), y: 16), in: content))
+        }
+        XCTAssertTrue(iconRequests.isEmpty, "Pointer-only movement must not reload button content")
+        XCTAssertEqual(content.layoutResult, layout)
+        XCTAssertEqual(button.frame.minX, firstFrame.minX + 20, accuracy: 0.001)
+        XCTAssertEqual(button.frame.minY, 2)
+        XCTAssertEqual(button.frame.maxY, 32)
+        XCTAssertEqual(neighbor.frame, neighborFrame)
+        button.cancelOperation(nil)
+        content.layoutSubtreeIfNeeded()
     }
 
     private func twoGroups() -> [TaskbarGroupPresentation] {
@@ -1276,16 +1303,96 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertEqual(list.tableView.intercellSpacing, .zero)
         for index in windows.indices {
             XCTAssertEqual(list.tableView.rect(ofRow: index), CGRect(x: 0, y: CGFloat(index) * 40, width: 216, height: 40))
-            let cell: NSTableCellView = list.cells[index]
+            let row = try XCTUnwrap(list.nativeRow(at: index))
+            let cell: NSTableCellView = row
             cell.layoutSubtreeIfNeeded()
             XCTAssertEqual(cell.imageView?.frame, CGRect(x: 8, y: 12, width: 16, height: 16))
             let label = try XCTUnwrap(cell.textField)
             XCTAssertEqual(label.alignmentRect(forFrame: label.frame), CGRect(x: 32, y: 12, width: 148, height: 20))
-            XCTAssertEqual(list.cells[index].closeButton.frame, CGRect(x: 180, y: 4, width: 32, height: 32))
+            XCTAssertEqual(row.closeButton.frame, CGRect(x: 180, y: 4, width: 32, height: 32))
             XCTAssertEqual(cell.textField?.stringValue, windows[index].title)
         }
         list.tableView.scrollRowToVisible(2)
         XCTAssertGreaterThan(list.scrollView.contentView.bounds.minY, 0)
+    }
+
+    func testLongWindowListLoadsIconsOnlyNearTheViewportAndRoutesScrolledActions() throws {
+        let windows = groups(count: 200)[0].windows
+        var iconRequests: [String] = []
+        var activated: [String] = []
+        var closed: [String] = []
+        let list = TaskbarWindowListView(windows: windows, availableHeight: 80,
+                                        icon: { iconRequests.append($0.id); return nil },
+                                        activate: { activated.append($0.id) }, close: { closed.append($0.id) }, fileHover: { _ in })
+        let panel = NSPanel(contentRect: list.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = list
+        defer { panel.contentView = nil; panel.close() }
+        panel.layoutIfNeeded()
+        XCTAssertEqual(list.tableView.numberOfRows, 200)
+        XCTAssertLessThan(iconRequests.count, 20, "A two-row viewport must not resolve icons for the whole list")
+        XCTAssertFalse(iconRequests.contains("window-199"))
+        var updated = windows
+        updated[199] = TaskbarWindowPresentation(item: windows[199].item, title: "Updated offscreen title", isActive: false)
+        list.updateTitles(windows: updated)
+        list.tableView.scrollRowToVisible(199)
+        list.layoutSubtreeIfNeeded()
+        let row = try XCTUnwrap(list.tableView.view(atColumn: 0, row: 199, makeIfNecessary: true) as? TaskbarWindowListRow)
+        XCTAssertEqual(row.textField?.stringValue, "Updated offscreen title")
+        XCTAssertTrue(row.accessibilityPerformPress())
+        row.closeButton.performClick(nil)
+        XCTAssertEqual(activated, ["window-199"])
+        XCTAssertEqual(closed, ["window-199"])
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testLongWindowListReusesNativeRowsAcrossScrollingWithoutKeepingOldActions() throws {
+        let windows = groups(count: 200)[0].windows
+        var activated: [String] = []
+        var closed: [String] = []
+        let list = TaskbarWindowListView(windows: windows, availableHeight: 80, icon: { _ in nil },
+                                        activate: { activated.append($0.id) }, close: { closed.append($0.id) }, fileHover: { _ in })
+        let panel = NSPanel(contentRect: list.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = list
+        defer { panel.contentView = nil; panel.close() }
+        panel.layoutIfNeeded()
+        var visitedRows: [TaskbarWindowListRow] = []
+        for index in stride(from: 0, to: 200, by: 10) {
+            let row = try XCTUnwrap(list.nativeRow(at: index))
+            visitedRows.append(row)
+            XCTAssertEqual(row.item.id, "window-\(index)")
+            XCTAssertEqual(row.textField?.stringValue, windows[index].title)
+            XCTAssertTrue(row.accessibilityPerformPress())
+            row.closeButton.performClick(nil)
+        }
+        XCTAssertLessThan(Set(visitedRows.map(ObjectIdentifier.init)).count, 10)
+        let expected = stride(from: 0, to: 200, by: 10).map { "window-\($0)" }
+        XCTAssertEqual(activated, expected)
+        XCTAssertEqual(closed, expected)
+        XCTAssertFalse(panel.isVisible)
+    }
+
+    func testScrollingAWindowListRowOffscreenCancelsItsPendingFileHover() async throws {
+        let clock = Clock()
+        var hovered: [String] = []
+        let list = TaskbarWindowListView(windows: groups(count: 200)[0].windows, availableHeight: 80,
+                                        delay: { await clock.sleep($0) }, icon: { _ in nil },
+                                        activate: { _ in }, close: { _ in }, fileHover: { hovered.append($0.id) })
+        let panel = NSPanel(contentRect: list.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = list
+        defer { panel.contentView = nil; panel.close() }
+        panel.layoutIfNeeded()
+        let row = try XCTUnwrap(list.tableView.view(atColumn: 0, row: 0, makeIfNecessary: true) as? TaskbarWindowListRow)
+        row.scheduleFileHover()
+        await Task.yield()
+        list.tableView.scrollRowToVisible(199)
+        list.layoutSubtreeIfNeeded()
+        _ = list.tableView.view(atColumn: 0, row: 199, makeIfNecessary: true)
+        await clock.advance()
+        XCTAssertTrue(hovered.isEmpty, "An offscreen or reused row must not activate its former window")
+        XCTAssertFalse(panel.isVisible)
     }
 
     func testNativeListCloseButtonClosesOnlyItsWindowWithoutActivatingIt() throws {
@@ -1298,7 +1405,7 @@ final class TaskbarRendererTests: XCTestCase {
         content.update(groups: groups())
         _ = content.buttonViews["group:test.editor"]?.accessibilityPerformPress()
         let list = try XCTUnwrap(popup.content as? TaskbarWindowListView)
-        let row = list.cells[1]
+        let row = try XCTUnwrap(list.nativeRow(at: 1))
         row.keyboardSelected = true
         XCTAssertFalse(row.closeButton.isHidden)
         row.closeButton.performClick(nil)
@@ -1307,12 +1414,11 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertTrue(popup.isPresented)
     }
 
-    func testNativeTableKeyboardSelectionScrollsAndUpdatesTitlesWithoutRecreatingRows() {
+    func testNativeTableKeyboardSelectionScrollsAndUpdatesTitlesWithoutRecreatingRows() throws {
         let windows = groups()[0].windows
         var activated: [String] = []
         let list = TaskbarWindowListView(windows: windows, availableHeight: 40, icon: { _ in nil },
                                         activate: { activated.append($0.id) }, close: { _ in }, fileHover: { _ in })
-        let original = list.cells[2]
         for code: UInt16 in [126, 36] {
             let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
                                         windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
@@ -1320,13 +1426,14 @@ final class TaskbarRendererTests: XCTestCase {
             list.tableView.keyDown(with: event)
         }
         XCTAssertEqual(activated, ["window-2"])
+        let original = try XCTUnwrap(list.nativeRow(at: 2))
         XCTAssertEqual(list.tableView.selectedRow, 2)
         XCTAssertTrue(original.keyboardSelected)
         XCTAssertFalse(original.closeButton.isHidden)
         var updated = windows
         updated[2] = TaskbarWindowPresentation(item: windows[2].item, title: "Changed title", isActive: false)
         list.updateTitles(windows: updated)
-        XCTAssertTrue(list.cells[2] === original)
+        XCTAssertTrue(list.nativeRow(at: 2) === original)
         XCTAssertEqual(original.textField?.stringValue, "Changed title")
     }
 
@@ -1432,4 +1539,21 @@ final class TaskbarRendererTests: XCTestCase {
         }
     }
 
+}
+
+@MainActor
+private extension TaskbarWindowListView {
+    func nativeRow(at index: Int) -> TaskbarWindowListRow? {
+        tableView.scrollRowToVisible(index)
+        layoutSubtreeIfNeeded()
+        return tableView.view(atColumn: 0, row: index, makeIfNecessary: true) as? TaskbarWindowListRow
+    }
+
+    var nativeRows: [TaskbarWindowListRow] {
+        (0..<tableView.numberOfRows).compactMap { index in
+            let row = nativeRow(at: index)
+            XCTAssertNotNil(row)
+            return row
+        }
+    }
 }

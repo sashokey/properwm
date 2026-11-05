@@ -22,10 +22,6 @@ extension PanelCoordinator {
         }
     }
 
-    func setTaskbarMenuOpen(_ open: Bool) {
-        isTaskbarMenuOpen = open
-    }
-
     func reconcilePanelVisibility() {
         applyPanelVisibility()
     }
@@ -34,7 +30,7 @@ extension PanelCoordinator {
         guard !isSuspendedForPermissionLoss else { return }
         let shouldShow = visibilityState.isVisible && currentScreen != nil
         guard shouldShow != panelsAreVisible else { return }
-        noteVisibilityChange(visible: shouldShow, source: diagnosticFullscreenSource)
+        panelsAreVisible = shouldShow
         if shouldShow {
             let fadeIn = lastHideWasForFullscreen
             lastHideWasForFullscreen = false
@@ -56,16 +52,6 @@ extension PanelCoordinator {
             orderDockSurfaceOut()
             for panel in [dockPanel] { panel?.alphaValue = 1 }
         }
-    }
-
-    func noteVisibilityChange(visible: Bool, source: String) {
-        DiagnosticVisibilityRecorder.shared.history.noteVisibilityChange(
-            unit: stripSurfaceID,
-            screen: currentScreen.flatMap { DisplayIdentity.uuidString(for: $0) } ?? fixedUnitDisplayUUID ?? "?",
-            previousVisible: panelsAreVisible, visible: visible,
-            reasons: visibilityState.hideReasons, source: source
-        )
-        panelsAreVisible = visible
     }
 
 }

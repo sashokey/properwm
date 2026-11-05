@@ -8,7 +8,7 @@ final class StripDisplayFilterTests: XCTestCase {
         let filter = StripDisplayFilter(scope: nil, connectedUUIDs: ["A", "B"], primaryUUID: "A")
         XCTAssertTrue(filter.shows(displayUUID: "B"))
         XCTAssertTrue(filter.shows(displayUUID: nil))
-        XCTAssertTrue(StripDisplayFilter.unfiltered.shows(displayUUID: "Z"))
+        XCTAssertTrue(StripDisplayFilter(scope: nil, connectedUUIDs: [], primaryUUID: nil).shows(displayUUID: "Z"))
     }
 
     func testWindowShowsOnlyOnItsOwnDisplay() {

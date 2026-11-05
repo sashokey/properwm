@@ -1,4 +1,5 @@
 import CoreGraphics
+import Synchronization
 import XCTest
 
 final class WindowLiftAvoidanceTests: XCTestCase {
@@ -1879,5 +1880,107 @@ extension WindowLiftAvoidanceTests {
             for: CGRect(x: 2560, y: 0, width: 2560, height: 1410),
             geometry: geometry, includesTiles: true, at: 100
         ), .hold)
+    }
+}
+
+
+private final class LiftCaptureSystem: WindowSystemAccess, @unchecked Sendable {
+    let onScreen: [[String: Any]]?
+    let all: [[String: Any]]?
+    let options = Mutex<[CGWindowListOption]>([])
+
+    init(onScreen: [[String: Any]]?, all: [[String: Any]]?) {
+        self.onScreen = onScreen
+        self.all = all
+    }
+
+    func generation(_ pid: pid_t) -> ProcessGeneration? { nil }
+    func app(_ pid: pid_t) -> WindowApplicationState? { nil }
+    func activate(_ pid: pid_t) -> Bool { false }
+    func unhide(_ pid: pid_t) {}
+    func terminate(_ pid: pid_t) -> Bool { false }
+    func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]? {
+        self.options.withLock { $0.append(options) }
+        return options.contains(.optionOnScreenOnly) ? onScreen : all
+    }
+}
+
+extension WindowLiftAvoidanceTests {
+    private func liftWindowInfo(pid: pid_t, id: CGWindowID, bounds: CGRect? = CGRect(x: 0, y: 0, width: 100, height: 100)) -> [String: Any] {
+        var result: [String: Any] = [kCGWindowNumber as String: id, kCGWindowOwnerPID as String: pid,
+                                     kCGWindowLayer as String: 0, kCGWindowIsOnscreen as String: true]
+        if let bounds { result[kCGWindowBounds as String] = bounds.dictionaryRepresentation }
+        return result
+    }
+
+    func testLiftCaptureReusesOnScreenLivenessWhenEveryTrackedIdentityIsPresent() {
+        let first = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let second = WindowLiftAvoidance.WindowKey(pid: 200, cgWindowID: 8)
+        let system = LiftCaptureSystem(onScreen: [liftWindowInfo(pid: 100, id: 7), liftWindowInfo(pid: 200, id: 8)], all: nil)
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [first, second], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0 }, [[.optionOnScreenOnly, .excludeDesktopElements]])
+        XCTAssertEqual(result.liveWindowKeys, [first, second])
+    }
+
+    func testLiftCaptureStillChecksAllWindowsForAnOffscreenTrackedIdentity() {
+        let first = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let second = WindowLiftAvoidance.WindowKey(pid: 200, cgWindowID: 8)
+        let system = LiftCaptureSystem(onScreen: [liftWindowInfo(pid: 100, id: 7)],
+                                       all: [liftWindowInfo(pid: 100, id: 7), liftWindowInfo(pid: 200, id: 8)])
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [first, second], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0.count }, 2)
+        XCTAssertEqual(result.liveWindowKeys, [first, second])
+    }
+
+    func testLiftCaptureDoesNotAcceptWindowNumberReusedByAnotherProcessAsLiveness() {
+        let tracked = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let reused = WindowLiftAvoidance.WindowKey(pid: 200, cgWindowID: 7)
+        let system = LiftCaptureSystem(onScreen: [liftWindowInfo(pid: 200, id: 7)], all: [liftWindowInfo(pid: 200, id: 7)])
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [tracked], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0.count }, 2)
+        XCTAssertEqual(result.liveWindowKeys, [reused])
+    }
+
+    func testLiftCaptureKeepsLivenessUnknownWhenBothSystemReadsFail() {
+        let tracked = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let system = LiftCaptureSystem(onScreen: nil, all: nil)
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [tracked], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0.count }, 2)
+        XCTAssertNil(result.liveWindowKeys)
+        XCTAssertTrue(result.onScreenFrames.isEmpty)
+    }
+
+    func testLiftCaptureUsesFullReadAfterOnScreenReadFails() {
+        let tracked = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let system = LiftCaptureSystem(onScreen: nil, all: [liftWindowInfo(pid: 100, id: 7)])
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [tracked], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0.count }, 2)
+        XCTAssertEqual(result.liveWindowKeys, [tracked])
+    }
+}
+
+
+extension WindowLiftAvoidanceTests {
+    func testLiftCaptureRequiresFullReadForMissingSuppressedIdentity() {
+        let active = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let suppressed = WindowLiftAvoidance.WindowKey(pid: 200, cgWindowID: 8)
+        let system = LiftCaptureSystem(onScreen: [liftWindowInfo(pid: 100, id: 7)],
+                                       all: [liftWindowInfo(pid: 100, id: 7), liftWindowInfo(pid: 200, id: 8)])
+        let result = WindowLiftCGWindowProbe.capture(on: [], excludingPID: 999,
+            includeLiveWindowKeys: true, includesTiles: false, trackedKeys: [active],
+            livenessKeys: [active, suppressed], system: system)
+
+        XCTAssertEqual(system.options.withLock { $0.count }, 2)
+        XCTAssertEqual(result.liveWindowKeys, [active, suppressed])
     }
 }

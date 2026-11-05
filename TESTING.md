@@ -125,6 +125,14 @@ The constrained Swift-executor CI pass includes the geometry/context and icon re
 
 ## Review regression boundaries
 
+Hold a second application's periodic AX read and verify that the first application's ready title is published and its next event completes before releasing the second reader. Keep unread, stale-token, generation-replacement and stop coverage. Count running-application enumeration across an ownership batch with multiple helpers and a missing PID; expect one candidate snapshot while host-generation changes and signature failures still reject bindings. A cancelled batch must not enumerate or check signatures.
+
+Block one subscription removal, queue more, stop the observer and restart with a fresh session. After the admitted call drains, no further removal may target the old session; live retirement still unsubscribes normally. Repeatedly retire phantom-held seats while their process survives and assert that diagnostic state returns to its live cardinality. Independent minimized startup windows must retain their seats without unconditional debug output.
+
+Count CG calls for visible saved identities, missing/offscreen identities, reused window numbers under a different PID and failed captures. Include suppression identities without admitting them as lift candidates. Fullscreen-worker tests must prove off-main Space reads, fresh true/false transitions and rejection of results from older probe, display geometry and hold generations.
+
+Move a taskbar group repeatedly within one insertion slot and assert that unchanged icon/content work is not repeated. Scroll a long native list through a small viewport, verify bounded row reuse and exact activation/close targets, and cancel file-hover activation when its row leaves the viewport. Keep keyboard navigation, title-only refresh, rendered geometry and disposal tests on native cells obtained from the table rather than eager row storage.
+
 Keep production-reconcile tests for overlapping independent windows, an independent window entering a vacated frame, same-size minimized startup windows, a positively observed native tab switched and minimized after moving, visible tear-out, and failed versus successful-empty CG captures. Failed captures must preserve cached handles and old histories while accepting positive AX changes, including a new window at a retained window's old frame and a known tab switch that preserves its original seat through CG recovery.
 
 Observer tests must exercise nil factory recovery, transient application-level registration, already-registered and unsupported responses, preservation of established window subscriptions, and stop during blocked recovery. Unsupported is not an immediate-retry loop and does not establish complete event coverage.
