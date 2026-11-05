@@ -18,7 +18,10 @@ struct ApplicationOwnership: Sendable {
 
     func owner(for pid: pid_t) -> ApplicationOwnerRead? {
         guard pid > 0 else { return nil }
-        let applications = applications()
+        return owner(for: pid, applications: applications())
+    }
+
+    private func owner(for pid: pid_t, applications: [ApplicationOwnerRead]) -> ApplicationOwnerRead? {
         guard let helper = applications.first(where: { $0.identity.pid == pid }),
               helper.application.isEmbeddedHelper, let helperBundle = bundleComponents(helper.application),
               let helperID = helper.application.bundleIdentifier,
@@ -36,6 +39,18 @@ struct ApplicationOwnership: Sendable {
               let parentTeam = signingTeam(candidate.identity.pid, candidateID), parentTeam == helperTeam,
               isCurrent(helper), isCurrent(candidate) else { return nil }
         return candidate
+    }
+
+    func owners(for pids: Set<pid_t>, cancellation: OperationCancellation = OperationCancellation()) -> [pid_t: ApplicationOwnerRead] {
+        let pids = pids.filter { $0 > 0 }
+        guard !pids.isEmpty, !cancellation.isCancelled else { return [:] }
+        let applications = applications()
+        var result: [pid_t: ApplicationOwnerRead] = [:]
+        for pid in pids {
+            guard !cancellation.isCancelled else { break }
+            result[pid] = owner(for: pid, applications: applications)
+        }
+        return result
     }
 
     private func isCurrent(_ application: ApplicationOwnerRead) -> Bool {

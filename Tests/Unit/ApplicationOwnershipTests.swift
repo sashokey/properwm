@@ -33,6 +33,58 @@ final class ApplicationOwnershipTests: XCTestCase {
         XCTAssertEqual(result?.application.bundleURL?.path, "/Applications/Host")
     }
 
+    func testOwnershipBatchEnumeratesApplicationsOnceForMultipleHelpersAndAMissingPID() {
+        let another = application(32, root: "/Applications/Host/Contents/Frameworks/Other.app",
+                                  identifier: "test.other-helper", helper: true)
+        let applications = [host, helper, another]
+        let enumerations = Mutex(0)
+        let ownership = ApplicationOwnership(applications: {
+            enumerations.withLock { $0 += 1 }
+            return applications
+        }, identity: { pid, identifier in
+            applications.first { $0.identity.pid == pid }?.identity
+                ?? .init(pid: pid, startTimeSec: nil, startTimeUsec: nil, bundleID: identifier)
+        }, signingTeam: { _, _ in "VENDOR" })
+
+        let result = ownership.owners(for: [31, 32, 999])
+
+        XCTAssertEqual(Set(result.keys), [31, 32])
+        XCTAssertEqual(result[31]?.identity.pid, 30)
+        XCTAssertEqual(result[32]?.identity.pid, 30)
+        XCTAssertEqual(enumerations.withLock { $0 }, 1)
+    }
+
+    func testOwnershipBatchRevalidatesTheHostGenerationForEachHelper() {
+        let another = application(32, root: "/Applications/Host/Contents/Frameworks/Other.app",
+                                  identifier: "test.other-helper", helper: true)
+        let applications = [host, helper, another]
+        let parentSignatures = Mutex(0)
+        let ownership = ApplicationOwnership(applications: { applications }, identity: { pid, identifier in
+            let replaced = pid == 30 && parentSignatures.withLock { $0 >= 2 }
+            return .init(pid: pid, startTimeSec: replaced ? 11 : 10, startTimeUsec: 1, bundleID: identifier)
+        }, signingTeam: { pid, _ in
+            if pid == 30 { parentSignatures.withLock { $0 += 1 } }
+            return "VENDOR"
+        })
+
+        let result = ownership.owners(for: [31, 32])
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.values.first?.identity.pid, 30)
+        XCTAssertEqual(parentSignatures.withLock { $0 }, 2)
+    }
+
+    func testCancelledOwnershipBatchDoesNotEnumerateOrCheckSignatures() {
+        let operations = Mutex(0)
+        let ownership = ApplicationOwnership(applications: { operations.withLock { $0 += 1 }; return [] },
+                                             signingTeam: { _, _ in operations.withLock { $0 += 1 }; return nil })
+        let cancellation = OperationCancellation()
+        cancellation.cancel()
+
+        XCTAssertTrue(ownership.owners(for: [31, 32], cancellation: cancellation).isEmpty)
+        XCTAssertEqual(operations.withLock { $0 }, 0)
+    }
+
     func testMissingOrDifferentVerifiedSignersRejectTheBinding() {
         for teams: [pid_t: String] in [[:], [30: "VENDOR"], [31: "VENDOR"], [30: "OTHER", 31: "VENDOR"]] {
             XCTAssertNil(resolver([helper, host], teams: teams).owner(for: 31))

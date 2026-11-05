@@ -41,6 +41,68 @@ private final class LifecycleProcess: AppTrackerProcessProviding, Sendable {
 
 @MainActor
 final class InventoryLifecycleTests: XCTestCase {
+    func testClosedHeldSeatsReleaseTheirDiagnosticEpisodesWhileTheApplicationKeepsRunning() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let log = WindowInventoryAnomalyLog(configuration: .init(enabled: true, directoryURL: directory,
+                                                                 maxFileSize: 1_000_000, archiveCount: 1))
+        let tracker = AppTracker(inventoryLog: log, reader: FocusLifecycleReader(blockFirst: false),
+                                 processProvider: LifecycleProcess(), cgSnapshotProvider: { .failed })
+        defer { tracker.stop(); try? FileManager.default.removeItem(at: directory) }
+        for index in 0..<5 {
+            let id = CGWindowID(77 + index)
+            var seat = inventorySeat(id, token: "held-\(index)", bounds: inventoryFrame, minimized: true)
+            seat.minAbsentSince = Date(timeIntervalSince1970: 80)
+            seat.absenceEpisodeID = UUID()
+            tracker.installFixtureForTesting(inventoryApp(entries: [seat]))
+            reconcileInventory(tracker, eligible: [], cg: inventoryCG(ids: [id]))
+            XCTAssertEqual(try heldEpisodeCount(tracker), 1)
+            reconcileInventory(tracker, eligible: [], cg: inventoryCG(ids: []))
+            XCTAssertEqual(tracker.fixtureAppForTesting(pid: inventoryPID)?.windowsByID.count, 0)
+            XCTAssertEqual(try heldEpisodeCount(tracker), 0)
+        }
+    }
+
+    func testIndependentMinimizedAdmissionDoesNotWriteUnconditionalDebugOutput() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(inventoryApp(entries: []))
+        let output = try capturedStandardOutput {
+            reconcileInventory(tracker, eligible: [
+                inventoryWindow(77, bounds: inventoryFrame, minimized: true),
+                inventoryWindow(88, bounds: inventoryFrame, minimized: true),
+                inventoryWindow(99, bounds: inventoryFrame, minimized: true)
+            ], cg: inventoryCG(ids: [77, 88, 99]))
+        }
+        XCTAssertEqual(tracker.fixtureAppForTesting(pid: inventoryPID)?.windowOrder, [77, 88, 99])
+        XCTAssertFalse(output.contains("[tabfold]"))
+    }
+
+    private func heldEpisodeCount(_ tracker: AppTracker) throws -> Int {
+        let deduplicator = try XCTUnwrap(Mirror(reflecting: tracker).children.first {
+            $0.label == "heldLogDeduplicator"
+        }?.value)
+        let storage = try XCTUnwrap(Mirror(reflecting: deduplicator).children.first {
+            $0.label == "reasonsByEpisode"
+        }?.value)
+        return Mirror(reflecting: storage).children.count
+    }
+
+    private func capturedStandardOutput(_ operation: () -> Void) throws -> String {
+        fflush(stdout)
+        let saved = dup(STDOUT_FILENO)
+        guard saved >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        let pipe = Pipe()
+        defer { dup2(saved, STDOUT_FILENO); close(saved) }
+        guard dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO) >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        operation()
+        fflush(stdout)
+        dup2(saved, STDOUT_FILENO)
+        try pipe.fileHandleForWriting.close()
+        return String(decoding: try pipe.fileHandleForReading.readToEnd() ?? Data(), as: UTF8.self)
+    }
+
     func testMovingEitherOverlappingIndependentWindowPreservesBothSeatsAndTokens() throws {
         for movedID: CGWindowID in [77, 88] {
             let tracker = inventoryTracker()
@@ -614,6 +676,21 @@ final class InventoryLifecycleTests: XCTestCase {
               bundleURL: URL(fileURLWithPath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app"))
     }
 
+    func testSeedAndScanRequestOneOwnershipBatchAwayFromTheMainThread() async {
+        for source in ["seed", "scan"] {
+            let reader = AdmissionWindowReader()
+            let process = OwnedApplicationProcess()
+            let tracker = ownedTracker(reader: reader, process: process)
+            defer { tracker.stop() }
+            tracker.runAdmissionForTesting(source: source, application: embeddedApplication)
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            XCTAssertEqual(tracker.snapshot.windows.count, 1, source)
+            XCTAssertEqual(process.batchLookups.withLock { $0 }, 1, source)
+            XCTAssertEqual(process.lookups.withLock { $0 }, 1, source)
+            XCTAssertFalse(process.usedMainThread.withLock { $0 }, source)
+        }
+    }
+
     private func ownedTracker(reader: any AppTrackerWindowReading, process: OwnedApplicationProcess) -> AppTracker {
         let pid = NSRunningApplication.current.processIdentifier
         let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [77], onScreenWindowIDs: [77],
@@ -1005,7 +1082,14 @@ private final class OwnedApplicationProcess: AppTrackerProcessProviding, Sendabl
     let parentAlive = Mutex(true)
     let parentGeneration = Mutex(Int64(10))
     let lookups = Mutex(0)
+    let batchLookups = Mutex(0)
     let usedMainThread = Mutex(false)
+    func applicationOwners(for pids: Set<pid_t>, cancellation: OperationCancellation) -> [pid_t: ApplicationOwnerRead] {
+        batchLookups.withLock { $0 += 1 }
+        return Dictionary(uniqueKeysWithValues: pids.compactMap { pid in
+            applicationOwner(pid: pid).map { (pid, $0) }
+        })
+    }
     func isAlive(pid: pid_t) -> Bool { pid != -43000 || parentAlive.withLock { $0 } }
     func identity(pid: pid_t, bundleID: String?) -> ScanAdmissionDecision.ProcessIdentity {
         .init(pid: pid, startTimeSec: isAlive(pid: pid) ? (pid == -43000 ? parentGeneration.withLock { $0 } : 10) : nil, startTimeUsec: 1, bundleID: bundleID)

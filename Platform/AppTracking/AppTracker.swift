@@ -65,11 +65,13 @@ struct WindowEntry {
     var createdAt = Date()
 }
 
+#if DEBUG
 struct DiagnosticAdmissionRecord: Equatable {
     let verdict: String
     let source: String
     let at: Date
 }
+#endif
 
 typealias ApplicationOwnerRead = (identity: ScanAdmissionDecision.ProcessIdentity, application: AppTrackerWindowEligibility.Application)
 
@@ -77,14 +79,26 @@ protocol AppTrackerProcessProviding: Sendable {
     func isAlive(pid: pid_t) -> Bool
     func identity(pid: pid_t, bundleID: String?) -> ScanAdmissionDecision.ProcessIdentity
     func applicationOwner(pid: pid_t) -> ApplicationOwnerRead?
+    func applicationOwners(for pids: Set<pid_t>, cancellation: OperationCancellation) -> [pid_t: ApplicationOwnerRead]
 }
 
 extension AppTrackerProcessProviding {
     func applicationOwner(pid: pid_t) -> ApplicationOwnerRead? { nil }
+    func applicationOwners(for pids: Set<pid_t>, cancellation: OperationCancellation) -> [pid_t: ApplicationOwnerRead] {
+        var result: [pid_t: ApplicationOwnerRead] = [:]
+        for pid in pids {
+            guard !cancellation.isCancelled else { break }
+            result[pid] = applicationOwner(pid: pid)
+        }
+        return result
+    }
 }
 
 struct LiveAppTrackerProcessProvider: AppTrackerProcessProviding {
     func applicationOwner(pid: pid_t) -> ApplicationOwnerRead? { ApplicationOwnership().owner(for: pid) }
+    func applicationOwners(for pids: Set<pid_t>, cancellation: OperationCancellation) -> [pid_t: ApplicationOwnerRead] {
+        ApplicationOwnership().owners(for: pids, cancellation: cancellation)
+    }
 
     func isAlive(pid: pid_t) -> Bool {
         ProcessLiveness.isAlive(pid: pid)
@@ -119,6 +133,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var pid: pid_t { identity.pid }
     }
     private var ownerBindings: [pid_t: OwnerBinding] = [:]
+    #if DEBUG
     private(set) var lastAdmissionVerdictByPID: [pid_t: DiagnosticAdmissionRecord] = [:]
 
     func diagnosticApps() -> [AppEntry] {
@@ -128,6 +143,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     func noteAdmissionVerdict(pid: pid_t, verdict: String, source: String) {
         lastAdmissionVerdictByPID[pid] = DiagnosticAdmissionRecord(verdict: verdict, source: source, at: Date())
     }
+    #endif
     private var appOrder: [pid_t] = []
     private var observers: [pid_t: AppWindowObserver] = [:]
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -178,6 +194,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private var nextEventReadToken: UInt64 = 0
     private var pendingEventReads: [pid_t: PendingEventRead] = [:]
     private var trailingEventSources: [pid_t: InventoryReconcileSource] = [:]
+    private var pendingPeriodicSnapshot: (token: UInt64, onScreenIDs: Set<CGWindowID>)?
     private struct PendingFocusRead {
         let id = UUID()
         let revision: UInt64
@@ -386,7 +403,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         for obs in observers.values { obs.stop() }
         observers.removeAll()
         apps.removeAll()
+        #if DEBUG
         lastAdmissionVerdictByPID.removeAll()
+        #endif
         appOrder.removeAll()
         destroyedCGIDs.removeAll()
         reconcileOrdinalsByPID.removeAll()
@@ -396,6 +415,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         ownerBindings.removeAll()
         pendingEventReads.removeAll()
         trailingEventSources.removeAll()
+        pendingPeriodicSnapshot = nil
         focusRevisions.removeAll()
         confirmedFocus.removeAll()
         pendingFocusReads.removeAll()
@@ -772,16 +792,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 if let owner { newByID[owner]?.formerCgIDs.insert(c) }   // 成员学习
             case .newSeat:
                 let hadPlacedSeat = !placedForFold.isEmpty
-                if s.isMinimized, !placedForFold.isEmpty {
-                    // 潜在分裂点，dump 全部判定输入抓现场。placed 为空（seed 时本就最小化的
-                    // 独立窗口）是正确新建，不打。正常路径零输出——别再当遗留清掉。
-                    let cand = WindowFrameMatchPolicy.signature(for: s.bounds)
-                    let placedDesc = newOrder.compactMap { newByID[$0] }.map { p in
-                        let b = WindowFrameMatchPolicy.signature(for: p.bounds)
-                        return "(cg=\(p.cgWindowID) min=\(p.isMinimized) b=[\(b)] hist=\(p.formerCgIDs.sorted()))"
-                    }.joined(separator: " ")
-                    print("[tabfold] 分裂点 pid=\(pid) 为 min 窗口新建座位 cg=\(c) b=[\(cand)] onScreen=\(onScreenCGIDs.contains(c)) shadow=\(shadowPool.contains(c)) pool=\(shadowPool.count) placed=\(placedDesc)")
-                }
                 nextSeatSerial += 1
                 let entry = make(token: "tabgrp-\(pid)-s\(nextSeatSerial)", s)
                 if let reconcileContext {
@@ -880,12 +890,13 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                         ownerCandidateCount: ownerCandidates.count
                     )))
                 }
-                let ownerDescription = owner.map { String($0.activeCgID) } ?? "无(歧义)"
-                print("[tabheal] 自愈 pid=\(pid) 释放幽灵座位 cg=\(healed.cgID) 归入=\(ownerDescription)")
             }
         }
 
         for released in releasedSeats {
+            if inventoryLog.isEnabled, let episodeID = released.seat.absenceEpisodeID {
+                heldLogDeduplicator.clear(pid: pid, seatToken: released.seat.token, episodeID: episodeID)
+            }
             let snapshot = inventorySeatReleaseSnapshot(app: app, seats: [released.seat])
             for payload in InventorySeatReleasePlan.payloads(
                 for: snapshot,
@@ -1211,7 +1222,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func clearInventoryDiagnostics(pid: pid_t) {
+        #if DEBUG
         lastAdmissionVerdictByPID.removeValue(forKey: pid)
+        #endif
         reconcileOrdinalsByPID.removeValue(forKey: pid)
         lastReconcileAtByPID.removeValue(forKey: pid)
         shadowPoolDiagnosticsByPID.removeValue(forKey: pid)
@@ -1324,14 +1337,19 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         }
         let reader = reader
         let processProvider = processProvider
+        let embeddedPIDs = Set(candidates.filter(\.requiresOwner).map { $0.identity.pid })
         work.launch { [weak self] generation in
+            let ownerCancellation = OperationCancellation()
+            guard let owners = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: ownerCancellation, operation: {
+                processProvider.applicationOwners(for: embeddedPIDs, cancellation: ownerCancellation)
+            }) else { return }
             var results: [ApplicationProbe] = []
             for candidate in candidates {
                 guard !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
                     Self.probeApplication(candidate.identity, requiresOwner: candidate.requiresOwner,
-                        reader: reader, processProvider: processProvider, timeout: messagingTimeout, cancellation: cancellation)
+                        owner: owners[candidate.identity.pid], reader: reader, timeout: messagingTimeout, cancellation: cancellation)
                 }) else { return }
                 results.append(result)
             }
@@ -1387,7 +1405,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             } else {
                 seedVerdict = .admit
             }
+            #if DEBUG
             noteAdmissionVerdict(pid: pid, verdict: seedVerdict.rawValue, source: "seed")
+            #endif
             if inventoryLog.isEnabled {
                 recordAdmissionProbe(
                     source: .seed,
@@ -1666,8 +1686,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 guard let identity, !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
-                    Self.probeApplication(identity, requiresOwner: requiresOwner, reader: reader,
-                        processProvider: processProvider, timeout: 0.1, cancellation: cancellation)
+                    Self.probeApplication(identity, requiresOwner: requiresOwner,
+                        owner: requiresOwner ? processProvider.applicationOwner(pid: pid) : nil, reader: reader,
+                        timeout: 0.1, cancellation: cancellation)
                 }) else { return }
                 await MainActor.run {
                     guard let self, self.work.isCurrent(generation) else { return }
@@ -1684,9 +1705,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     let prepared = ScanAdmissionDecision.prepare(rawWindows: result.isSuccess ? result.windowsOrEmpty : nil) {
                         self.isEligible($0, application: application, cgSnapshot: cgSnapshot)
                     }
+                    #if DEBUG
                     self.noteAdmissionVerdict(pid: pid,
                         verdict: !result.isSuccess ? "skipUnread" : (prepared.eligible.isEmpty ? "skipNoEligible" : "admit"),
                         source: "launchRetry")
+                    #endif
                     if !prepared.eligible.isEmpty {
                         self.admit(app: current, prepared: prepared,
                             readOutcome: .success(count: prepared.rawCount), cgSnapshot: cgSnapshot)
@@ -2311,10 +2334,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         scanNonAdmittedApps(cgSnapshot: cgSnapshot)
     }
 
-    /// 周期对账的批量后台读：已有在途读的 pid 跳过（其落地自带更新数据），其余批量注册
-    /// pending token 后在**一个** detached task 里串行限时读，整批一次落地、至多一次重建。
-    /// 批读在途期间到达的 AX 事件照常并入 trailing（单 pid 单在途不变）；下一 tick 里
-    /// 尚未落地的 pid 因 pending 存在被跳过，天然不堆积。
     private func schedulePeriodicBatchRead(cgSnapshot: AppTrackerCGWindowSnapshot, timeout: TimeInterval) {
         guard work.isActive else { return }
         for observer in observers.values { observer.start() }
@@ -2339,19 +2358,17 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let pending = batch
 
         work.launch { [weak self] generation in
-            var results: [(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult)] = []
             for entry in pending {
                 guard !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
                     reader.inventoryWindows(forPID: entry.pid, messagingTimeout: timeout, cancellation: cancellation)
                 }) else { return }
-                results.append((entry.pid, entry.request, result))
-            }
-            let landed = results
-            await MainActor.run { [weak self] in
-                guard let self, self.work.isCurrent(generation) else { return }
-                self.completePeriodicBatch(landed, cgSnapshot: cgSnapshot)
+                await MainActor.run { [weak self] in
+                    guard let self, self.work.isCurrent(generation) else { return }
+                    self.completePeriodicRead(pid: entry.pid, request: entry.request, result: result,
+                                              cgSnapshot: cgSnapshot, generation: generation)
+                }
             }
         }
     }
@@ -2397,27 +2414,31 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         return observers[pid]?.isActive ?? false
     }
 
-    private func completePeriodicBatch(
-        _ results: [(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult)],
-        cgSnapshot: AppTrackerCGWindowSnapshot
-    ) {
-        var changed = false
-        var landedPIDs: [pid_t] = []
-        for entry in results {
-            switch landEventRead(pid: entry.pid, request: entry.request, result: entry.result, cgSnapshot: cgSnapshot) {
-            case .staleToken:
-                continue
-            case .skipped:
-                landedPIDs.append(entry.pid)
-            case .reconciled(let seatsChanged):
-                if seatsChanged { changed = true }
-                landedPIDs.append(entry.pid)
-            }
+    private func completePeriodicRead(pid: pid_t, request: PendingEventRead, result: AXWindowReadResult,
+                                      cgSnapshot: AppTrackerCGWindowSnapshot, generation: UInt64) {
+        switch landEventRead(pid: pid, request: request, result: result, cgSnapshot: cgSnapshot) {
+        case .staleToken:
+            return
+        case .skipped:
+            break
+        case .reconciled(let changed):
+            if changed { schedulePeriodicSnapshot(request: request, cgSnapshot: cgSnapshot, generation: generation) }
         }
-        if changed { rebuildSnapshot(onScreenCGIDs: cgSnapshot.onScreenWindowIDs) }
-        for pid in landedPIDs {
-            consumeTrailingEventRead(pid: pid)
-            armAbsenceProbes(pid: pid)
+        consumeTrailingEventRead(pid: pid)
+        armAbsenceProbes(pid: pid)
+    }
+
+    private func schedulePeriodicSnapshot(request: PendingEventRead, cgSnapshot: AppTrackerCGWindowSnapshot,
+                                           generation: UInt64) {
+        if pendingPeriodicSnapshot != nil {
+            pendingPeriodicSnapshot?.onScreenIDs = cgSnapshot.onScreenWindowIDs
+            return
+        }
+        pendingPeriodicSnapshot = (request.token, cgSnapshot.onScreenWindowIDs)
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.work.isCurrent(generation),
+                  let pending = self.pendingPeriodicSnapshot, pending.token == request.token else { return }
+            self.rebuildSnapshot(onScreenCGIDs: pending.onScreenIDs)
         }
     }
 
@@ -2483,13 +2504,17 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             // 后台只做 AX 读（限时 100ms，挂死 App 不拖主线程）。eligible 过滤放主线程：它依赖
             // 实例属性 eligibilityPolicy，且只是对已读字段的纯计算，零 AX 往返。
             let probeStart = DispatchTime.now().uptimeNanoseconds
+            let ownerCancellation = OperationCancellation()
+            guard let owners = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: ownerCancellation, operation: {
+                processProvider.applicationOwners(for: embeddedPIDs, cancellation: ownerCancellation)
+            }) else { return }
             var probed: [ApplicationProbe] = []
             for candidate in candidates {
                 guard !Task.isCancelled else { return }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
                     Self.probeApplication(candidate.identity, requiresOwner: embeddedPIDs.contains(candidate.pid),
-                        reader: reader, processProvider: processProvider, timeout: 0.1, cancellation: cancellation)
+                        owner: owners[candidate.pid], reader: reader, timeout: 0.1, cancellation: cancellation)
                 }) else { return }
                 probed.append(result)
             }
@@ -2535,7 +2560,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             rememberOwner(entry)
             guard let app = applicationForAdmission(pid: entry.pid) else {
                 scanMemos.removeValue(forKey: entry.pid)
+                #if DEBUG
                 noteAdmissionVerdict(pid: entry.pid, verdict: "skipProcessUnavailable", source: "scan")
+                #endif
                 recordAdmissionProbe(
                     source: .scan,
                     identity: entry.identity,
@@ -2573,7 +2600,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 isTerminated: isTerminatedForAdmission(app),
                 alreadyTracked: apps[entry.pid] != nil
             )
+            #if DEBUG
             noteAdmissionVerdict(pid: entry.pid, verdict: inventoryAdmissionVerdict(verdict).rawValue, source: "scan")
+            #endif
             recordAdmissionProbe(
                 source: .scan,
                 identity: entry.identity,
@@ -2688,6 +2717,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     // MARK: - Snapshot Building
 
     private func rebuildSnapshot(onScreenCGIDs: Set<CGWindowID>? = nil) {
+        pendingPeriodicSnapshot = nil
         let frontmostPID = currentFrontmostPID()
         lastOnScreenCGIDs = onScreenCGIDs ?? onScreenWindowIDsProvider()
         var windows: [WindowID: WindowRecord] = [:]
@@ -2754,11 +2784,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     nonisolated private static func probeApplication(
         _ identity: ScanAdmissionDecision.ProcessIdentity, requiresOwner: Bool,
-        reader: any AppTrackerWindowReading, processProvider: any AppTrackerProcessProviding,
+        owner: ApplicationOwnerRead?, reader: any AppTrackerWindowReading,
         timeout: TimeInterval?, cancellation: OperationCancellation
     ) -> ApplicationProbe {
         guard !cancellation.isCancelled else { return .init(identity: identity, result: .unread(.cannotComplete), owner: nil) }
-        let owner = requiresOwner ? processProvider.applicationOwner(pid: identity.pid) : nil
         guard !requiresOwner || owner != nil else { return .init(identity: identity, result: .success([]), owner: nil) }
         guard !cancellation.isCancelled else { return .init(identity: identity, result: .unread(.cannotComplete), owner: nil) }
         let result = timeout.map { reader.inventoryWindows(forPID: identity.pid, messagingTimeout: $0, cancellation: cancellation) }

@@ -11,6 +11,62 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
     private let cgWindowA: CGWindowID = 77
     private let cgWindowB: CGWindowID = 88
 
+    func testReadyPIDPublishesAndConsumesItsNextEventWhileAnotherPIDIsBlocked() async {
+        let reader = SelectivePeriodicReader(blockedPID: pidB, results: [
+            pidA: [makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Ready A"),
+                   makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Follow-up A")],
+            pidB: [makeSnapshot(pid: pidB, cgWindowID: cgWindowB, title: "Ready B")]
+        ])
+        let tracker = AppTracker(reader: reader, processProvider: BatchFixedProcessProvider(),
+                                 cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot })
+        defer { reader.release(); tracker.stop() }
+        tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
+        tracker.installFixtureForTesting(makeApp(pid: pidB, cgWindowID: cgWindowB))
+
+        tracker.runPeriodicBatchForTesting(cgSnapshot: cgSnapshot())
+        await waitUntil { reader.isBlocked }
+        XCTAssertTrue(reader.isBlocked)
+        await waitUntil { tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title == "Ready A" }
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title, "Ready A")
+        XCTAssertFalse(tracker.hasPendingEventReadForTesting(pid: pidA))
+        XCTAssertTrue(tracker.hasPendingEventReadForTesting(pid: pidB))
+
+        tracker.scheduleEventReadForTesting(pid: pidA, source: .windowCreated)
+        await waitUntil { tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title == "Follow-up A" }
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title, "Follow-up A")
+        XCTAssertEqual(reader.reads(for: pidA), 2)
+        XCTAssertTrue(tracker.hasPendingEventReadForTesting(pid: pidB))
+
+        reader.release()
+        await waitUntil { !tracker.hasPendingEventReadForTesting(pid: self.pidB) }
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-88")]?.title, "Ready B")
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title, "Follow-up A")
+    }
+
+    func testQueuedTrailingEventCompletesBeforeAnotherPeriodicPIDReturns() async {
+        let reader = SelectivePeriodicReader(blockedPID: pidB, results: [
+            pidA: [makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Ready A"),
+                   makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Queued follow-up A")],
+            pidB: [makeSnapshot(pid: pidB, cgWindowID: cgWindowB, title: "Ready B")]
+        ])
+        let tracker = AppTracker(reader: reader, processProvider: BatchFixedProcessProvider(),
+                                 cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot })
+        defer { reader.release(); tracker.stop() }
+        tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
+        tracker.installFixtureForTesting(makeApp(pid: pidB, cgWindowID: cgWindowB))
+
+        tracker.runPeriodicBatchForTesting(cgSnapshot: cgSnapshot())
+        tracker.scheduleEventReadForTesting(pid: pidA, source: .windowCreated)
+        await waitUntil { reader.isBlocked }
+        XCTAssertTrue(reader.isBlocked)
+        await waitUntil { tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title == "Queued follow-up A" }
+
+        XCTAssertEqual(reader.reads(for: pidA), 2)
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.title, "Queued follow-up A")
+        XCTAssertFalse(tracker.hasPendingEventReadForTesting(pid: pidA))
+        XCTAssertTrue(tracker.hasPendingEventReadForTesting(pid: pidB))
+    }
+
     func testBatchReadsEachTrackedPidOnceAndAppliesResult() async {
         let reader = PeriodicBatchReader(resultsByPID: [
             pidA: .success([makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Renamed A")]),
@@ -588,6 +644,37 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
 }
 
 /// 可注入按 pid 定制结果的限时读探针；可选在读中阻塞（模拟批读在途窗口）。
+private final class SelectivePeriodicReader: AppTrackerWindowReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private let blockedPID: pid_t
+    private let results: [pid_t: [AXWindowSnapshot]]
+    private var counts: [pid_t: Int] = [:]
+    private var blocked = false
+
+    init(blockedPID: pid_t, results: [pid_t: [AXWindowSnapshot]]) {
+        self.blockedPID = blockedPID
+        self.results = results
+    }
+
+    var isBlocked: Bool { lock.lock(); defer { lock.unlock() }; return blocked }
+    func reads(for pid: pid_t) -> Int { lock.lock(); defer { lock.unlock() }; return counts[pid, default: 0] }
+    func release() { semaphore.signal() }
+    func windows(forPID pid: pid_t) -> [AXWindowSnapshot] { [] }
+    func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult { .success([]) }
+
+    func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult {
+        lock.lock()
+        counts[pid, default: 0] += 1
+        let count = counts[pid, default: 0]
+        if pid == blockedPID { blocked = true }
+        lock.unlock()
+        if pid == blockedPID { semaphore.wait() }
+        guard let snapshots = results[pid], !snapshots.isEmpty else { return .success([]) }
+        return .success([snapshots[min(count - 1, snapshots.count - 1)]])
+    }
+}
+
 private final class PeriodicBatchReader: AppTrackerWindowReading, @unchecked Sendable {
     private let lock = NSLock()
     private let semaphore = DispatchSemaphore(value: 0)
