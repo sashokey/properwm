@@ -1289,6 +1289,44 @@ final class WindowLiftBehaviorTests: XCTestCase {
         XCTAssertTrue(controller.writeDrainTasks.isEmpty)
     }
 
+    func testStopDrainsRetiredWritersAfterMonitoringAndSessionsAreAlreadyCleared() async {
+        let desktop = BehaviorDesktop()
+        let (controller, host) = makeController(desktop)
+        defer { withExtendedLifetime(host) {} }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        let gate = AsyncStream<Void>.makeStream()
+        let writerFinished = Mutex(false)
+        let writer = Task.detached {
+            for await _ in gate.stream {}
+            writerFinished.withLock { $0 = true }
+        }
+        defer { gate.continuation.finish() }
+        controller.isEnabled = false
+        controller.writeDrainTasks[key] = [UUID(): writer]
+        controller.clearManagedSession(for: key, cancelWriter: false, reason: "applicationTerminated")
+        XCTAssertTrue(controller.states.isEmpty)
+        XCTAssertFalse(controller.isEnabled)
+        var stopped = false
+        let stopping = Task { await controller.stopAndRestore(); stopped = true }
+
+        await wait { stopped || controller.restoreTask != nil }
+        XCTAssertFalse(stopped, "Stopping still owns the drain after the visible session has been cleared")
+        XCTAssertFalse(writerFinished.withLock { $0 })
+        XCTAssertTrue(controller.writeDrainTasks.isEmpty)
+        gate.continuation.finish()
+        await stopping.value
+        await writer.value
+
+        XCTAssertTrue(stopped)
+        XCTAssertTrue(writerFinished.withLock { $0 })
+        XCTAssertTrue(controller.writeDrainTasks.isEmpty)
+        XCTAssertNil(controller.restoreTask)
+        let watermarks = Mirror(reflecting: controller).children.first { $0.label == "observationWatermarks" }?.value
+            as? [WindowLiftAvoidance.WindowKey: UInt64]
+        XCTAssertEqual(watermarks?.count, 0)
+        XCTAssertTrue(desktop.state.withLock { $0.writes.isEmpty })
+    }
+
     func testClearedSessionRejectsAnAlreadyCapturedScanBeforeReleasingItsMetadata() async {
         let desktop = BehaviorDesktop()
         let probe = BehaviorLiftProbeGate(desktop)

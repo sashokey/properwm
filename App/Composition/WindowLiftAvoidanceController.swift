@@ -530,10 +530,6 @@ final class WindowLiftAvoidanceController {
     }
 
     func stop() {
-        // 冻结之后 isEnabled 和 pollTimer 都已经清掉，只看这两个条件会让 stop() 空转、
-        // 待还原的窗口永远回不去——所以还得看有没有欠着的还原。
-        guard isEnabled || pollTimer != nil || geometryObserver != nil
-            || !states.isEmpty || !pendingRestorations.isEmpty else { return }
         stopMonitoring()
         restoreSettledWindowsAndClearSessions()
         lastContexts = []
