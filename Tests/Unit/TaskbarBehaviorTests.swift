@@ -782,7 +782,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
 
     private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil,
                                 geometryObserver: FrontmostWindowGeometryObserver? = nil,
-                                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+                                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                                workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
         let screen = CGRect(x: 0, y: 0, width: width, height: height)
         let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
                                          screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
@@ -797,9 +798,33 @@ final class WindowLiftBehaviorTests: XCTestCase {
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
             windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
             makeGeometryObserver: { geometryObserver ?? FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) },
-            uptime: uptime)
+            uptime: uptime, workspaceNotificationCenter: workspaceNotificationCenter)
         controller.isEnabled = true
         return (controller, host)
+    }
+
+    private func failFrameReadsAfterAnimatedWrite(_ desktop: BehaviorDesktop, afterAcknowledgement: Bool) {
+        let written = Mutex(false)
+        desktop.state.withLock {
+            $0.afterAttributeWrite = { id, attribute in
+                guard id == 1001, attribute == kAXSizeAttribute as String else { return }
+                let first = written.withLock { value in
+                    let result = !value
+                    value = true
+                    return result
+                }
+                guard first else { return }
+                desktop.state.withLock {
+                    $0.windows[1001]?.bounds?.size.height = 1041
+                    if !afterAcknowledgement { $0.unreadPositions.insert(1001) }
+                }
+            }
+            $0.beforeSettable = { attribute in
+                guard afterAcknowledgement, attribute == kAXSizeAttribute as String,
+                      written.withLock({ $0 }) else { return }
+                desktop.state.withLock { _ = $0.unreadPositions.insert(1001) }
+            }
+        }
     }
 
     func testInactiveManagedWindowRegainsBottomClearanceWithoutReactivation() async {
@@ -1486,6 +1511,275 @@ final class WindowLiftBehaviorTests: XCTestCase {
         XCTAssertFalse(gate.timedOut.withLock { $0 })
         XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
         XCTAssertNil(controller.managedFrames[key])
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
+    }
+
+    func testHorizontallyOffscreenWindowClearsTaskbarAfterRepeatedMovesAndRestoresItsLatestFrame() async {
+        for animated in [false, true] {
+            let desktop = BehaviorDesktop()
+            let clock = Mutex<TimeInterval>(10)
+            let (controller, host) = makeController(desktop, uptime: { clock.withLock { $0 } },
+                workspaceNotificationCenter: NotificationCenter())
+            defer { withExtendedLifetime(host) {} }
+            let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+            host.contexts = [.init(geometry: .init(screenFrame: screen,
+                visibleFrame: CGRect(x: 0, y: 0, width: 1920, height: 1050), taskbarTop: 32),
+                screenCGFrame: screen, visibleCGFrame: CGRect(x: 0, y: 30, width: 1920, height: 1050),
+                primaryScreenHeight: 1080)]
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            desktop.state.withLock {
+                $0.windows[1001]?.bounds = CGRect(x: -200, y: 30, width: 960, height: 1050)
+            }
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": animated ? "1" : "0", "DOCK_WINDOW_LIFT_TILES": "1"])
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            for x: CGFloat in [-200, 1160, -250] {
+                clock.withLock { $0 += 2 }
+                desktop.state.withLock {
+                    $0.windows[1001]?.bounds = CGRect(x: x, y: 30, width: 960, height: 1050)
+                }
+                for _ in 0..<2 {
+                    controller.isEnabled = true
+                    controller.poll()
+                    controller.isEnabled = false
+                    controller.updatePollTimerLifecycle()
+                    controller.updateTrackedProbeLifecycle()
+                    await controller.scanTask?.value
+                    await controller.writeTasks[key]?.value
+                }
+                let actual = desktop.state.withLock { $0.windows[1001]?.bounds }
+                XCTAssertEqual(actual?.origin, CGPoint(x: x, y: 30))
+                XCTAssertEqual(actual?.width, 960)
+                if animated {
+                    XCTAssertEqual(actual?.height ?? 0, 1016, accuracy: 2)
+                } else {
+                    XCTAssertEqual(actual?.height, 1016)
+                }
+                XCTAssertNotNil(controller.managedFrames[key])
+            }
+            XCTAssertTrue(desktop.state.withLock { $0.writes.contains("1001:AXSize") })
+            XCTAssertFalse(desktop.state.withLock { $0.writes.contains("1001:AXPosition") })
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1002]?.bounds },
+                           CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.bounds },
+                           CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            await controller.stopAndRestore()
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                           CGRect(x: -250, y: 30, width: 960, height: 1050))
+        }
+    }
+
+    func testMeasuredChatGPTFrameOnTheSecondaryDisplayTraversesTheProductionWriter() async {
+        let desktop = BehaviorDesktop()
+        let native = CGRect(x: 3797, y: 30, width: 1339, height: 1410)
+        desktop.state.withLock { $0.windows[1001]?.bounds = native }
+        let (controller, host) = makeController(desktop, width: 2560, height: 1440,
+            workspaceNotificationCenter: NotificationCenter())
+        defer { withExtendedLifetime(host) {} }
+        let screen = CGRect(x: 2560, y: 0, width: 2560, height: 1440)
+        host.contexts = [.init(geometry: .init(screenFrame: screen, visibleFrame: screen,
+            taskbarTop: 32, topReservedHeight: 22), screenCGFrame: screen, visibleCGFrame: screen,
+            primaryScreenHeight: 1440)]
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        controller.isEnabled = false
+        controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "0", "DOCK_WINDOW_LIFT_TILES": "1"])
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                       CGRect(x: 3797, y: 30, width: 1339, height: 1376))
+        XCTAssertEqual(desktop.state.withLock { $0.writes }, ["1001:AXSize"])
+        await controller.stopAndRestore()
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, native)
+    }
+
+    func testPrivateWorkspaceCenterIsolatesGeometryFromNativeActivationEvents() async {
+        let nativeCenter = NSWorkspace.shared.notificationCenter
+        for isolated in [false, true] {
+            let desktop = BehaviorDesktop()
+            let posted = Mutex(false)
+            desktop.state.withLock { $0.beforeRead = { attribute in
+                guard attribute == kAXFocusedWindowAttribute as String else { return }
+                let first = posted.withLock { value in
+                    let result = !value
+                    value = true
+                    return result
+                }
+                if first {
+                    nativeCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+                }
+            } }
+            let (controller, host) = makeController(desktop,
+                workspaceNotificationCenter: isolated ? NotificationCenter() : nativeCenter)
+            defer { withExtendedLifetime(host) {} }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "0"])
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            await controller.scanTask?.value
+            await controller.writeTasks[key]?.value
+            XCTAssertTrue(posted.withLock { $0 })
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                           CGRect(x: 0, y: 30, width: 1920, height: isolated ? 1016 : 1050))
+            XCTAssertEqual(desktop.state.withLock { $0.writes.contains("1001:AXSize") }, isolated)
+            await controller.stopAndRestore()
+        }
+    }
+
+    func testInterruptedAnimatedFrameRecoversAfterFailedRollbackWithoutReplacingManualOrReusedWindows() async {
+        for mode in 0..<6 {
+            let desktop = BehaviorDesktop()
+            let change = mode % 3
+            let clock = Mutex<TimeInterval>(10)
+            failFrameReadsAfterAnimatedWrite(desktop, afterAcknowledgement: mode >= 3)
+            let (controller, host) = makeController(desktop, uptime: { clock.withLock { $0 } },
+                workspaceNotificationCenter: NotificationCenter())
+            defer { withExtendedLifetime(host) {} }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            await controller.scanTask?.value
+            await controller.writeTasks[key]?.value
+            let partial = desktop.state.withLock { $0.windows[1001]?.bounds }
+            XCTAssertEqual(partial, CGRect(x: 0, y: 30, width: 1920, height: 1041))
+            XCTAssertNotNil(controller.pendingRestorations[key])
+            let manual = CGRect(x: 300, y: 200, width: 600, height: 400)
+            desktop.state.withLock {
+                $0.afterAttributeWrite = nil
+                $0.beforeSettable = nil
+                $0.unreadPositions.remove(1001)
+                if change == 1 { $0.windows[1001]?.bounds = manual }
+                if change == 2 { $0.generationsByPID[-41000] = ProcessGeneration(timeval(tv_sec: 11, tv_usec: 1)) }
+            }
+            clock.withLock { $0 += 6 }
+            controller.isEnabled = true
+            controller.poll()
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            let restoration = controller.restoreTask
+            XCTAssertNotNil(restoration)
+            await restoration?.value
+            let expected = change == 0 ? CGRect(x: 0, y: 30, width: 1920, height: 1050) : (change == 1 ? manual : partial)
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, expected)
+            XCTAssertNil(controller.pendingRestorations[key])
+            if change == 0 {
+                clock.withLock { $0 += 2 }
+                controller.isEnabled = true
+                controller.poll()
+                controller.isEnabled = false
+                controller.updatePollTimerLifecycle()
+                controller.updateTrackedProbeLifecycle()
+                await controller.scanTask?.value
+                await controller.writeTasks[key]?.value
+                let adjusted = desktop.state.withLock { $0.windows[1001]?.bounds }
+                XCTAssertEqual(adjusted?.origin, CGPoint(x: 0, y: 30))
+                XCTAssertEqual(adjusted?.height ?? 0, 1016, accuracy: 2)
+            }
+            await controller.stopAndRestore()
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, expected)
+            XCTAssertTrue(controller.pendingRestorations.isEmpty)
+        }
+    }
+
+    func testPendingRecoveryPreventsANewLiftUntilItsDelayedRestorationIsHandled() async {
+        let desktop = BehaviorDesktop()
+        let clock = Mutex<TimeInterval>(10)
+        failFrameReadsAfterAnimatedWrite(desktop, afterAcknowledgement: true)
+        let (controller, host) = makeController(desktop, uptime: { clock.withLock { $0 } },
+            workspaceNotificationCenter: NotificationCenter())
+        defer { withExtendedLifetime(host) {} }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        controller.isEnabled = false
+        controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+        await controller.restoreTask?.value
+        XCTAssertNotNil(controller.pendingRestorations[key])
+        let writesBeforeRecovery = desktop.state.withLock { $0.writes }
+        desktop.state.withLock {
+            $0.afterAttributeWrite = nil
+            $0.beforeSettable = nil
+            $0.unreadPositions.remove(1001)
+            $0.windows[1001]?.bounds = CGRect(x: 0, y: 30, width: 1920, height: 1050)
+        }
+        clock.withLock { $0 += 2 }
+        controller.isEnabled = true
+        controller.poll()
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+        XCTAssertEqual(desktop.state.withLock { $0.writes }, writesBeforeRecovery)
+        XCTAssertNotNil(controller.pendingRestorations[key])
+        clock.withLock { $0 += 6 }
+        controller.isEnabled = true
+        controller.poll()
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.restoreTask?.value
+        XCTAssertNil(controller.pendingRestorations[key])
+        controller.isEnabled = true
+        controller.poll()
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+        let adjusted = desktop.state.withLock { $0.windows[1001]?.bounds }
+        XCTAssertEqual(adjusted?.height ?? 0, 1016, accuracy: 2)
+        if case let .lifted(session) = controller.states[key] {
+            XCTAssertEqual(session.standoffRounds, 1)
+        } else {
+            XCTFail("Recovery must retain its bounded abandoned session until the next verified lift")
+        }
+        let finalWrites = desktop.state.withLock { $0.writes }
+        clock.withLock { $0 += 6 }
+        controller.isEnabled = true
+        controller.poll()
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, adjusted)
+        XCTAssertEqual(desktop.state.withLock { $0.writes }, finalWrites)
+        await controller.stopAndRestore()
+    }
+
+    func testManualGeometryAfterMovingOffscreenIsPreservedDuringStop() async {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock {
+            $0.windows[1001]?.bounds = CGRect(x: -200, y: 0, width: 1920, height: 1080)
+        }
+        let (controller, host) = makeController(desktop, workspaceNotificationCenter: NotificationCenter())
+        defer { withExtendedLifetime(host) {} }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        controller.isEnabled = false
+        controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "0", "DOCK_WINDOW_LIFT_TILES": "1"])
+        controller.isEnabled = false
+        controller.updatePollTimerLifecycle()
+        controller.updateTrackedProbeLifecycle()
+        await controller.scanTask?.value
+        await controller.writeTasks[key]?.value
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds },
+                       CGRect(x: -200, y: 0, width: 1920, height: 1046))
+        let manualFrame = CGRect(x: -250, y: 200, width: 900, height: 600)
+        desktop.state.withLock { $0.windows[1001]?.bounds = manualFrame }
         await controller.stopAndRestore()
         XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, manualFrame)
     }

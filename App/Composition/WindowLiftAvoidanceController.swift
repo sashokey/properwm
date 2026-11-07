@@ -345,6 +345,7 @@ final class WindowLiftAvoidanceController {
     private let system: any WindowSystemAccess
     private let windowProbe: any WindowLiftWindowProbing
     private let uptime: @Sendable () -> TimeInterval
+    private let workspaceNotificationCenter: NotificationCenter
     private var pendingRestorationDrains: [Task<Void, Never>] = []
 
     typealias RestoreWindow = @Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames, timeval?, Set<WindowLiftAvoidance.WindowKey>?, OperationCancellation) -> WindowRestorationOutcome
@@ -361,7 +362,8 @@ final class WindowLiftAvoidanceController {
          windowProbe: any WindowLiftWindowProbing = LiveWindowLiftProbe(),
          reader: AXWindowReader = AXWindowReader(), system: any WindowSystemAccess = NativeWindowSystem(),
          makeGeometryObserver: @escaping @MainActor () -> FrontmostWindowGeometryObserver = { FrontmostWindowGeometryObserver() },
-         uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+         uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) {
         self.host = host
         self.isTrustedProbe = isTrustedProbe
         self.restoreWindow = restoreWindow
@@ -371,6 +373,7 @@ final class WindowLiftAvoidanceController {
         self.system = system
         self.windowProbe = windowProbe
         self.uptime = uptime
+        self.workspaceNotificationCenter = workspaceNotificationCenter
     }
 
     // MARK: - 权限冻结
@@ -432,7 +435,7 @@ final class WindowLiftAvoidanceController {
         geometryObserver?.stop()
         geometryObserver = nil
         for observer in workspaceObservers {
-            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            workspaceNotificationCenter.removeObserver(observer)
         }
         workspaceObservers.removeAll()
 
@@ -565,7 +568,7 @@ final class WindowLiftAvoidanceController {
     }
 
     private func subscribeWorkspaceNotifications() {
-        let center = NSWorkspace.shared.notificationCenter
+        let center = workspaceNotificationCenter
         workspaceObservers.append(center.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
@@ -847,6 +850,7 @@ final class WindowLiftAvoidanceController {
         context: WindowLiftAvoidanceContext,
         observationGeneration: UInt64
     ) -> Bool {
+        guard pendingRestorations[key] == nil else { return true }
         guard let state = states[key], let frames = managedFrames[key] else { return false }
         guard acceptObservation(for: key, generation: observationGeneration) else { return true }
 
@@ -969,6 +973,7 @@ final class WindowLiftAvoidanceController {
         context: WindowLiftAvoidanceContext,
         observationGeneration: UInt64
     ) -> Bool {
+        guard pendingRestorations[candidate.key] == nil else { return true }
         guard acceptObservation(
             for: candidate.key,
             generation: observationGeneration
@@ -2126,6 +2131,16 @@ final class WindowLiftAvoidanceController {
                 )
             )
             store(transition.state, for: key)
+            let needsRestoration: Bool
+            switch rollback {
+            case .failed: needsRestoration = true
+            case .notRequested: needsRestoration = reason.mayHaveMutatedWindow
+            case .restored: needsRestoration = false
+            }
+            if needsRestoration, let frames = managedFrames[key] {
+                pendingRestorations[key] = frames
+                launchRestoreTask(cancelledWrites: [])
+            }
             logger.error(
                 "lift write failed pid=\(key.pid, privacy: .public) wid=\(key.cgWindowID, privacy: .public) progress=\(progress, format: .fixed(precision: 3), privacy: .public) reason=\(reason.diagnosticDescription, privacy: .public) rollback=\(rollback.diagnosticDescription, privacy: .public)"
             )

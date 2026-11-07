@@ -133,14 +133,7 @@ enum WindowLiftAvoidance {
             if WindowLiftAvoidance.fillsVisibleFrame(frame, visible: visibleFrame, tolerance: tolerance) {
                 return true
             }
-            guard topReservedHeight.isFinite,
-                  topReservedHeight > 0,
-                  topReservedHeight < screenFrame.height,
-                  WindowLiftAvoidance.isValid(frame: visibleFrame) else { return false }
-            let contentTop = min(visibleFrame.maxY, screenFrame.maxY - topReservedHeight)
-            guard contentTop > visibleFrame.minY else { return false }
-            let menuVisibleFrame = CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
-                width: visibleFrame.width, height: contentTop - visibleFrame.minY)
+            guard let menuVisibleFrame else { return false }
             return WindowLiftAvoidance.fillsVisibleFrame(
                 frame,
                 visible: menuVisibleFrame,
@@ -148,14 +141,21 @@ enum WindowLiftAvoidance {
             )
         }
 
+        private var menuVisibleFrame: CGRect? {
+            guard topReservedHeight.isFinite,
+                  topReservedHeight > 0,
+                  topReservedHeight < screenFrame.height,
+                  WindowLiftAvoidance.isValid(frame: visibleFrame) else { return nil }
+            let contentTop = min(visibleFrame.maxY, screenFrame.maxY - topReservedHeight)
+            guard contentTop > visibleFrame.minY else { return nil }
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                width: visibleFrame.width, height: contentTop - visibleFrame.minY)
+        }
+
         /// A window the system (or the user) parked against the bottom of the visible frame without
         /// filling it: a left / right half, a bottom half or quarter, a full-height column. Its
         /// bottom edge sits under the taskbar exactly like a maximized window's.
         ///
-        /// Bottom edge flush, at least one more edge flush (top / left / right), nothing outside the
-        /// visible frame, and no smaller than `tileMinimumWidthFraction` × `tileMinimumHeightFraction`
-        /// of it — the floor keeps a small window resting in a corner from being squashed.
-        /// `detectionTolerance` already covers the 8pt "tiled windows have margins" inset.
         func isBottomDockedTile(
             _ frame: CGRect,
             tolerance: CGFloat = WindowLiftAvoidance.detectionTolerance
@@ -166,10 +166,13 @@ enum WindowLiftAvoidance {
                   tolerance >= 0 else {
                 return false
             }
-            let visible = visibleFrame
+            if isBottomDockedTile(frame, visible: visibleFrame, tolerance: tolerance) { return true }
+            guard let menuVisibleFrame else { return false }
+            return isBottomDockedTile(frame, visible: menuVisibleFrame, tolerance: tolerance)
+        }
+
+        private func isBottomDockedTile(_ frame: CGRect, visible: CGRect, tolerance: CGFloat) -> Bool {
             guard abs(frame.minY - visible.minY) <= tolerance,
-                  frame.minX >= visible.minX - tolerance,
-                  frame.maxX <= visible.maxX + tolerance,
                   frame.maxY <= visible.maxY + tolerance,
                   frame.width >= visible.width * WindowLiftAvoidance.tileMinimumWidthFraction - tolerance,
                   frame.height >= visible.height * WindowLiftAvoidance.tileMinimumHeightFraction else {

@@ -206,10 +206,83 @@ final class WindowLiftAvoidanceTests: XCTestCase {
         // Small window resting in the bottom-left corner: under the height floor, then the width floor.
         XCTAssertFalse(tileGeometry.isBottomDockedTile(CGRect(x: 0, y: 0, width: 600, height: 300)))
         XCTAssertFalse(tileGeometry.isBottomDockedTile(CGRect(x: 0, y: 0, width: 400, height: 600)))
-        // Hanging off the visible frame.
-        XCTAssertFalse(tileGeometry.isBottomDockedTile(CGRect(x: -200, y: 0, width: 960, height: 1050)))
         // Mostly on another screen.
         XCTAssertFalse(tileGeometry.isBottomDockedTile(CGRect(x: 1900, y: 0, width: 960, height: 1050)))
+    }
+
+    func testFullHeightTilesKeepBottomClearanceBeyondEitherHorizontalScreenEdge() {
+        for x: CGFloat in [-200, -13, 973, 1160] {
+            let native = CGRect(x: x, y: 0, width: 960, height: 1050)
+            XCTAssertTrue(tileGeometry.isBottomDockedTile(native))
+            XCTAssertEqual(tileGeometry.liftTargetFrame(for: native, includesTiles: true),
+                           CGRect(x: x, y: 74, width: 960, height: 976))
+            XCTAssertNil(tileGeometry.liftTargetFrame(for: native, includesTiles: false))
+        }
+        let widerThanScreen = CGRect(x: -100, y: 0, width: 2120, height: 1050)
+        XCTAssertEqual(tileGeometry.liftTargetFrame(for: widerThanScreen, includesTiles: true),
+                       CGRect(x: -100, y: 74, width: 2120, height: 976))
+    }
+
+    func testHorizontalOverflowDoesNotAdmitFloatingSmallOrMostlyOffscreenWindows() {
+        let rejected = [
+            CGRect(x: -200, y: 0, width: 960, height: 600),
+            CGRect(x: -100, y: 0, width: 400, height: 1050),
+            CGRect(x: -481, y: 0, width: 960, height: 1050),
+            CGRect(x: -200, y: 13, width: 960, height: 1037),
+            CGRect(x: -200, y: 0, width: 960, height: 1063),
+            CGRect(x: 1920, y: 0, width: 960, height: 1050)
+        ]
+        for frame in rejected {
+            XCTAssertFalse(tileGeometry.isBottomDockedTile(frame))
+            XCTAssertNil(tileGeometry.liftTargetFrame(for: frame, includesTiles: true))
+        }
+    }
+
+    func testHorizontalOverflowPreservesNegativeDisplayCoordinates() {
+        let geometry = WindowLiftAvoidance.Geometry(
+            screenFrame: CGRect(x: -1920, y: -1080, width: 1920, height: 1080),
+            visibleFrame: CGRect(x: -1920, y: -1080, width: 1920, height: 1050),
+            taskbarTop: -1048
+        )
+        for x: CGFloat in [-2120, -760] {
+            XCTAssertEqual(geometry.liftTargetFrame(
+                for: CGRect(x: x, y: -1080, width: 960, height: 1050), includesTiles: true),
+                CGRect(x: x, y: -1046, width: 960, height: 1016))
+        }
+    }
+
+    func testHorizontalOverflowPassesTheProductionCandidateGateOnlyWithTilesEnabled() {
+        let context = WindowLiftAvoidanceContext(
+            geometry: tileGeometry,
+            screenCGFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            visibleCGFrame: CGRect(x: 0, y: 30, width: 1920, height: 1050),
+            primaryScreenHeight: 1080
+        )
+        for x: CGFloat in [-200, 1160] {
+            let frame = CGRect(x: x, y: 30, width: 960, height: 1050)
+            XCTAssertTrue(WindowLiftAvoidance.isLiftCandidate(
+                quartzFrame: frame, isTracked: false, context: context, includesTiles: true))
+            XCTAssertFalse(WindowLiftAvoidance.isLiftCandidate(
+                quartzFrame: frame, isTracked: false, context: context, includesTiles: false))
+        }
+    }
+
+    func testMeasuredChatGPTOverflowKeepsItsMenuInsetOnTheSecondaryDisplay() {
+        let screen = CGRect(x: 2560, y: 0, width: 2560, height: 1440)
+        let native = CGRect(x: 3797, y: 0, width: 1339, height: 1410)
+        for visible in [screen, CGRect(x: 2560, y: 0, width: 2560, height: 1410)] {
+            let geometry = WindowLiftAvoidance.Geometry(screenFrame: screen, visibleFrame: visible,
+                taskbarTop: 32, topReservedHeight: 22)
+            let context = WindowLiftAvoidanceContext(geometry: geometry, screenCGFrame: screen,
+                visibleCGFrame: WindowLiftAvoidance.quartzFrame(fromAppKit: visible, primaryScreenHeight: 1440),
+                primaryScreenHeight: 1440)
+            XCTAssertEqual(geometry.liftTargetFrame(for: native, includesTiles: true),
+                           CGRect(x: 3797, y: 34, width: 1339, height: 1376))
+            XCTAssertTrue(WindowLiftAvoidance.isLiftCandidate(
+                quartzFrame: CGRect(x: 3797, y: 30, width: 1339, height: 1410),
+                isTracked: false, context: context, includesTiles: true))
+            XCTAssertNil(geometry.liftTargetFrame(for: native, includesTiles: false))
+        }
     }
 
     func testBottomDockedTileUsesTheTwelvePointDetectionTolerance() {
