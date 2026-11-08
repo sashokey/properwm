@@ -8,7 +8,7 @@ final class AppIconStampTests: XCTestCase {
     private var infoPlist: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        directory = TestFileSystem.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         app = directory.appendingPathComponent("X.app")
         let contents = app.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)

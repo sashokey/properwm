@@ -1,13 +1,19 @@
 import Foundation
 
 final class AppDisplayNameCache {
-    private let lock = NSLock()
-    private var values: [String: String] = [:]
-    private var order: [String] = []
+    private struct Key: Hashable {
+        let bundleID: String
+        let bundlePath: String?
+    }
 
-    func value(for bundleID: String, loader: () -> String?) -> String {
+    private let lock = NSLock()
+    private var values: [Key: String] = [:]
+    private var order: [Key] = []
+
+    func value(for bundleID: String, bundlePath: String? = nil, loader: () -> String?) -> String {
+        let key = Key(bundleID: bundleID, bundlePath: bundlePath)
         lock.lock()
-        let cached = values[bundleID]
+        let cached = values[key]
         lock.unlock()
         if let cached { return cached }
 
@@ -16,8 +22,8 @@ final class AppDisplayNameCache {
         }
         let bounded = BoundedText.utf8(resolved)
         lock.lock()
-        if values[bundleID] == nil { order.append(bundleID) }
-        values[bundleID] = bounded
+        if values[key] == nil { order.append(key) }
+        values[key] = bounded
         while order.count > 512 { values.removeValue(forKey: order.removeFirst()) }
         lock.unlock()
         return bounded
@@ -25,8 +31,8 @@ final class AppDisplayNameCache {
 
     func invalidate(bundleID: String) {
         lock.lock()
-        values.removeValue(forKey: bundleID)
-        order.removeAll { $0 == bundleID }
+        for key in values.keys where key.bundleID == bundleID { values.removeValue(forKey: key) }
+        order.removeAll { $0.bundleID == bundleID }
         lock.unlock()
     }
 }

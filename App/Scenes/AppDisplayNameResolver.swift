@@ -23,9 +23,10 @@ enum AppDisplayNameResolver {
         }
     }()
 
-    static func displayName(for bundleID: String) -> String {
+    static func displayName(for bundleID: String, origin: ApplicationOrigin? = nil) -> String {
         _ = workspaceObservers
-        return displayNameCache.value(for: bundleID) {
+        return displayNameCache.value(for: bundleID, bundlePath: origin?.bundlePath) {
+            if let origin { return notRunningDisplayName(at: URL(fileURLWithPath: origin.bundlePath)) }
             if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
                let name = running.localizedName, !name.isEmpty {
                 return name

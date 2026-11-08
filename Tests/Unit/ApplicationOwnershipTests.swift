@@ -136,7 +136,7 @@ final class ApplicationOwnershipTests: XCTestCase {
     }
 
     func testASymlinkOutsideTheHostCannotEstablishOwnership() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = TestFileSystem.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let hostURL = directory.appendingPathComponent("Host.app")
         let outside = directory.appendingPathComponent("Outside.app")

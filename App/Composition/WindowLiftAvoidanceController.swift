@@ -121,10 +121,6 @@ enum WindowLiftCGWindowProbe {
         return frames
     }
 
-    static func frame(for key: WindowLiftAvoidance.WindowKey) -> CGRect? {
-        frames(for: [key])[key]
-    }
-
     private static func frontmostLargeWindow(
         in list: [[String: Any]],
         on screenCGFrame: CGRect,
@@ -352,6 +348,7 @@ final class WindowLiftAvoidanceController {
     private let restoreWindow: RestoreWindow
     private let restorationWindowKeys: @Sendable () -> Set<WindowLiftAvoidance.WindowKey>?
     private var nextRestoreRetryAt: TimeInterval = 0
+    private var lastRestorationAttemptKey: WindowLiftAvoidance.WindowKey?
 
     init(host: WindowLiftAvoidanceHost, isTrustedProbe: @escaping () -> Bool = { AXIsProcessTrusted() },
          restoreWindow: @escaping RestoreWindow = { key, frames, start, live, cancellation in
@@ -2260,6 +2257,11 @@ final class WindowLiftAvoidanceController {
         restoreGeneration &+= 1
         let generation = restoreGeneration
         let items = pendingRestorations
+        let keys = items.keys.sorted { ($0.pid, $0.cgWindowID) < ($1.pid, $1.cgWindowID) }
+        let start = lastRestorationAttemptKey.flatMap { previous in
+            keys.firstIndex { ($0.pid, $0.cgWindowID) > (previous.pid, previous.cgWindowID) }
+        } ?? 0
+        let orderedKeys = Array(keys[start...]) + keys[..<start]
         let startTimes = items.compactMapValues { $0.processGeneration.map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) } }
         let restoreWindow = restoreWindow
         let windowKeys = restorationWindowKeys
@@ -2270,15 +2272,20 @@ final class WindowLiftAvoidanceController {
             for task in cancelledWrites { await task.value }
             let deadline = ProcessInfo.processInfo.systemUptime + 2
             var remaining = items
+            var lastAttempted: WindowLiftAvoidance.WindowKey?
             for attempt in 0..<3 {
-                guard !Task.isCancelled, !remaining.isEmpty else { break }
+                guard !Task.isCancelled, !remaining.isEmpty,
+                      ProcessInfo.processInfo.systemUptime < deadline else { break }
                 if attempt > 0 { try? await Task.sleep(for: .milliseconds(100)) }
                 let liveWindowKeys = await AsyncWorkScope.performBlocking(cancellation: cancellation) { windowKeys() }
-                for (key, frames) in remaining {
+                for key in orderedKeys {
                     guard !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline else { break }
+                    guard let frames = remaining[key] else { continue }
                     let outcome = await AsyncWorkScope.performBlocking(cancellation: cancellation) {
                         restoreWindow(key, frames, startTimes[key], liveWindowKeys ?? nil, cancellation)
                     }
+                    guard let outcome else { break }
+                    lastAttempted = key
                     guard outcome == .handled else { continue }
                     remaining[key] = nil
                     await MainActor.run { [weak self] in
@@ -2287,9 +2294,12 @@ final class WindowLiftAvoidanceController {
                     }
                 }
             }
+            let latestAttempted = lastAttempted
             await MainActor.run { [weak self] in
                 guard let self, self.restoreGeneration == generation else { return }
                 self.restoreTask = nil
+                if self.pendingRestorations.isEmpty { self.lastRestorationAttemptKey = nil }
+                else if let latestAttempted { self.lastRestorationAttemptKey = latestAttempted }
                 self.releaseUnusedObservationWatermarks()
                 self.nextRestoreRetryAt = self.uptime() + 5
                 if !self.pendingRestorations.isEmpty {

@@ -655,7 +655,7 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
     }
 
     private func makeRoot() -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = TestFileSystem.temporaryDirectory
             .appendingPathComponent("WindowInventoryAnomalyLogTests-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         roots.append(url)

@@ -65,11 +65,15 @@ final class AppIconResolver {
         freshnessChecker.requestCheck()
     }
 
-    func icon(for bundleIdentifier: String) -> NSImage {
-        if let cached = cache[bundleIdentifier] { return cached.image }
+    func icon(for bundleIdentifier: String, origin: ApplicationOrigin? = nil) -> NSImage {
+        let key = origin.map { "path:\($0.bundlePath)" } ?? "bundle:\(bundleIdentifier)"
+        if let cached = cache[key] { return cached.image }
         let shared: NSImage
         let path: String?
-        if let url = applicationURL(bundleIdentifier) {
+        if let origin {
+            path = origin.bundlePath
+            shared = imageForFile(origin.bundlePath)
+        } else if let url = applicationURL(bundleIdentifier) {
             if lastKnownPaths[bundleIdentifier] == nil, lastKnownPaths.count >= 512 { lastKnownPaths.removeAll() }
             lastKnownPaths[bundleIdentifier] = url.path
             path = url.path
@@ -86,7 +90,7 @@ final class AppIconResolver {
         if plated.count < icon.representations.count { plated.forEach(icon.removeRepresentation) }
         icon.size = NSSize(width: 32, height: 32)
         if cache.count >= 512 { cache.removeAll() }
-        cache[bundleIdentifier] = CachedIcon(image: icon, path: path, stamp: path.flatMap(AppIconStamp.stamp(atPath:)))
+        cache[key] = CachedIcon(image: icon, path: path, stamp: path.flatMap(AppIconStamp.stamp(atPath:)))
         return icon
     }
 }

@@ -336,6 +336,14 @@ final class TaskbarWindowListView: NSGlassEffectView, NSTableViewDataSource, NST
         }
     }
 
+    func refreshIcons() {
+        tableView.enumerateAvailableRowViews { rowView, index in
+            guard self.windows.indices.contains(index),
+                  let cell = rowView.view(atColumn: 0) as? TaskbarWindowListRow else { return }
+            cell.updateIcon(self.iconProvider(self.windows[index]))
+        }
+    }
+
     override func updateTrackingAreas() {
         if let tracking { removeTrackingArea(tracking) }
         let area = NSTrackingArea(rect: .zero, options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect], owner: self)
@@ -421,6 +429,11 @@ final class TaskbarWindowListRow: NSTableCellView {
 
     required init?(coder: NSCoder) { nil }
     isolated deinit { delayedActivation.cancel() }
+
+    func updateIcon(_ image: NSImage?) {
+        icon = image
+        imageView?.image = image
+    }
 
     func configure(window: TaskbarWindowPresentation, icon: NSImage?, activate: @escaping () -> Void,
                    close: @escaping () -> Void, fileHover: @escaping () -> Void) {

@@ -56,21 +56,23 @@ final class TaskbarPresenter {
             contextMenuVisibilityChanged: contextMenuVisibilityChanged
         )
         view.taskbarContent.iconProvider = { item in
-            if let bundleID = item.item.bundleIdentifier { return icons.icon(for: bundleID) }
-            return NSRunningApplication(processIdentifier: item.item.pid)?.icon
+            if let bundleID = item.item.bundleIdentifier { return icons.icon(for: bundleID, origin: item.item.resourceOrigin) }
+            return NSRunningApplication(processIdentifier: item.item.resourcePID)?.icon
         }
         runtime.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         runtime.$optimisticStatesByWindowID.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         ordering.$liveOrder.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         topology.$table.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
         spaces.$snapshot.sink { [weak self] _ in self?.scheduleRefresh() }.store(in: &subscriptions)
-        icons.changes.sink { [weak self] in self?.scheduleRefresh() }.store(in: &subscriptions)
+        icons.changes.sink { [weak self] in self?.scheduleRefresh(refreshIcons: true) }.store(in: &subscriptions)
         refresh()
     }
 
     private var refreshScheduled = false
+    private var iconsDirty = false
 
-    private func scheduleRefresh() {
+    private func scheduleRefresh(refreshIcons: Bool = false) {
+        iconsDirty = iconsDirty || refreshIcons
         guard !refreshing, !refreshScheduled else { return }
         refreshScheduled = true
         DispatchQueue.main.async { [weak self] in
@@ -82,7 +84,12 @@ final class TaskbarPresenter {
     private func refresh() {
         guard !refreshing, let view else { return }
         refreshing = true
-        defer { refreshing = false }
+        let refreshIcons = iconsDirty
+        iconsDirty = false
+        defer {
+            refreshing = false
+            if iconsDirty { scheduleRefresh() }
+        }
         let items = StripItem.openWindows(from: runtime.snapshot)
         liveIDs = items.map(\.id)
         let keys = Dictionary(items.map { ($0.id, $0.applicationKey) }, uniquingKeysWith: { first, _ in first })
@@ -93,9 +100,9 @@ final class TaskbarPresenter {
         let groups = TaskbarPresentation.groups(items: items, order: order, filter: filter,
                                                 optimisticStates: runtime.optimisticStatesByWindowID,
                                                 spaces: spaces.snapshot) { item in
-            if let bundleID = item.bundleIdentifier { return AppDisplayNameResolver.displayName(for: bundleID) }
-            return NSRunningApplication(processIdentifier: item.pid)?.localizedName ?? item.appID
+            if let bundleID = item.bundleIdentifier { return AppDisplayNameResolver.displayName(for: bundleID, origin: item.resourceOrigin) }
+            return NSRunningApplication(processIdentifier: item.resourcePID)?.localizedName ?? item.appID
         }
-        view.taskbarContent.update(groups: groups)
+        view.taskbarContent.update(groups: groups, refreshIcons: refreshIcons)
     }
 }

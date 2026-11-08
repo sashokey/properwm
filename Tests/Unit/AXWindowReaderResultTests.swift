@@ -390,7 +390,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     private let cgWindowID: CGWindowID = 77
 
     func testUnreadRoundPreservesSeatAbsenceAndShadowState() throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerUnreadTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -438,7 +438,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testSuccessfulEmptyRoundsKeepCGPresentSeatAndShadowPool() throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerEmptyInventoryTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -512,7 +512,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
 
     func testPartialInventoryRetainsOldSeatAndSideWindowStillClosesNormally() throws {
         let sideWindowID: CGWindowID = 88
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerPartialInventoryTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -611,7 +611,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testCGDisappearanceReleasesSeatAsLeftCGList() throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerCGCloseTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -641,7 +641,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testDestroyTombstoneReleasesSeatEvenWhileCGStillListsIt() async throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerDestroyCloseTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -682,7 +682,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testSameWindowUnreadTitlePreservesKnownTitleAndLogsHold() throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerTitleHeldTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(
@@ -713,7 +713,7 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     }
 
     func testTitleHeldIsNotLoggedWhenNoPreviousTitleIsInherited() throws {
-        let logDirectory = FileManager.default.temporaryDirectory
+        let logDirectory = TestFileSystem.temporaryDirectory
             .appendingPathComponent("AppTrackerTitleNotHeldTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: logDirectory) }
         let inventoryLog = WindowInventoryAnomalyLog(configuration: .init(

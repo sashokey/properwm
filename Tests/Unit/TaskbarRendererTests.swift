@@ -1346,6 +1346,30 @@ final class TaskbarRendererTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
     }
 
+    func testRefreshingListIconsPreservesSelectionAndOnlyTouchesAvailableRows() throws {
+        let windows = groups(count: 200)[0].windows
+        var image = NSImage(size: NSSize(width: 32, height: 32))
+        var requested: [String] = []
+        let list = TaskbarWindowListView(windows: windows, availableHeight: 80,
+            icon: { requested.append($0.id); return image }, activate: { _ in }, close: { _ in }, fileHover: { _ in })
+        let panel = NSPanel(contentRect: list.bounds, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.contentView = list
+        defer { panel.contentView = nil; panel.close() }
+        panel.layoutIfNeeded()
+        let row = try XCTUnwrap(list.tableView.view(atColumn: 0, row: 0, makeIfNecessary: true) as? TaskbarWindowListRow)
+        list.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        requested.removeAll()
+        image = NSImage(size: NSSize(width: 32, height: 32))
+        list.refreshIcons()
+        XCTAssertTrue(row.imageView?.image === image)
+        XCTAssertEqual(list.tableView.selectedRow, 0)
+        XCTAssertGreaterThan(requested.count, 0)
+        XCTAssertLessThan(requested.count, 20)
+        XCTAssertFalse(requested.contains("window-199"))
+        XCTAssertFalse(panel.isVisible)
+    }
+
     func testLongWindowListReusesNativeRowsAcrossScrollingWithoutKeepingOldActions() throws {
         let windows = groups(count: 200)[0].windows
         var activated: [String] = []

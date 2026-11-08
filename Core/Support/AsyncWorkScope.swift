@@ -95,4 +95,15 @@ struct OperationReadBudget: Sendable {
 
     var remaining: TimeInterval { cancellation.isCancelled ? 0 : max(0, deadline - uptime()) }
     var canContinue: Bool { remaining > 0 }
+
+    func limited(to maximumDuration: TimeInterval) -> Self {
+        Self(cancellation: cancellation, deadline: min(deadline, uptime() + max(0, maximumDuration)), uptime: uptime)
+    }
+
+    private init(cancellation: OperationCancellation, deadline: TimeInterval,
+                 uptime: @escaping @Sendable () -> TimeInterval) {
+        self.cancellation = cancellation
+        self.deadline = deadline
+        self.uptime = uptime
+    }
 }

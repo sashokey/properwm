@@ -42,7 +42,7 @@ private final class LifecycleProcess: AppTrackerProcessProviding, Sendable {
 @MainActor
 final class InventoryLifecycleTests: XCTestCase {
     func testClosedHeldSeatsReleaseTheirDiagnosticEpisodesWhileTheApplicationKeepsRunning() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = TestFileSystem.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let log = WindowInventoryAnomalyLog(configuration: .init(enabled: true, directoryURL: directory,
                                                                  maxFileSize: 1_000_000, archiveCount: 1))
         let tracker = AppTracker(inventoryLog: log, reader: FocusLifecycleReader(blockFirst: false),
@@ -524,7 +524,7 @@ final class InventoryLifecycleTests: XCTestCase {
         }
         tracker.setFrontmostPIDForTesting(-41000)
         tracker.rebuildSnapshotForTesting(onScreenCGIDs: [1001, 1002, 2001])
-        let runtime = AppRuntime(tracker: ControlledInventoryLifecycle(tracker), isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: ControlledInventoryLifecycle(tracker))
         let spaces = TaskbarSpaceStore(read: { requests in
             .init(layouts: ["left": .init(orderedSpaceIDs: [1], fullscreenSpaceIDs: [], currentSpaceID: 1),
                             "right": .init(orderedSpaceIDs: [2], fullscreenSpaceIDs: [], currentSpaceID: 2)],

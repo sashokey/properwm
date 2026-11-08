@@ -16,19 +16,16 @@ final class LaunchAtLoginServiceTests: XCTestCase {
         let off = LaunchAtLoginMenuPresentation(state: .off)
         XCTAssertTrue(off.isEnabled)
         XCTAssertFalse(off.isChecked)
-        XCTAssertFalse(off.showsSettingsItem)
         XCTAssertTrue(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .off))
 
         let on = LaunchAtLoginMenuPresentation(state: .on)
         XCTAssertTrue(on.isEnabled)
         XCTAssertTrue(on.isChecked)
-        XCTAssertFalse(on.showsSettingsItem)
         XCTAssertFalse(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .on))
 
         let pending = LaunchAtLoginMenuPresentation(state: .requiresApproval)
         XCTAssertTrue(pending.isEnabled)
         XCTAssertFalse(pending.isChecked)
-        XCTAssertTrue(pending.showsSettingsItem)
         XCTAssertTrue(LaunchAtLoginMenuModel.requestedEnabledValue(afterSelecting: .requiresApproval))
     }
 

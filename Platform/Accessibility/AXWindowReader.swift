@@ -323,7 +323,8 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             guard messagingTimeout.isFinite, messagingTimeout > 0 else { return .unread(.illegalArgument) }
             reader.readMessagingTimeout = messagingTimeout
         }
-        reader.budget = OperationReadBudget(maximumDuration: 2, cancellation: cancellation)
+        reader.budget = budget?.limited(to: 2)
+            ?? OperationReadBudget(maximumDuration: 2, cancellation: cancellation)
         return reader.readWindowsWithinBudget(forPID: pid, messagingTimeout: messagingTimeout)
     }
 
@@ -360,7 +361,19 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             guard let ownerPID = accessibility.pid(element) else { return .unread(.cannotComplete) }
             guard ownerPID == pid else { continue }
             applyMessagingTimeout(messagingTimeout, to: element)
-            let minimized = boolAttribute(kAXMinimizedAttribute as CFString, from: element, maxAttempts: maxAttempts)
+            var minimizedValue: CFTypeRef?
+            let minimizedResult = copyAttributeValue(kAXMinimizedAttribute as CFString, from: element,
+                into: &minimizedValue, maxAttempts: maxAttempts)
+            let minimized: Bool?
+            switch minimizedResult {
+            case .success:
+                guard let value = minimizedValue as? NSNumber else { return .unread(.failure) }
+                minimized = value.boolValue
+            case .attributeUnsupported, .noValue:
+                minimized = nil
+            default:
+                return .unread(minimizedResult)
+            }
             let windowID = cgWindowID(for: element, maxAttempts: maxAttempts)
             let title = titleAttribute(from: element, maxAttempts: maxAttempts)
             let bounds = frame(of: element, maxAttempts: maxAttempts)
@@ -400,10 +413,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         retryIntervalMicroseconds: useconds_t = 0,
         messagingTimeout: TimeInterval? = nil
     ) -> AXWindowHandle? {
-        guard accessibility.isTrusted() else { return nil }
+        guard accessibility.isTrusted(), budget?.canContinue != false else { return nil }
         let boundedAttempts = max(1, attempts)
 
         for attempt in 0..<boundedAttempts {
+            guard budget?.canContinue != false else { return nil }
             let candidates: [AXWindowSnapshot]
             if let timeout = messagingTimeout {
                 switch inventoryWindows(forPID: target.pid, messagingTimeout: timeout) {
@@ -413,6 +427,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             } else {
                 candidates = windows(forPID: target.pid)
             }
+            guard budget?.canContinue != false else { return nil }
             if let snapshot = bestMatch(for: target, from: candidates) {
                 return AXWindowHandle(
                     pid: target.pid,
@@ -423,7 +438,9 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             }
 
             if attempt < boundedAttempts - 1, retryIntervalMicroseconds > 0 {
-                usleep(retryIntervalMicroseconds)
+                let interval = Double(retryIntervalMicroseconds) / 1_000_000
+                let wait = min(interval, budget?.remaining ?? interval)
+                if wait > 0 { usleep(useconds_t(wait * 1_000_000)) }
             }
         }
 
@@ -537,10 +554,6 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             return nil
         }
         return number.boolValue
-    }
-
-    static func cgWindowID(for element: AXUIElement) -> CGWindowID? {
-        AXWindowIDBridge.cgWindowID(for: element)
     }
 
     func cgWindowID(for element: AXUIElement, maxAttempts: Int = 2) -> UInt32? {

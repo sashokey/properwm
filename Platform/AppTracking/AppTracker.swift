@@ -1626,6 +1626,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         cgEventGeneration &+= 1
         let application = eligibilityApplication(for: app)
 
+        guard let generation = processGeneration(processIdentity(pid: pid, bundleID: application.bundleIdentifier)) else { return }
+
         apps[pid] = AppEntry(
             pid: pid,
             bundleIdentifier: application.bundleIdentifier,
@@ -1636,7 +1638,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             windowOrder: [],
             isHidden: app.isHidden,
             applicationOrigin: ApplicationOrigin(bundleURL: app.bundleURL),
-            processGeneration: ProcessLiveness.startTime(pid: pid).map(ProcessGeneration.init)
+            processGeneration: generation
         )
         appOrder.append(pid)
         mutationGenerations[pid, default: 0] &+= 1
@@ -1914,9 +1916,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func beginFocusedWindowRead(pid: pid_t) {
         guard let app = apps[pid] else { return }
+        let identity = processIdentity(pid: pid, bundleID: app.bundleIdentifier)
+        guard canReadTrackedProcess(pid: pid, identity: identity) else { return }
         let request = PendingFocusRead(revision: focusRevisions[pid, default: 0],
             mutationGeneration: mutationGenerations[pid, default: 0],
-            identity: processIdentity(pid: pid, bundleID: app.bundleIdentifier))
+            identity: identity)
         pendingFocusReads[pid] = request
         let reader = reader
         work.launch(priority: .userInitiated) { [weak self] generation in
@@ -1934,6 +1938,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 guard self.focusRevisions[pid] == request.revision,
                       self.mutationGenerations[pid, default: 0] == request.mutationGeneration,
                       let app = self.apps[pid],
+                      app.processGeneration != nil,
+                      app.processGeneration == self.processGeneration(request.identity),
                       ScanAdmissionDecision.ProcessIdentity.matches(probed: request.identity,
                           current: self.processIdentity(pid: pid, bundleID: app.bundleIdentifier)) else { return }
                 guard self.confirmedFocus[pid].map({ $0.observedAt <= result.observedAt }) ?? true else { return }
@@ -1983,11 +1989,14 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             return
         }
 
+        let identity = processIdentity(pid: pid, bundleID: apps[pid]?.bundleIdentifier)
+        guard canReadTrackedProcess(pid: pid, identity: identity) else { return }
+
         nextEventReadToken &+= 1
         let request = PendingEventRead(
             token: nextEventReadToken,
             mutationGeneration: mutationGenerations[pid, default: 0],
-            identity: processIdentity(pid: pid, bundleID: apps[pid]?.bundleIdentifier),
+            identity: identity,
             source: source,
             absenceProbes: takeDueAbsenceProbes(pid: pid)
         )
@@ -2147,7 +2156,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
               currentIdentity.map({
                   ScanAdmissionDecision.ProcessIdentity.matches(probed: request.identity, current: $0)
               }) == true,
-              let app = apps[pid] else { return .skipped }
+              let app = apps[pid], app.processGeneration != nil,
+              app.processGeneration == processGeneration(request.identity) else { return .skipped }
 
         let readOutcome: InventoryAXReadOutcome
         let eligible: [AXWindowSnapshot]
@@ -2340,6 +2350,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var batch: [(pid: pid_t, request: PendingEventRead)] = []
         for pid in appOrder {
             guard pendingEventReads[pid] == nil, let app = apps[pid] else { continue }
+            let identity = processIdentity(pid: pid, bundleID: app.bundleIdentifier)
+            guard canReadTrackedProcess(pid: pid, identity: identity) else { continue }
             if reconcileSkipEnabled, shouldSkipPeriodicRead(pid: pid, app: app, cgSnapshot: cgSnapshot) {
                 continue
             }
@@ -2347,7 +2359,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             let request = PendingEventRead(
                 token: nextEventReadToken,
                 mutationGeneration: mutationGenerations[pid, default: 0],
-                identity: processIdentity(pid: pid, bundleID: app.bundleIdentifier),
+                identity: identity,
                 source: .periodicReconcile
             )
             pendingEventReads[pid] = request
@@ -2659,6 +2671,21 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         processProvider.identity(pid: pid, bundleID: bundleID)
     }
 
+    private func processGeneration(_ identity: ScanAdmissionDecision.ProcessIdentity) -> ProcessGeneration? {
+        guard let seconds = identity.startTimeSec, let microseconds = identity.startTimeUsec else { return nil }
+        return ProcessGeneration(timeval(tv_sec: Int(seconds), tv_usec: microseconds))
+    }
+
+    private func canReadTrackedProcess(pid: pid_t, identity: ScanAdmissionDecision.ProcessIdentity) -> Bool {
+        guard let expected = apps[pid]?.processGeneration, let current = processGeneration(identity) else { return false }
+        guard expected == current else {
+            removeTrackedProcess(pid: pid)
+            rebuildSnapshot(onScreenCGIDs: lastOnScreenCGIDs)
+            return false
+        }
+        return true
+    }
+
     private func recordAdmissionProbe(
         source: InventoryAdmissionProbeSource,
         identity: ScanAdmissionDecision.ProcessIdentity,
@@ -2836,7 +2863,11 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     // MARK: - Deterministic inventory fixtures
 
     func installFixtureForTesting(_ app: AppEntry) {
-        apps[app.pid] = app
+        var admitted = app
+        if admitted.processGeneration == nil {
+            admitted.processGeneration = processGeneration(processIdentity(pid: app.pid, bundleID: app.bundleIdentifier))
+        }
+        apps[app.pid] = admitted
         if !appOrder.contains(app.pid) { appOrder.append(app.pid) }
         mutationGenerations[app.pid, default: 0] &+= 1
     }

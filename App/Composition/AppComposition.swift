@@ -4,6 +4,7 @@ import CoreGraphics
 import Foundation
 import os
 
+#if DEBUG
 @MainActor
 final class DebugRuntimeState: ObservableObject {
     @Published private(set) var feedbackEntriesByWindowID: [String: IntentFeedbackState.Entry] = [:]
@@ -15,19 +16,20 @@ final class DebugRuntimeState: ObservableObject {
 
 
 }
+#endif
 
 @MainActor
 final class AppRuntime: ObservableObject {
     @Published private(set) var snapshot: DockSnapshot = .empty
-    @Published private(set) var hasRequiredPermissions: Bool = false
-    let debugState: DebugRuntimeState
+    #if DEBUG
+    let debugState = DebugRuntimeState()
+    #endif
     @Published private(set) var optimisticStatesByWindowID: [String: OptimisticWindowState] = [:]
     private let tracker: any WindowInventoryTracking
     private let work = WindowActionQueue()
     private var actionTokens: [String: UUID] = [:]
     private let intentPipeline: IntentPipeline
     private let actionExecutor: any WindowActionExecuting
-    private let isAccessibilityTrusted: () -> Bool
     private var snapshotSubscription: AnyCancellable?
     private var feedbackTimer: Timer?
 
@@ -38,27 +40,22 @@ final class AppRuntime: ObservableObject {
 
     init(
         inventoryLog: WindowInventoryAnomalyLog = WindowInventoryAnomalyLog(),
-        debugState: DebugRuntimeState? = nil,
         tracker: (any WindowInventoryTracking)? = nil,
         actionExecutor: any WindowActionExecuting = PlatformActionExecutor(),
         displayTableProvider: @escaping @MainActor () -> WindowDisplayAttribution.Table = {
             DisplayIdentity.attributionTable()
         },
-        isAccessibilityTrusted: @escaping () -> Bool = { PermissionService().hasRequiredPermissions() },
         isAppFrontmost: @escaping (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.isActive == true }
     ) {
         self.intentPipeline = IntentPipeline(actionPlanning: LifecycleActionPlanner(isAppFrontmost: isAppFrontmost))
         self.tracker = tracker ?? AppTracker(inventoryLog: inventoryLog, displayTableProvider: displayTableProvider)
         self.actionExecutor = actionExecutor
-        self.debugState = debugState ?? DebugRuntimeState()
-        self.isAccessibilityTrusted = isAccessibilityTrusted
     }
 
     func start() {
         guard snapshotSubscription == nil else { return }
         work.restart()
         let generation = work.generation
-        hasRequiredPermissions = isAccessibilityTrusted()
         snapshotSubscription = tracker.snapshots
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newSnapshot in
@@ -193,10 +190,10 @@ final class AppRuntime: ObservableObject {
     }
 
     private func handleSnapshotUpdate(_ newSnapshot: DockSnapshot) {
-        work.retain(windowIDs: Set(newSnapshot.windows.keys.map(\.rawValue)))
+        let liveIDs = Set(newSnapshot.windows.keys.map(\.rawValue))
+        work.retain(windowIDs: liveIDs)
+        for key in actionTokens.keys where !liveIDs.contains(key) { actionTokens.removeValue(forKey: key) }
         if snapshot != newSnapshot { snapshot = newSnapshot }
-        let trusted = isAccessibilityTrusted()
-        if hasRequiredPermissions != trusted { hasRequiredPermissions = trusted }
         intentPipeline.reconcile(with: newSnapshot)
         publishFeedbackEntries()
         reconcileOptimisticStates()
@@ -213,8 +210,10 @@ final class AppRuntime: ObservableObject {
     }
 
     private func publishFeedbackEntries() {
+        #if DEBUG
         let next = intentPipeline.feedbackState.entriesByWindowID
         debugState.setFeedbackEntries(next)
+        #endif
     }
 
     private func updateFeedbackTimer() {

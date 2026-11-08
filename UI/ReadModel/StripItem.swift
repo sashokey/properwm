@@ -27,6 +27,9 @@ struct StripItem: Hashable {
     let processGeneration: ProcessGeneration?
     let owningApplication: ApplicationIdentity?
 
+    var resourceOrigin: ApplicationOrigin? { owningApplication?.origin ?? applicationOrigin }
+    var resourcePID: Int32 { owningApplication?.pid ?? pid }
+
     var applicationKey: String {
         if let owningApplication { return "bundle:\(owningApplication.origin.bundlePath)" }
         if let applicationOrigin { return "bundle:\(applicationOrigin.bundlePath)" }

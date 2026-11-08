@@ -17,8 +17,6 @@ final class ManualPanelHost {
         container.addSubview(contentView)
     }
 
-    var fittingSize: NSSize { contentView.fittingSize }
-
     /// ObservedObject invalidation alone does not refresh NSHostingView's fitting size in the
     /// publishing call stack. Lay out explicitly before measuring and after resizing its panel.
     func layoutContent() {

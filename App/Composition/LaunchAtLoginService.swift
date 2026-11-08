@@ -11,14 +11,6 @@ struct LaunchAtLoginMenuPresentation: Equatable {
     var title: String
     var isEnabled: Bool
     var isChecked: Bool
-    var showsSettingsItem: Bool
-
-    init(title: String, isEnabled: Bool, isChecked: Bool, showsSettingsItem: Bool) {
-        self.title = title
-        self.isEnabled = isEnabled
-        self.isChecked = isChecked
-        self.showsSettingsItem = showsSettingsItem
-    }
 
     init(state: LaunchAtLoginState) {
         isEnabled = true
@@ -26,15 +18,12 @@ struct LaunchAtLoginMenuPresentation: Equatable {
         case .off:
             title = String(localized: "Open at Login")
             isChecked = false
-            showsSettingsItem = false
         case .on:
             title = String(localized: "Open at Login")
             isChecked = true
-            showsSettingsItem = false
         case .requiresApproval:
             title = String(localized: "Open at Login (Pending Approval)")
             isChecked = false
-            showsSettingsItem = true
         }
     }
 }

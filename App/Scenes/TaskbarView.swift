@@ -63,6 +63,7 @@ final class TaskbarContentView: NSView {
     private var groupDrag = TaskbarGroupDrag()
     private var suppressClick = false
     private var measuredLayoutGroups: [String: TaskbarLayoutGroup]?
+    private var lastLayoutBounds: CGRect?
 
     override var isFlipped: Bool { true }
     override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: TaskbarMetrics.height) }
@@ -100,19 +101,36 @@ final class TaskbarContentView: NSView {
         if let localDragMonitor { NSEvent.removeMonitor(localDragMonitor) }
     }
 
-    func update(groups: [TaskbarGroupPresentation]) {
+    func update(groups: [TaskbarGroupPresentation], refreshIcons: Bool = false) {
+        let groupsChanged = self.groups != groups
+        guard groupsChanged || lastLayoutBounds != bounds else {
+            if refreshIcons { refreshImages() }
+            return
+        }
         self.groups = groups
-        measuredLayoutGroups = nil
+        if groupsChanged { measuredLayoutGroups = nil }
         groupDrag.reconcile(liveGroups: groups.map(\.id))
         if let draggedGroupID, groups.first(where: { $0.id == draggedGroupID })?.windows.map(\.id) != dragMembers {
             endGroupDrag(event: nil, cancelled: true)
         }
         needsLayout = true
         layoutSubtreeIfNeeded()
+        if refreshIcons { windowList?.refreshIcons() }
+    }
+
+    private func refreshImages() {
+        let lookup = Dictionary(groups.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for button in layoutResult.buttons {
+            guard let group = lookup[button.groupID],
+                  let item = group.windows.first(where: { button.windowIDs.contains($0.id) }) else { continue }
+            buttonViews[button.id]?.image = iconProvider(item)
+        }
+        windowList?.refreshIcons()
     }
 
     override func layout() {
         super.layout()
+        lastLayoutBounds = bounds
         let groupLookup = Dictionary(groups.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         if measuredLayoutGroups == nil {
             let font = NSFont.systemFont(ofSize: TaskbarMetrics.fontSize)

@@ -50,8 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let displayTopologyStore: DisplayTopologyStore
     private(set) lazy var runtime = AppRuntime(
         inventoryLog: inventoryLog,
-        displayTableProvider: { [displayTopologyStore] in displayTopologyStore.table },
-        isAccessibilityTrusted: { [weak self] in self?.cachedAccessibilityTrusted ?? false }
+        displayTableProvider: { [displayTopologyStore] in displayTopologyStore.table }
     )
     lazy var stripOrderStore = StripOrderStore(inventoryLog: inventoryLog)
     let settingsStore: AppSettingsStore

@@ -50,18 +50,6 @@ final class ManualPanelHostTests: XCTestCase {
         XCTAssertEqual(content.frame.size, NSSize(width: 640, height: 180))
     }
 
-    func testFittingSizeIsDelegatedToHostedView() {
-        let panel = makePanel()
-        let content = FittingProbeView()
-        let host = ManualPanelHost(contentView: content, in: panel)
-
-        XCTAssertEqual(host.fittingSize, NSSize(width: 240, height: 80))
-
-        content.desiredSize = NSSize(width: 420, height: 160)
-
-        XCTAssertEqual(host.fittingSize, NSSize(width: 420, height: 160))
-    }
-
     func testHostedDesiredSizeChangeDoesNotResizePanel() {
         let panel = makePanel(size: NSSize(width: 500, height: 120))
         let content = FittingProbeView()
@@ -99,11 +87,11 @@ final class ManualPanelHostTests: XCTestCase {
     func testZeroSizedPanelStillMeasuresHostingContent() {
         let panel = makePanel(size: .zero)
         let content = NSHostingView(rootView: SizedProbeView(size: CGSize(width: 380, height: 36)))
-        let host = ManualPanelHost(contentView: content, in: panel)
+        _ = ManualPanelHost(contentView: content, in: panel)
 
         panel.layoutIfNeeded()
 
-        XCTAssertEqual(host.fittingSize, NSSize(width: 380, height: 36))
+        XCTAssertEqual(content.fittingSize, NSSize(width: 380, height: 36))
         XCTAssertEqual(panel.frame.size, .zero)
     }
 

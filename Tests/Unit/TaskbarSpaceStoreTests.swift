@@ -16,7 +16,7 @@ private final class SpaceInventory: WindowInventoryTracking {
 final class TaskbarSpaceStoreTests: XCTestCase {
     func testIconRecoveryRefreshesExistingButtonsWithoutAnInventoryChange() async throws {
         let fixture = SpaceInventory(inventory())
-        let runtime = AppRuntime(tracker: fixture, isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: fixture)
         let center = NotificationCenter()
         var resolved = false
         var rendered = false
@@ -74,7 +74,7 @@ final class TaskbarSpaceStoreTests: XCTestCase {
 
     func testSpaceNotificationsRefreshPresentationWithoutLosingInventoryOrManualOrder() async {
         let fixture = SpaceInventory(inventory())
-        let runtime = AppRuntime(tracker: fixture, isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: fixture)
         let center = NotificationCenter()
         let current = Mutex(1)
         let store = TaskbarSpaceStore(read: { requests in
@@ -191,7 +191,7 @@ final class TaskbarSpaceStoreTests: XCTestCase {
     func testDisplayTransferUpdatesBothPresentersWithoutPollingOrSpaceNotifications() async {
         let original = inventory()
         let fixture = SpaceInventory(original)
-        let runtime = AppRuntime(tracker: fixture, isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: fixture)
         let currentMembership = Mutex<Set<Int>>([1])
         let calls = Mutex(0)
         let layouts = twoDisplayLayouts

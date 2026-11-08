@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F19FF91A6F83D2C7AD911833 /* TestFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = EED0312221DC81C3ED163263 /* TestFileSystem.swift */; };
+		3638C22D9C3BABDE99D35D02 /* TaskbarResourceOriginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B00C9AD1B4DC95DF03F4059 /* TaskbarResourceOriginTests.swift */; };
+		3D6C23325D2E94531687F7AF /* RuntimeTokenRegression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 336494F86C61AA4245F118F2 /* RuntimeTokenRegression.swift */; };
+		1735B9ACA8F8A628E47E4491 /* PresenterCrossDisplayRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5309B5BCB2C53562C1BFED8F /* PresenterCrossDisplayRegressionTests.swift */; };
+		50564D380979235822F5B545 /* ButtonTimeoutRegression.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CD298F8030E898B818A422 /* ButtonTimeoutRegression.swift */; };
+		CE9A3606246B631EAABB56C3 /* InventoryReadRegression.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4CBAFAA39DAD47BAC159F7 /* InventoryReadRegression.swift */; };
+		1F6A9BCAD82DDE6C3E858766 /* RestorationFairnessRegression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C0B20199B60519AB237613 /* RestorationFairnessRegression.swift */; };
 		E9000000000000000000102B /* PanelCoordinator+Visibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002B /* PanelCoordinator+Visibility.swift */; };
 		E9000000000000000000102C /* PanelCoordinator+Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002C /* PanelCoordinator+Layout.swift */; };
 		E9000000000000000000102D /* PanelCoordinator+PanelSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */; };
@@ -297,6 +304,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		EED0312221DC81C3ED163263 /* TestFileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFileSystem.swift; sourceTree = "<group>"; };
+		6B00C9AD1B4DC95DF03F4059 /* TaskbarResourceOriginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskbarResourceOriginTests.swift; sourceTree = "<group>"; };
+		336494F86C61AA4245F118F2 /* RuntimeTokenRegression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeTokenRegression.swift; sourceTree = "<group>"; };
+		5309B5BCB2C53562C1BFED8F /* PresenterCrossDisplayRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresenterCrossDisplayRegressionTests.swift; sourceTree = "<group>"; };
+		F9CD298F8030E898B818A422 /* ButtonTimeoutRegression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonTimeoutRegression.swift; sourceTree = "<group>"; };
+		FF4CBAFAA39DAD47BAC159F7 /* InventoryReadRegression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryReadRegression.swift; sourceTree = "<group>"; };
+		86C0B20199B60519AB237613 /* RestorationFairnessRegression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestorationFairnessRegression.swift; sourceTree = "<group>"; };
 		E9000000000000000000002B /* PanelCoordinator+Visibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Visibility.swift"; sourceTree = "<group>"; };
 		E9000000000000000000002C /* PanelCoordinator+Layout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+Layout.swift"; sourceTree = "<group>"; };
 		E9000000000000000000002D /* PanelCoordinator+PanelSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PanelCoordinator+PanelSetup.swift"; sourceTree = "<group>"; };
@@ -848,6 +862,13 @@
 		A00000000000000000000057 /* Unit */ = {
 			isa = PBXGroup;
 			children = (
+				EED0312221DC81C3ED163263 /* TestFileSystem.swift */,
+				6B00C9AD1B4DC95DF03F4059 /* TaskbarResourceOriginTests.swift */,
+				336494F86C61AA4245F118F2 /* RuntimeTokenRegression.swift */,
+				5309B5BCB2C53562C1BFED8F /* PresenterCrossDisplayRegressionTests.swift */,
+				F9CD298F8030E898B818A422 /* ButtonTimeoutRegression.swift */,
+				FF4CBAFAA39DAD47BAC159F7 /* InventoryReadRegression.swift */,
+				86C0B20199B60519AB237613 /* RestorationFairnessRegression.swift */,
 				16309C345C96BC7034616DAA /* TaskbarSpaceStoreTests.swift */,
 				C7A933EC4B50271EC2E6F8AD /* WindowSpaceVisibilityTests.swift */,
 				C3CEFC4D966C928F440C7181 /* ProcessGenerationCacheTests.swift */,
@@ -1179,6 +1200,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F19FF91A6F83D2C7AD911833 /* TestFileSystem.swift in Sources */,
+				3638C22D9C3BABDE99D35D02 /* TaskbarResourceOriginTests.swift in Sources */,
+				3D6C23325D2E94531687F7AF /* RuntimeTokenRegression.swift in Sources */,
+				1735B9ACA8F8A628E47E4491 /* PresenterCrossDisplayRegressionTests.swift in Sources */,
+				50564D380979235822F5B545 /* ButtonTimeoutRegression.swift in Sources */,
+				CE9A3606246B631EAABB56C3 /* InventoryReadRegression.swift in Sources */,
+				1F6A9BCAD82DDE6C3E858766 /* RestorationFairnessRegression.swift in Sources */,
 				2DA4D11D616ACF0B045A003C /* TaskbarSpaceStoreTests.swift in Sources */,
 				0621792722C3D91946144543 /* WindowSpaceVisibilityTests.swift in Sources */,
 				6AA034F705268A8F93EAB2C6 /* TaskbarSpaceStore.swift in Sources */,

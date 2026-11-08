@@ -60,7 +60,7 @@ final class AppRuntimeTests: XCTestCase {
 
     private func start(_ executor: RuntimeExecutor) async -> (AppRuntime, RuntimeInventory) {
         let inventory = RuntimeInventory(snapshot())
-        let runtime = AppRuntime(tracker: inventory, actionExecutor: executor, isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: inventory, actionExecutor: executor)
         runtime.start()
         await waitUntil { runtime.snapshot.windows.count == 2 }
         return (runtime, inventory)
@@ -140,8 +140,7 @@ final class AppRuntimeTests: XCTestCase {
 
     func testReleasingRuntimeStopsItsInventorySubscription() {
         let inventory = RuntimeInventory(snapshot())
-        var runtime: AppRuntime? = AppRuntime(tracker: inventory, actionExecutor: RuntimeExecutor(results: []),
-                                             isAccessibilityTrusted: { true })
+        var runtime: AppRuntime? = AppRuntime(tracker: inventory, actionExecutor: RuntimeExecutor(results: []))
         weak var reference = runtime
         runtime?.start()
         runtime = nil

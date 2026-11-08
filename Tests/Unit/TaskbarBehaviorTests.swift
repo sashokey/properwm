@@ -298,8 +298,7 @@ final class TaskbarBehaviorTests: XCTestCase {
             ordering = StripOrderStore(defaults: defaults, bootTimeProvider: { 123 })
             let reader = AXWindowReader(accessibility: desktop)
             runtime = AppRuntime(tracker: BehaviorInventory(desktop),
-                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop),
-                isAccessibilityTrusted: { true }, isAppFrontmost: { [desktop] pid in desktop.app(pid)?.isActive == true })
+                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop), isAppFrontmost: { [desktop] pid in desktop.app(pid)?.isActive == true })
             view = TaskbarView(frame: CGRect(x: 0, y: 0, width: width, height: 32), popup: popup, contextMenu: menu,
                                delay: { _ in await Task.yield() })
             presenter = TaskbarPresenter(view: view, runtime: runtime, ordering: ordering,
@@ -1915,8 +1914,7 @@ final class ApplicationBehaviorTests: XCTestCase {
             defaults = UserDefaults(suiteName: domain)!
             let reader = AXWindowReader(accessibility: desktop)
             runtime = AppRuntime(tracker: BehaviorInventory(desktop),
-                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop),
-                isAccessibilityTrusted: { [permission] in permission.trusted.withLock { $0 } })
+                actionExecutor: PlatformActionExecutor(reader: reader, system: desktop, focusBackend: desktop))
             let topology = DisplayTopologyStore(initialSnapshot: .init(physicalDisplayCount: 0, identifiedDisplayUUIDs: [], attributionTable: .empty))
             var environment = ApplicationEnvironment()
             environment.bundleURL = URL(fileURLWithPath: "/Applications/ProperWM.app")

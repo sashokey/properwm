@@ -86,6 +86,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
     private let chipProbeEnabled: Bool
     private let focusBackend: any WindowFocusRequesting
     private let cancellation: OperationCancellation
+    private let budget: OperationReadBudget?
     private let authorization: @Sendable (pid_t, CGWindowID?, AXUIElement?) -> Bool
     private static let chipProbeLogger = Logger(subsystem: "io.github.sashokey.properwm", category: "ChipProbe")
 
@@ -93,23 +94,39 @@ struct AccessibilityWindowActionExecutor: Sendable {
          focusBackend: any WindowFocusRequesting = SkyLightWindowFocus(),
          system: any WindowSystemAccess = NativeWindowSystem(),
          cancellation: OperationCancellation = OperationCancellation(),
+         budget: OperationReadBudget? = nil,
          authorization: @escaping @Sendable (pid_t, CGWindowID?, AXUIElement?) -> Bool = { _, _, _ in true }) {
-        self.reader = reader
+        self.reader = budget.map { reader.withOperationBudget($0) } ?? reader
         self.system = system
         self.chipProbeEnabled = chipProbeEnabled
         self.focusBackend = focusBackend
         self.cancellation = cancellation
+        self.budget = budget
         self.authorization = authorization
     }
 
-    func withCancellation(_ cancellation: OperationCancellation,
+    func withCancellation(_ cancellation: OperationCancellation, budget: OperationReadBudget? = nil,
                           authorization: @escaping @Sendable (pid_t, CGWindowID?, AXUIElement?) -> Bool) -> Self {
         Self(reader: reader, chipProbeEnabled: chipProbeEnabled, focusBackend: focusBackend, system: system,
-             cancellation: cancellation, authorization: authorization)
+             cancellation: cancellation, budget: budget, authorization: authorization)
+    }
+
+    private func withBudget(_ budget: OperationReadBudget) -> Self {
+        Self(reader: reader, chipProbeEnabled: chipProbeEnabled, focusBackend: focusBackend, system: system,
+             cancellation: cancellation, budget: budget, authorization: authorization)
+    }
+
+    private func prepare(_ element: AXUIElement) -> Bool {
+        let remaining = budget?.remaining ?? 0.1
+        guard !cancellation.isCancelled, remaining > 0,
+              reader.accessibility.setTimeout(element, Float(min(0.1, remaining))) == .success else { return false }
+        return !cancellation.isCancelled && budget?.canContinue != false
     }
 
     private func canAct(pid: pid_t, windowID: CGWindowID? = nil, element: AXUIElement? = nil) -> Bool {
-        !cancellation.isCancelled && authorization(pid, windowID, element)
+        !cancellation.isCancelled && budget?.canContinue != false
+            && authorization(pid, windowID, element)
+            && !cancellation.isCancelled && budget?.canContinue != false
     }
 
     private func canAct(on handle: WindowHandle) -> Bool {
@@ -191,7 +208,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         )
     }
 
-    func activateAppWithWindowRecovery(pid: Int32, runningApp: NSRunningApplication?) -> Bool {
+    func activateAppWithWindowRecovery(pid: Int32) -> Bool {
         let liveWindows: [AXWindowSnapshot]
         switch reader.inventoryWindows(forPID: pid, messagingTimeout: 0.3) {
         case .success(let windows): liveWindows = windows
@@ -231,18 +248,24 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     private func minimizeButton(for handle: WindowHandle) -> AXUIElement? {
         for _ in 0..<2 {
+            guard canAct(on: handle), prepare(handle.element) else { return nil }
             let (result, value) = reader.accessibility.copy(handle.element, kAXMinimizeButtonAttribute as CFString)
+            guard !cancellation.isCancelled, budget?.canContinue != false else { return nil }
             if result == .success {
                 guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
                 return unsafeBitCast(value, to: AXUIElement.self)
             }
             guard result == .cannotComplete else { return nil }
-            usleep(20_000)
+            let wait = min(0.02, budget?.remaining ?? 0.02)
+            if wait > 0 { usleep(useconds_t(wait * 1_000_000)) }
         }
         return nil
     }
 
     func minimize(_ handle: WindowHandle) -> ActionExecution {
+        guard budget != nil else {
+            return withBudget(OperationReadBudget(maximumDuration: 3, cancellation: cancellation)).minimize(handle)
+        }
         guard canAct(on: handle) else {
             return ActionExecution(success: false, mechanism: "stale-target", verifiedMinimized: nil)
         }
@@ -251,8 +274,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             let subrole = reader.stringAttribute(kAXSubroleAttribute as CFString, from: handle.element, maxAttempts: 1)
             let hasMinimizeButton = minimizeButton(for: handle) != nil
             let currentMinimized = reader.boolAttribute(kAXMinimizedAttribute as CFString, from: handle.element, maxAttempts: 1)
-            var minimizedSettable: DarwinBoolean = false
-            _ = AXUIElementIsAttributeSettable(handle.element, kAXMinimizedAttribute as CFString, &minimizedSettable)
+            let (_, minimizedSettable) = reader.accessibility.isSettable(handle.element, kAXMinimizedAttribute as CFString)
             let probeApp = NSRunningApplication(processIdentifier: handle.pid)
             let probePolicyStr: String
             switch probeApp?.activationPolicy {
@@ -261,7 +283,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             case .prohibited: probePolicyStr = "prohibited"
             default: probePolicyStr = "nil"
             }
-            Self.chipProbeLogger.info("minimize-ax-probe app=\(probeApp?.localizedName ?? "(unknown)", privacy: .public) bundleID=\(probeApp?.bundleIdentifier ?? "(none)", privacy: .public) activationPolicy=\(probePolicyStr, privacy: .public) role=\(role ?? "nil", privacy: .public) subrole=\(subrole ?? "nil", privacy: .public) hasMinimizeButton=\(hasMinimizeButton, privacy: .public) currentMinimized=\(String(describing: currentMinimized), privacy: .public) minimizedSettable=\(minimizedSettable.boolValue, privacy: .public)")
+            Self.chipProbeLogger.info("minimize-ax-probe app=\(probeApp?.localizedName ?? "(unknown)", privacy: .public) bundleID=\(probeApp?.bundleIdentifier ?? "(none)", privacy: .public) activationPolicy=\(probePolicyStr, privacy: .public) role=\(role ?? "nil", privacy: .public) subrole=\(subrole ?? "nil", privacy: .public) hasMinimizeButton=\(hasMinimizeButton, privacy: .public) currentMinimized=\(String(describing: currentMinimized), privacy: .public) minimizedSettable=\(minimizedSettable, privacy: .public)")
         }
 
         if setMinimized(true, for: handle) {
@@ -284,7 +306,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
             )
         }
 
-        guard canAct(on: handle), reader.accessibility.perform(button, kAXPressAction as CFString) == .success else {
+        guard canAct(on: handle), prepare(button), canAct(on: handle),
+              reader.accessibility.perform(button, kAXPressAction as CFString) == .success else {
             return ActionExecution(
                 success: false,
                 mechanism: "press-minimize-button-failed",
@@ -322,7 +345,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
             if let wid = knownCGWindowID {
                 postSkyLightWindowFocus(pid: handle.pid, windowID: wid, element: handle.element)
             }
-            if canAct(on: handle) { reader.accessibility.set(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue) }
+            if canAct(on: handle) { _ = reader.accessibility.set(handle.element, kAXMainAttribute as CFString, kCFBooleanTrue) }
         }
 
         return WindowActivationAttempt.run(
@@ -355,17 +378,24 @@ struct AccessibilityWindowActionExecutor: Sendable {
     }
 
     func close(_ handle: WindowHandle) -> Bool {
-        let deadline = Date().addingTimeInterval(0.6)
+        let localBudget = budget?.limited(to: 0.6)
+            ?? OperationReadBudget(maximumDuration: 0.6, cancellation: cancellation)
+        return withBudget(localBudget).closeWithinBudget(handle)
+    }
+
+    private func closeWithinBudget(_ handle: WindowHandle) -> Bool {
+        guard let budget else { return false }
         var attempts = 0
         repeat {
-            guard canAct(on: handle) else { return false }
+            guard canAct(on: handle), prepare(handle.element) else { return false }
             attempts += 1
             var raw: CFTypeRef?
             let readError: AXError
             (readError, raw) = reader.accessibility.copy(handle.element, kAXCloseButtonAttribute as CFString)
             if readError == .success, let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() {
-                guard canAct(on: handle) else { return false }
-                let pressError = reader.accessibility.perform(raw as! AXUIElement, kAXPressAction as CFString)
+                let button = raw as! AXUIElement
+                guard canAct(on: handle), prepare(button), canAct(on: handle) else { return false }
+                let pressError = reader.accessibility.perform(button, kAXPressAction as CFString)
                 Self.chipProbeLogger.info("close-press pid=\(handle.pid, privacy: .public) error=\(pressError.rawValue, privacy: .public) attempt=\(attempts, privacy: .public)")
                 if pressError == .success { return true }
                 if pressError != .cannotComplete { return false }
@@ -373,8 +403,9 @@ struct AccessibilityWindowActionExecutor: Sendable {
                 Self.chipProbeLogger.info("close-button-read failed pid=\(handle.pid, privacy: .public) error=\(readError.rawValue, privacy: .public)")
                 return false
             }
-            usleep(50_000)
-        } while Date() < deadline
+            let wait = min(0.05, budget.remaining)
+            if wait > 0 { usleep(useconds_t(wait * 1_000_000)) }
+        } while budget.canContinue
         Self.chipProbeLogger.info("close gave up pid=\(handle.pid, privacy: .public) attempts=\(attempts, privacy: .public)")
         return false
     }
@@ -548,6 +579,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
 
     private func setMinimized(_ minimized: Bool, for handle: WindowHandle) -> Bool {
         guard canAct(on: handle) else { return false }
+        if budget != nil, !prepare(handle.element) { return false }
+        guard canAct(on: handle) else { return false }
         return reader.setMinimized(
             minimized,
             for: AXWindowHandle(pid: handle.pid, title: handle.title, bounds: handle.bounds, element: handle.element)
@@ -629,7 +662,9 @@ struct PlatformActionExecutor: WindowActionExecuting {
         cancellation: OperationCancellation,
         onHandoffActivePrediction: (@Sendable (WindowID) -> Void)?
     ) -> Bool {
-        let windowExecutor = windowExecutor.withCancellation(cancellation) { pid, windowID, element in
+        let commandBudget: OperationReadBudget? = request.kind == .activateWindow ? nil
+            : OperationReadBudget(maximumDuration: 3, cancellation: cancellation)
+        let windowExecutor = windowExecutor.withCancellation(cancellation, budget: commandBudget) { pid, windowID, element in
             guard let record = snapshot.windows.values.first(where: {
                 $0.pid == pid && (windowID == nil || $0.cgWindowID == windowID)
             }) else { return false }
@@ -762,8 +797,10 @@ struct PlatformActionExecutor: WindowActionExecuting {
             }
             if minExec.verifiedMinimized != true {
                 for attempt in 1...8 {
-                    guard !cancellation.isCancelled else { return false }
-                    usleep(120_000)
+                    guard !cancellation.isCancelled, commandBudget?.canContinue != false else { return false }
+                    let wait = min(0.12, commandBudget?.remaining ?? 0.12)
+                    if wait > 0 { usleep(useconds_t(wait * 1_000_000)) }
+                    guard !cancellation.isCancelled, commandBudget?.canContinue != false else { return false }
                     let retryExec = windowExecutor.minimize(handle)
                     if switches.chipProbeEnabled {
                         Self.chipProbeLogger.info("minimize-retry attempt=\(attempt, privacy: .public) windowID=\(request.windowID?.rawValue ?? "nil", privacy: .public) success=\(retryExec.success, privacy: .public) mechanism=\(retryExec.mechanism, privacy: .public) verifiedMinimized=\(String(describing: retryExec.verifiedMinimized), privacy: .public)")
@@ -846,8 +883,7 @@ struct PlatformActionExecutor: WindowActionExecuting {
 
     private func executeAppFallback(request: PlatformActionRequest, record: WindowRecord, executor windowExecutor: AccessibilityWindowActionExecutor) -> Bool {
         guard request.kind == .activateWindow else { return false }
-        return windowExecutor.activateAppWithWindowRecovery(
-            pid: record.pid, runningApp: nil)
+        return windowExecutor.activateAppWithWindowRecovery(pid: record.pid)
     }
 
 }

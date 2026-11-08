@@ -46,7 +46,7 @@ final class WindowCommandLifecycleTests: XCTestCase {
     }
 
     private func start(_ executor: ControlledWindowExecutor) async -> AppRuntime {
-        let runtime = AppRuntime(tracker: CommandInventory(), actionExecutor: executor, isAccessibilityTrusted: { true })
+        let runtime = AppRuntime(tracker: CommandInventory(), actionExecutor: executor)
         runtime.start()
         await waitUntil { runtime.snapshot.windows.count == 2 }
         return runtime
