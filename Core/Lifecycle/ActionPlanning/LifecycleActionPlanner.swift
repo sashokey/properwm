@@ -11,12 +11,11 @@ enum UserIntentAction: String, Hashable, Sendable {
 enum UserIntent: Hashable, Sendable {
     case toggle(WindowID)
     case activate(WindowID)
-    case minimize(WindowID)
     case close(WindowID)
 
     var windowID: WindowID {
         switch self {
-        case let .toggle(id), let .activate(id), let .minimize(id), let .close(id):
+        case let .toggle(id), let .activate(id), let .close(id):
             return id
         }
     }
@@ -27,8 +26,6 @@ enum UserIntent: Hashable, Sendable {
             return .toggle
         case .activate:
             return .activate
-        case .minimize:
-            return .minimize
         case .close:
             return .close
         }
@@ -72,8 +69,6 @@ final class LifecycleActionPlanner {
             return PlatformActionRequest(kind: .activateWindow, windowID: id)
         case let .activate(id):
             return PlatformActionRequest(kind: .activateWindow, windowID: id)
-        case let .minimize(id):
-            return PlatformActionRequest(kind: .minimizeWindow, windowID: id)
         case let .close(id):
             return PlatformActionRequest(kind: .closeWindow, windowID: id)
         }

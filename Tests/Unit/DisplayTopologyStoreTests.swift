@@ -4,15 +4,18 @@ import XCTest
 
 @MainActor
 final class DisplayTopologyStoreTests: XCTestCase {
-    func testApplyUpdatesLatestSnapshotAndPublishedTableTogether() {
+    func testApplyPublishesUpdatedAttributionTable() {
         let initial = snapshot(uuid: "A", physicalCount: 1)
         let updated = snapshot(uuid: "B", physicalCount: 2)
         let store = DisplayTopologyStore(initialSnapshot: initial)
+        var publications: [WindowDisplayAttribution.Table] = []
+        let subscription = store.$table.dropFirst().sink { publications.append($0) }
 
         store.apply(updated)
 
-        XCTAssertEqual(store.latestSnapshot, updated)
         XCTAssertEqual(store.table, updated.attributionTable)
+        XCTAssertEqual(publications, [updated.attributionTable])
+        withExtendedLifetime(subscription) {}
     }
 
     func testApplyingSameTableDoesNotPublishAgain() {
@@ -28,7 +31,7 @@ final class DisplayTopologyStoreTests: XCTestCase {
 
         store.apply(sameTable)
 
-        XCTAssertEqual(store.latestSnapshot, sameTable)
+        XCTAssertEqual(store.table, initial.attributionTable)
         XCTAssertEqual(publications, 0)
         withExtendedLifetime(subscription) {}
     }

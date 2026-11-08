@@ -451,14 +451,6 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
     func testOrderEventsUseOneSessionAndStrictlyIncreasingSequence() throws {
         let directory = makeRoot().appendingPathComponent("logs")
         let log = makeLogger(directory: directory)
-        log.record(.orderProjectionChanged(.init(
-            previousLiveIDs: [],
-            currentLiveIDs: ["chip"],
-            absorbedMessagingMainIDs: [],
-            visibleMessagingBundleIDs: [],
-            drawerBundleIDs: [],
-            appKeyByChipID: ["chip": "com.example"]
-        )))
         log.record(.orderChipPlaced(.init(
             chipID: "chip",
             appKey: "com.example",
@@ -474,10 +466,10 @@ final class WindowInventoryAnomalyLogTests: XCTestCase {
         log.flush()
 
         let records = try jsonRecords(at: log.currentFileURL)
-        XCTAssertEqual(records.compactMap { $0["seq"] as? Int }, [1, 2, 3])
+        XCTAssertEqual(records.compactMap { $0["seq"] as? Int }, [1, 2])
         XCTAssertEqual(Set(records.compactMap { $0["sessionID"] as? String }).count, 1)
         XCTAssertEqual(records.compactMap { $0["event"] as? String }, [
-            "orderProjectionChanged", "orderChipPlaced", "orderMemoryDropped",
+            "orderChipPlaced", "orderMemoryDropped",
         ])
     }
 

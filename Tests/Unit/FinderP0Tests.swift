@@ -2081,25 +2081,25 @@ final class FinderP0Tests: XCTestCase {
         XCTAssertEqual(result, ["A", "B", "C"])
     }
 
-    func testReorderingDropsAfterTarget() {
-        let result = StripOrdering.reordering(["A", "B", "C"], move: "A", relativeTo: "C", after: true)
-        XCTAssertEqual(result, ["B", "C", "A"])
+    func testGroupReorderingDropsAfterTheWholeTargetGroup() {
+        let keys = ["A1": "a", "A2": "a", "B1": "b", "C1": "c", "C2": "c"]
+        let result = TaskbarGroupOrdering.moving("a", relativeTo: "c", after: true,
+                                                order: ["A1", "A2", "B1", "C1", "C2"], appKeys: keys)
+        XCTAssertEqual(result, ["B1", "C1", "C2", "A1", "A2"])
     }
 
-    func testReorderingDropsBeforeTarget() {
-        let result = StripOrdering.reordering(["A", "B", "C"], move: "A", relativeTo: "C", after: false)
-        XCTAssertEqual(result, ["B", "A", "C"])
+    func testGroupReorderingDropsBeforeTheWholeTargetGroup() {
+        let keys = ["A1": "a", "A2": "a", "B1": "b", "C1": "c", "C2": "c"]
+        let result = TaskbarGroupOrdering.moving("a", relativeTo: "c", after: false,
+                                                order: ["A1", "A2", "B1", "C1", "C2"], appKeys: keys)
+        XCTAssertEqual(result, ["B1", "A1", "A2", "C1", "C2"])
     }
 
-    func testReorderingMovesLeftBeforeTarget() {
-        let result = StripOrdering.reordering(["A", "B", "C"], move: "C", relativeTo: "A", after: false)
-        XCTAssertEqual(result, ["C", "A", "B"])
-    }
-
-    func testReorderingGuardsSelfAndMissing() {
-        XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "A", relativeTo: "A", after: true), ["A", "B"])
-        XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "Z", relativeTo: "A", after: true), ["A", "B"])
-        XCTAssertEqual(StripOrdering.reordering(["A", "B"], move: "A", relativeTo: "Z", after: false), ["A", "B"])
+    func testGroupReorderingMovesLeftWithMemberOrderPreserved() {
+        let keys = ["A1": "a", "A2": "a", "B1": "b", "C1": "c", "C2": "c"]
+        let result = TaskbarGroupOrdering.moving("c", relativeTo: "a", after: false,
+                                                order: ["A1", "A2", "B1", "C1", "C2"], appKeys: keys)
+        XCTAssertEqual(result, ["C1", "C2", "A1", "A2", "B1"])
     }
 
     func testAppOnlyEntriesCannotExecuteWindowActions() {

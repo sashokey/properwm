@@ -86,8 +86,6 @@ final class AppRuntime: ObservableObject {
 
     func toggle(windowID: String) { trigger(.toggle(WindowID(rawValue: windowID))) }
     func activate(windowID: String) { trigger(.activate(WindowID(rawValue: windowID))) }
-    func minimize(windowID: String) { trigger(.minimize(WindowID(rawValue: windowID))) }
-
     func close(windowID: String) { trigger(.close(WindowID(rawValue: windowID))) }
 
     private func trigger(_ intent: UserIntent) {

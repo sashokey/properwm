@@ -286,37 +286,6 @@ enum InventorySeatReleasePlan {
     }
 }
 
-struct InventoryOrderProjectionChangedPayload: Codable, Equatable {
-    let previousLiveIDs: [String]
-    let currentLiveIDs: [String]
-    let absorbedMessagingMainIDs: [String]
-    let visibleMessagingBundleIDs: [String]
-    let drawerBundleIDs: [String]
-    let appKeyByChipID: [String: String]
-}
-
-/// 调用方（视图层）能观测到的那一半：**不含 `previousLiveIDs`**。
-/// 「上一轮是什么」只有顺序层自己知道，由它在落日志时补上——调用点传个空数组再被覆盖是误导。
-/// 构造它本身有成本（整份 appKey 字典 + 三个数组），所以**只在日志开着时才构造**。
-struct InventoryOrderProjectionSample: Equatable {
-    let currentLiveIDs: [String]
-    let absorbedMessagingMainIDs: [String]
-    let visibleMessagingBundleIDs: [String]
-    let drawerBundleIDs: [String]
-    let appKeyByChipID: [String: String]
-
-    func payload(previousLiveIDs: [String]) -> InventoryOrderProjectionChangedPayload {
-        InventoryOrderProjectionChangedPayload(
-            previousLiveIDs: previousLiveIDs,
-            currentLiveIDs: currentLiveIDs,
-            absorbedMessagingMainIDs: absorbedMessagingMainIDs,
-            visibleMessagingBundleIDs: visibleMessagingBundleIDs,
-            drawerBundleIDs: drawerBundleIDs,
-            appKeyByChipID: appKeyByChipID
-        )
-    }
-}
-
 struct InventoryOrderMemoryDroppedPayload: Codable, Equatable {
     let chipID: String
     let appKey: String?
@@ -478,7 +447,6 @@ enum WindowInventoryLogEvent: Encodable, Sendable {
     case phantomHealed(InventoryPhantomHealedPayload)
     case shadowPoolState(InventoryShadowPoolPayload)
     case seatReleased(InventorySeatReleasedPayload)
-    case orderProjectionChanged(InventoryOrderProjectionChangedPayload)
     case orderMemoryDropped(InventoryOrderMemoryDroppedPayload)
     case orderChipPlaced(InventoryOrderChipPlacedPayload)
     case admissionProbe(InventoryAdmissionProbePayload)
@@ -496,7 +464,6 @@ enum WindowInventoryLogEvent: Encodable, Sendable {
         case .phantomHealed: return "phantomHealed"
         case .shadowPoolState: return "shadowPoolState"
         case .seatReleased: return "seatReleased"
-        case .orderProjectionChanged: return "orderProjectionChanged"
         case .orderMemoryDropped: return "orderMemoryDropped"
         case .orderChipPlaced: return "orderChipPlaced"
         case .admissionProbe: return "admissionProbe"
@@ -516,7 +483,6 @@ enum WindowInventoryLogEvent: Encodable, Sendable {
         case .phantomHealed(let payload): try payload.encode(to: encoder)
         case .shadowPoolState(let payload): try payload.encode(to: encoder)
         case .seatReleased(let payload): try payload.encode(to: encoder)
-        case .orderProjectionChanged(let payload): try payload.encode(to: encoder)
         case .orderMemoryDropped(let payload): try payload.encode(to: encoder)
         case .orderChipPlaced(let payload): try payload.encode(to: encoder)
         case .admissionProbe(let payload): try payload.encode(to: encoder)

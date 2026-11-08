@@ -8,15 +8,12 @@ import Combine
 @MainActor
 final class DisplayTopologyStore: ObservableObject {
     @Published private(set) var table: WindowDisplayAttribution.Table
-    private(set) var latestSnapshot: ScreenTopologySnapshot
 
     init(initialSnapshot snapshot: ScreenTopologySnapshot) {
-        latestSnapshot = snapshot
         table = snapshot.attributionTable
     }
 
     func apply(_ snapshot: ScreenTopologySnapshot) {
-        latestSnapshot = snapshot
         if snapshot.attributionTable != table {
             table = snapshot.attributionTable
         }

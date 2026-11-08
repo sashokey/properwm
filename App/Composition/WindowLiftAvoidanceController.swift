@@ -270,6 +270,7 @@ final class WindowLiftAvoidanceController {
         case transientValidation(ValidationStage)
         case unsupportedValidation(ValidationStage)
         case cancelled
+        case cancelledWrite(AXWindowFrameRollbackResult)
     }
 
     nonisolated private static let geometryQueue = DispatchQueue(label: "io.github.sashokey.properwm.window-geometry", qos: .userInitiated)
@@ -1274,7 +1275,7 @@ final class WindowLiftAvoidanceController {
                 cancellation: cancellation, budget: budget
             )
             await MainActor.run { [weak self] in
-                self?.finishOperation(for: key, generation: generation, outcome: outcome)
+                self?.finishOperation(for: key, generation: generation, outcome: outcome, restorationFrames: frames)
             }
         }
         writeTasks[key] = task
@@ -1392,9 +1393,8 @@ final class WindowLiftAvoidanceController {
             let result = await writeSize(targetFrame.size, reader: reader, element: element, expectedFrame: nativeFrame,
                 nativeFrame: nativeFrame, cancellation: cancellation, budget: budget)
             if Task.isCancelled {
-                await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
-                                             attemptedFrames: [nativeFrame, targetFrame])
-                return .cancelled
+                return .cancelledWrite(await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
+                                             attemptedFrames: [nativeFrame, targetFrame]))
             }
             switch result {
             case let .success(actualFrame):
@@ -1490,9 +1490,8 @@ final class WindowLiftAvoidanceController {
                 let result = await writeSize(targetFrame.size, reader: reader, element: element, expectedFrame: expectedFrame,
                 nativeFrame: nativeFrame, cancellation: cancellation, budget: budget)
                 if Task.isCancelled {
-                    await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
-                                                 attemptedFrames: [expectedFrame, targetFrame])
-                    return .cancelled
+                    return .cancelledWrite(await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
+                                                 attemptedFrames: [expectedFrame, targetFrame]))
                 }
                 switch result {
                 case let .success(actualFrame):
@@ -1626,13 +1625,12 @@ final class WindowLiftAvoidanceController {
                 try? await Task.sleep(nanoseconds: UInt64(sleepDuration * 1_000_000_000))
             }
             guard !Task.isCancelled else {
-                await rollbackCancelledWrite(
+                return .cancelledWrite(await rollbackCancelledWrite(
                     reader: reader,
                     element: element,
                     nativeFrame: nativeFrame,
                     attemptedFrames: [expectedFrame]
-                )
-                return .cancelled
+                ))
             }
 
             let elapsed = ProcessInfo.processInfo.systemUptime - animationStartedAt
@@ -1659,21 +1657,19 @@ final class WindowLiftAvoidanceController {
             let result = await writeSize(attemptedSize, reader: reader, element: element, expectedFrame: expectedFrame,
                 nativeFrame: nativeFrame, cancellation: cancellation, budget: budget)
             if Task.isCancelled {
-                await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
-                    attemptedFrames: [expectedFrame, CGRect(origin: expectedFrame.origin, size: attemptedSize)])
-                return .cancelled
+                return .cancelledWrite(await rollbackCancelledWrite(reader: reader, element: element, nativeFrame: nativeFrame,
+                    attemptedFrames: [expectedFrame, CGRect(origin: expectedFrame.origin, size: attemptedSize)]))
             }
             switch result {
             case let .success(actualFrame):
                 expectedFrame = actualFrame
                 guard !Task.isCancelled else {
-                    await rollbackCancelledWrite(
+                    return .cancelledWrite(await rollbackCancelledWrite(
                         reader: reader,
                         element: element,
                         nativeFrame: nativeFrame,
                         attemptedFrames: [actualFrame]
-                    )
-                    return .cancelled
+                    ))
                 }
             case let .failure(reason, rollback):
                 let decision = animationFailureDecision(
@@ -1972,36 +1968,45 @@ final class WindowLiftAvoidanceController {
         element: AXUIElement,
         nativeFrame: CGRect,
         attemptedFrames: [CGRect]
-    ) async {
+    ) async -> AXWindowFrameRollbackResult {
         let elementKey = AXElementKey(e: element)
-        _ = await Task.detached {
+        return await Task.detached {
             await AsyncWorkScope.performBlocking(on: geometryQueue) {
                 let reader = reader.withOperationBudget(OperationReadBudget(maximumDuration: 1, cancellation: OperationCancellation()))
-                rollbackCancelledWriteSynchronously(reader: reader, element: elementKey.e,
+                return rollbackCancelledWriteSynchronously(reader: reader, element: elementKey.e,
                     nativeFrame: nativeFrame, attemptedFrames: attemptedFrames)
-            }
+            } ?? .failed(reason: .verificationUnavailable, actualFrame: nil)
         }.value
     }
 
     nonisolated private static func rollbackCancelledWriteSynchronously(
         reader: AXWindowReader, element: AXUIElement, nativeFrame: CGRect, attemptedFrames: [CGRect]
-    ) {
-        let currentFrame = reader.frame(of: element, messagingTimeout: windowLiftAXMessagingTimeout)
+    ) -> AXWindowFrameRollbackResult {
+        guard let currentFrame = reader.frame(of: element, messagingTimeout: windowLiftAXMessagingTimeout) else {
+            return .failed(reason: .verificationUnavailable, actualFrame: nil)
+        }
+        if WindowLiftAvoidance.framesMatch(currentFrame, nativeFrame) {
+            return .restored(actualFrame: currentFrame)
+        }
         for attemptedFrame in attemptedFrames {
             guard case let .restore(frame) = WindowLiftAvoidance.rollbackDecision(
                 originalFrame: nativeFrame,
                 attemptedFrame: attemptedFrame,
                 currentFrame: currentFrame
             ) else { continue }
-            _ = reader.setFrame(
+            switch reader.setFrame(
                 frame,
                 for: element,
                 messagingTimeout: windowLiftAXMessagingTimeout,
                 verificationTolerance: WindowLiftAvoidance.verificationTolerance,
                 onlyIfCurrentMatches: attemptedFrame
-            )
-            return
+            ) {
+            case let .success(actualFrame): return .restored(actualFrame: actualFrame)
+            case let .failure(reason, _):
+                return .failed(reason: reason, actualFrame: reader.frame(of: element, messagingTimeout: windowLiftAXMessagingTimeout))
+            }
         }
+        return .notRequested
     }
 
     private func canContinueOperation(
@@ -2010,6 +2015,7 @@ final class WindowLiftAvoidanceController {
         context: WindowLiftAvoidanceContext
     ) -> Bool {
         guard let validation = pendingValidations[key], validation.generation == generation,
+              pendingRestorations[key] == nil,
               let expected = managedFrames[key]?.processGeneration,
               system.generation(key.pid) == expected,
               hostContexts().contains(context),
@@ -2035,9 +2041,21 @@ final class WindowLiftAvoidanceController {
     private func finishOperation(
         for key: WindowLiftAvoidance.WindowKey,
         generation: UInt64,
-        outcome: OperationOutcome
+        outcome: OperationOutcome,
+        restorationFrames: ManagedFrames? = nil
     ) {
+        let needsCancelledWriteRestoration: Bool
+        if case .cancelledWrite(.failed) = outcome, let restorationFrames {
+            if pendingRestorations[key] == nil { pendingRestorations[key] = restorationFrames }
+            needsCancelledWriteRestoration = true
+        } else {
+            needsCancelledWriteRestoration = false
+        }
+        defer {
+            if needsCancelledWriteRestoration, canMutateSessions() { launchRestoreTask(cancelledWrites: []) }
+        }
         guard canMutateSessions() else {
+            if let restorationFrames, pendingRestorations[key] == nil { pendingRestorations[key] = restorationFrames }
             // 取消写任务会走到这里。冻结期间不许它顺手把会话清掉——
             // `.cancelled` / `.transientValidation` 分支都通向 clearManagedSession。
             if let writer = writeTasks.removeValue(forKey: key) { pendingDrains.append(writer) }
@@ -2053,7 +2071,7 @@ final class WindowLiftAvoidanceController {
         let finishedAt = uptime()
 
         switch outcome {
-        case .cancelled:
+        case .cancelled, .cancelledWrite:
             clearManagedSession(for: key, cancelWriter: false, reason: "cancelled")
 
         case let .transientValidation(stage):

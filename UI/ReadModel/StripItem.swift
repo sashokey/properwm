@@ -160,15 +160,6 @@ enum StripOrdering {
         return ReconcileResult(order: result, placements: placements)
     }
 
-    static func reordering(_ order: [String], move draggedID: String, relativeTo targetID: String, after: Bool) -> [String] {
-        guard draggedID != targetID, order.contains(draggedID), order.contains(targetID) else { return order }
-        var result = order
-        result.removeAll { $0 == draggedID }
-        guard let t = result.firstIndex(of: targetID) else { return order }
-        result.insert(draggedID, at: after ? t + 1 : t)
-        return result
-    }
-
     static func persistableLiveOrder(_ order: [String]) -> [String] {
         order.filter { $0.hasPrefix("tabgrp-") }
     }

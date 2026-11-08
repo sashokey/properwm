@@ -174,6 +174,7 @@ struct AccessibilityWindowActionExecutor: Sendable {
         title: String?,
         bounds: CGRect?
     ) -> WindowHandle? {
+        guard !cancellation.isCancelled, budget?.canContinue != false else { return nil }
         guard let element = AXElementCache.shared.element(pid: pid, cgWindowID: cgWindowID) else {
             return nil
         }
@@ -194,7 +195,10 @@ struct AccessibilityWindowActionExecutor: Sendable {
         title: String?,
         bounds: CGRect?
     ) -> WindowHandle? {
-        guard let handle = reader.captureHandle(
+        guard !cancellation.isCancelled, budget?.canContinue != false else { return nil }
+        let captureBudget = budget?.limited(to: 0.1)
+            ?? OperationReadBudget(maximumDuration: 0.1, cancellation: cancellation)
+        guard let handle = reader.withOperationBudget(captureBudget).captureHandle(
             forPID: pid,
             cgWindowID: cgWindowID,
             messagingTimeout: 0.1
@@ -240,7 +244,8 @@ struct AccessibilityWindowActionExecutor: Sendable {
             for: AXWindowTarget(pid: target.pid, title: target.title, bounds: target.bounds, cgWindowID: target.cgWindowID),
             attempts: attempts,
             retryIntervalMicroseconds: retryIntervalMicroseconds,
-            messagingTimeout: 0.5
+            messagingTimeout: 0.5,
+            cancellation: cancellation
         ) else {
             return nil
         }

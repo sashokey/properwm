@@ -21,6 +21,8 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var cgOwnerOverride: pid_t?
         var originOverride: ApplicationOrigin?
         var beforeRead: (@Sendable (String) -> Void)?
+        var beforeInventoryRead: (@Sendable (pid_t) -> Void)?
+        var unreadInventories = Set<pid_t>()
         var beforeSettable: (@Sendable (String) -> Void)?
         var beforeAttributeWrite: (@Sendable (CGWindowID, String) -> AXError?)?
         var afterAttributeWrite: (@Sendable (CGWindowID, String) -> Void)?
@@ -45,12 +47,12 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
     let closeButtons: [CGWindowID: AXUIElement]
     let minimizeButtons: [CGWindowID: AXUIElement]
 
-    init(browserPID: pid_t = -42000, additionalWindows: Int = 0) {
+    init(browserPID: pid_t = -42000, additionalWindows: Int = 0, editorBundleIdentifier: String = "test.Editor") {
         var windows = [("editor-a", Int32(-41000), UInt32(1001), "Editor"),
                        ("editor-b", Int32(-41000), UInt32(1002), "Editor"),
                        ("browser-c", browserPID, UInt32(2001), "Browser")].map { id, pid, number, app in
             WindowRecord(id: WindowID(rawValue: id), appID: AppID(rawValue: app), pid: pid,
-                bundleIdentifier: "test." + app, title: id,
+                bundleIdentifier: app == "Editor" ? editorBundleIdentifier : "test." + app, title: id,
                 bounds: CGRect(x: 0, y: 30, width: 1920, height: 1050),
                 status: number == 1001 ? .active : .inactive, cgWindowID: number, groupID: "tabgrp-" + id, displayUUID: "left",
                 applicationOrigin: ApplicationOrigin(bundleURL: URL(fileURLWithPath: "/Applications/\(app).app")),
@@ -106,6 +108,8 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         if let app = applications.first(where: { CFEqual($0.value, element) })?.key {
                 if name == kAXRoleAttribute as String { return (.success, kAXApplicationRole as CFString) }
                 if name == kAXWindowsAttribute as String {
+                    value.beforeInventoryRead?(app)
+                    if value.unreadInventories.contains(app) { return (.cannotComplete, nil) }
                     if let ids = value.enumeratedWindows[app] { return (.success, ids.compactMap { elements[$0] } as CFArray) }
                     return (.success, value.windows.values.filter { $0.pid == app && !value.missingWindows.contains($0.cgWindowID!) }
                         .sorted { $0.cgWindowID! < $1.cgWindowID! }.compactMap { elements[$0.cgWindowID!] } as CFArray)
@@ -257,8 +261,10 @@ final class BehaviorReadGate: Sendable {
     let entered = Mutex(false)
     let timedOut = Mutex(false)
     let release = DispatchSemaphore(value: 0)
+    let attribute: String
+    init(attribute: String = kAXFocusedWindowAttribute as String) { self.attribute = attribute }
     func read(_ attribute: String) {
-        guard attribute == kAXFocusedWindowAttribute as String else { return }
+        guard attribute == self.attribute else { return }
         let first = entered.withLock { value in let result = !value; value = true; return result }
         if first, release.wait(timeout: .now() + 2) == .timedOut { timedOut.withLock { $0 = true } }
     }
@@ -577,6 +583,53 @@ final class TaskbarBehaviorTests: XCTestCase {
         XCTAssertTrue(fixture.runtime.optimisticStatesByWindowID.isEmpty)
     }
 
+    func testFinderActivationStopsCaptureRetriesWhenItsFirstInventoryReadCancels() throws {
+        let desktop = BehaviorDesktop(editorBundleIdentifier: "com.apple.finder")
+        let cancellation = OperationCancellation()
+        let reads = Mutex(0)
+        desktop.state.withLock {
+            $0.windows[1001]?.status = .minimized
+            $0.unreadInventories.insert(-41000)
+            $0.beforeInventoryRead = { pid in
+                guard pid == -41000 else { return }
+                reads.withLock { $0 += 1 }
+                cancellation.cancel()
+            }
+        }
+        let record = try XCTUnwrap(desktop.state.withLock { $0.windows[1001] })
+        let executor = PlatformActionExecutor(
+            switches: .init(environment: ["DOCK_AX_ELEMENT_CACHE": "0", "DOCK_FAST_WINDOW_HANDLE": "0"]),
+            reader: AXWindowReader(accessibility: desktop), system: desktop, focusBackend: desktop)
+        XCTAssertFalse(executor.execute(.init(kind: .activateWindow, windowID: record.id),
+            snapshot: DockSnapshot(windows: [record.id: record], orderedWindowIDs: [record.id]),
+            forcedMinimizedPrior: true, cancellation: cancellation, onHandoffActivePrediction: nil))
+        XCTAssertEqual(reads.withLock { $0 }, 1, "Cancellation during an admitted native read must prevent further Finder capture attempts")
+        XCTAssertTrue(desktop.state.withLock { $0.writes.isEmpty })
+    }
+
+    func testFinderActivationStopsTheFastCaptureChainWhenItsFirstNativeReadCancels() throws {
+        let desktop = BehaviorDesktop(editorBundleIdentifier: "com.apple.finder")
+        let cancellation = OperationCancellation()
+        let attributes = Mutex<[String]>([])
+        desktop.state.withLock {
+            $0.windows[1001]?.status = .minimized
+            $0.focused = nil
+            $0.beforeRead = { attribute in
+                attributes.withLock { $0.append(attribute) }
+                cancellation.cancel()
+            }
+        }
+        let record = try XCTUnwrap(desktop.state.withLock { $0.windows[1001] })
+        let executor = PlatformActionExecutor(
+            switches: .init(environment: ["DOCK_AX_ELEMENT_CACHE": "0", "DOCK_FAST_WINDOW_HANDLE": "1"]),
+            reader: AXWindowReader(accessibility: desktop), system: desktop, focusBackend: desktop)
+        XCTAssertFalse(executor.execute(.init(kind: .activateWindow, windowID: record.id),
+            snapshot: DockSnapshot(windows: [record.id: record], orderedWindowIDs: [record.id]),
+            forcedMinimizedPrior: true, cancellation: cancellation, onHandoffActivePrediction: nil))
+        XCTAssertEqual(attributes.withLock { $0 }, [kAXFocusedWindowAttribute as String])
+        XCTAssertTrue(desktop.state.withLock { $0.writes.isEmpty })
+    }
+
     func testQuitRejectsAnotherApplicationOriginEvenWithTheSameProcessGeneration() async throws {
         let fixture = Fixture(); defer { fixture.stop() }
         await ready(fixture)
@@ -788,7 +841,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
     private func makeController(_ desktop: BehaviorDesktop, width: CGFloat = 1920, height: CGFloat = 1080, probe: (any WindowLiftWindowProbing)? = nil,
                                 geometryObserver: FrontmostWindowGeometryObserver? = nil,
                                 uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-                                workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
+                                workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+                                beforeRestoration: (@Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames) -> Void)? = nil) -> (WindowLiftAvoidanceController, BehaviorLiftHost) {
         let screen = CGRect(x: 0, y: 0, width: width, height: height)
         let host = BehaviorLiftHost(.init(geometry: .init(screenFrame: screen, visibleFrame: screen, taskbarTop: 32, topReservedHeight: 30),
                                          screenCGFrame: screen, visibleCGFrame: screen, primaryScreenHeight: height))
@@ -798,7 +852,8 @@ final class WindowLiftBehaviorTests: XCTestCase {
         })
         let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
             restoreWindow: { key, frames, start, live, budget in
-                WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
+                beforeRestoration?(key, frames)
+                return WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
                                                        liveWindowKeys: live, cancellation: budget.cancellation, budget: budget)
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
             windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
@@ -1294,6 +1349,154 @@ final class WindowLiftBehaviorTests: XCTestCase {
             await blockingController.stopAndRestore()
             XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, expected)
         }
+    }
+
+    func testPermissionUncertaintyRetainsAnUnreadCancelledAnimatedWriteUntilNativeRestoration() async throws {
+        for unread in [false, true] {
+            let desktop = BehaviorDesktop()
+            let gate = BehaviorLiftWriteGate()
+            desktop.state.withLock { $0.afterAttributeWrite = { id, attribute in
+                if unread, id == 1001, attribute == kAXSizeAttribute as String {
+                    _ = desktop.state.withLock { $0.unreadPositions.insert(1001) }
+                }
+                gate.didWrite(id, attribute: attribute)
+            } }
+            let (controller, host) = makeController(desktop, workspaceNotificationCenter: NotificationCenter())
+            defer { gate.release.signal(); withExtendedLifetime(host) {} }
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
+            await wait { gate.entered.withLock { $0 } }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            let writer = try XCTUnwrap(controller.writeTasks[key])
+            let partial = try XCTUnwrap(desktop.state.withLock { $0.windows[1001]?.bounds })
+            XCTAssertGreaterThan(abs(partial.height - 1050), 2)
+            XCTAssertGreaterThanOrEqual(partial.height, 1016)
+            desktop.state.withLock { $0.focused = nil }
+            controller.beginPermissionUncertainty()
+            controller.endPermissionUncertainty()
+            gate.release.signal()
+            await writer.value
+            await wait { controller.isEnabled }
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            let unavailableCompletion = await controller.stopAndRestore()
+            XCTAssertFalse(gate.timedOut.withLock { $0 })
+            if unread {
+                XCTAssertEqual(unavailableCompletion, .incomplete(remaining: 1))
+                XCTAssertNotNil(controller.pendingRestorations[key])
+                XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, partial)
+            } else {
+                XCTAssertEqual(unavailableCompletion, .complete)
+                XCTAssertTrue(controller.pendingRestorations.isEmpty)
+                XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            }
+            desktop.state.withLock {
+                $0.unreadPositions.remove(1001)
+                $0.afterAttributeWrite = nil
+            }
+            let completion = await controller.stopAndRestore()
+            XCTAssertEqual(completion, .complete)
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+            XCTAssertTrue(controller.pendingRestorations.isEmpty)
+        }
+    }
+
+    func testDelayedRestorationAfterUnreadCancellationPreservesManualFramesAndReusedProcesses() async throws {
+        for reused in [false, true] {
+            let desktop = BehaviorDesktop()
+            let gate = BehaviorLiftWriteGate()
+            desktop.state.withLock { $0.afterAttributeWrite = { id, attribute in
+                guard id == 1001, attribute == kAXSizeAttribute as String else { return }
+                _ = desktop.state.withLock { $0.unreadPositions.insert(1001) }
+                gate.didWrite(id, attribute: attribute)
+            } }
+            let (controller, host) = makeController(desktop, workspaceNotificationCenter: NotificationCenter())
+            defer { gate.release.signal(); withExtendedLifetime(host) {} }
+            controller.isEnabled = false
+            controller.start(environment: ["DOCK_WINDOW_LIFT_ANIM": "1"])
+            await wait { gate.entered.withLock { $0 } }
+            let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+            let writer = try XCTUnwrap(controller.writeTasks[key])
+            let partial = try XCTUnwrap(desktop.state.withLock { $0.windows[1001]?.bounds })
+            XCTAssertGreaterThan(abs(partial.height - 1050), 2)
+            XCTAssertGreaterThanOrEqual(partial.height, 1016)
+            desktop.state.withLock { $0.focused = nil }
+            controller.beginPermissionUncertainty()
+            controller.endPermissionUncertainty()
+            gate.release.signal()
+            await writer.value
+            await wait { controller.isEnabled }
+            controller.isEnabled = false
+            controller.updatePollTimerLifecycle()
+            controller.updateTrackedProbeLifecycle()
+            let unavailableCompletion = await controller.stopAndRestore()
+            XCTAssertEqual(unavailableCompletion, .incomplete(remaining: 1))
+            XCTAssertNotNil(controller.pendingRestorations[key])
+            let manualFrame = CGRect(x: 300, y: 200, width: 600, height: 400)
+            desktop.state.withLock {
+                $0.unreadPositions.remove(1001)
+                $0.afterAttributeWrite = nil
+                if reused { $0.generationsByPID[-41000] = ProcessGeneration(timeval(tv_sec: 11, tv_usec: 1)) }
+                else { $0.windows[1001]?.bounds = manualFrame }
+            }
+            let writesBeforeRecovery = desktop.state.withLock { $0.writes }
+            let completion = await controller.stopAndRestore()
+            XCTAssertEqual(completion, .complete)
+            XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, reused ? partial : manualFrame)
+            XCTAssertEqual(desktop.state.withLock { $0.writes }, writesBeforeRecovery)
+            XCTAssertTrue(controller.pendingRestorations.isEmpty)
+            XCTAssertFalse(gate.timedOut.withLock { $0 })
+        }
+    }
+
+    func testFrozenControllerRetainsCompletedWriteFramesUntilRestoration() async throws {
+        let desktop = BehaviorDesktop()
+        let gate = BehaviorLiftWriteGate()
+        let restorationStarted = Mutex(false)
+        let postWriteFrameReads = Mutex<[String]>([])
+        let restorationFrames = Mutex<[WindowRestorationFrames]>([])
+        let framesAtRestoration = Mutex<[CGRect?]>([])
+        desktop.state.withLock {
+            $0.afterAttributeWrite = { gate.didWrite($0, attribute: $1) }
+            $0.beforeRead = { attribute in
+                if gate.entered.withLock({ $0 }), !restorationStarted.withLock({ $0 }),
+                   attribute == kAXPositionAttribute as String || attribute == kAXSizeAttribute as String {
+                    postWriteFrameReads.withLock { $0.append(attribute) }
+                }
+            }
+        }
+        let (controller, host) = makeController(desktop, workspaceNotificationCenter: NotificationCenter(),
+            beforeRestoration: { key, frames in
+                guard key == .init(pid: -41000, cgWindowID: 1001) else { return }
+                restorationStarted.withLock { $0 = true }
+                restorationFrames.withLock { $0.append(frames) }
+                framesAtRestoration.withLock { $0.append(desktop.state.withLock { $0.windows[1001]?.bounds }) }
+            })
+        defer { gate.release.signal(); withExtendedLifetime(host) {} }
+        controller.poll()
+        await wait { gate.entered.withLock { $0 } }
+        let key = WindowLiftAvoidance.WindowKey(pid: -41000, cgWindowID: 1001)
+        let writer = try XCTUnwrap(controller.writeTasks.removeValue(forKey: key))
+        desktop.state.withLock { $0.focused = nil }
+        controller.beginPermissionUncertainty()
+        XCTAssertFalse(writer.isCancelled)
+        gate.release.signal()
+        await writer.value
+        XCTAssertNotNil(controller.pendingRestorations[key])
+        controller.endPermissionUncertainty()
+        await wait { controller.isEnabled }
+        let completion = await controller.stopAndRestore()
+        XCTAssertEqual(completion, .complete)
+        XCTAssertEqual(postWriteFrameReads.withLock { $0 }, [kAXPositionAttribute as String, kAXSizeAttribute as String],
+            "The completed outcome must reach freeze without entering cancellation rollback")
+        XCTAssertEqual(framesAtRestoration.withLock { $0 }, [CGRect(x: 0, y: 30, width: 1920, height: 1016)],
+            "Restoration must receive the completed target before any rollback writes the native frame")
+        let capturedFrames = try XCTUnwrap(restorationFrames.withLock { $0.first })
+        XCTAssertEqual(capturedFrames.nativeQuartz, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertEqual(capturedFrames.targetQuartz, CGRect(x: 0, y: 30, width: 1920, height: 1016))
+        XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.bounds }, CGRect(x: 0, y: 30, width: 1920, height: 1050))
+        XCTAssertFalse(gate.timedOut.withLock { $0 })
     }
 
     func testDeadWindowChurnReleasesObservationMetadataAfterDraining() async {

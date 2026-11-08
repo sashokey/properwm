@@ -17,7 +17,6 @@ final class StripOrderStore: ObservableObject {
     private let defaults: UserDefaults
     private let now: () -> Date
     private let inventoryLog: WindowInventoryAnomalyLog
-    private var lastProjectionSample: InventoryOrderProjectionSample?
 
 
     init(defaults: UserDefaults = .standard,
@@ -62,16 +61,9 @@ final class StripOrderStore: ObservableObject {
 
     func sync(
         current: [String],
-        appKeyOf: [String: String] = [:],
-        projectionSample: InventoryOrderProjectionSample? = nil
+        appKeyOf: [String: String] = [:]
     ) {
         let now = self.now()
-        if let projectionSample, projectionSample != lastProjectionSample {
-            inventoryLog.record(.orderProjectionChanged(
-                projectionSample.payload(previousLiveIDs: lastProjectionSample?.currentLiveIDs ?? [])
-            ))
-            lastProjectionSample = projectionSample
-        }
         let rememberedAppKeys = stickyAppKeys
         stickyAppKeys.merge(appKeyOf) { _, new in new }
 
@@ -118,12 +110,6 @@ final class StripOrderStore: ObservableObject {
 
         let aliveKeys = currentSet.union(Set(liveOrder))
         stickyAppKeys = stickyAppKeys.filter { aliveKeys.contains($0.key) }
-    }
-
-    func reorder(draggedID: String, relativeTo targetID: String, after: Bool, current: [String]) {
-        let base = StripOrdering.reconcile(remembered: liveOrder, current: current, appKeyOf: stickyAppKeys)
-        let next = StripOrdering.reordering(base, move: draggedID, relativeTo: targetID, after: after)
-        if next != liveOrder { liveOrder = next; persistLiveOrder() }
     }
 
     func reorderGroup(_ appKey: String, relativeTo targetAppKey: String, after: Bool, current: [String]) {

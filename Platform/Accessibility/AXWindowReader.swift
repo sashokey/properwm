@@ -186,15 +186,30 @@ struct AXFocusedWindowObservation: Sendable {
     }
 }
 
+enum AXSystemFocusedWindowRead: Equatable, Sendable {
+    case window(pid: pid_t, windowID: CGWindowID)
+    case none
+    case unread(AXError)
+}
+
+struct AXSystemFocusedWindowObservation: Sendable {
+    let result: AXSystemFocusedWindowRead
+}
+
 protocol AppTrackerWindowReading: Sendable {
     func windows(forPID pid: pid_t) -> [AXWindowSnapshot]
     func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXWindowReadResult
     func focusedWindowRead(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXFocusedWindowObservation
+    func systemFocusedWindowRead(messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXSystemFocusedWindowObservation
 }
 
 extension AppTrackerWindowReading {
+    func systemFocusedWindowRead(messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXSystemFocusedWindowObservation {
+        .init(result: .unread(.notImplemented))
+    }
+
     func focusedWindowRead(forPID pid: pid_t, messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXFocusedWindowObservation {
         AXFocusedWindowObservation(result: .unread(.notImplemented))
     }
@@ -208,6 +223,7 @@ extension AppTrackerWindowReading {
 protocol AccessibilityOperations: Sendable {
     func isTrusted() -> Bool
     func application(_ pid: pid_t) -> AXUIElement
+    func systemWide() -> AXUIElement?
     func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?)
     func set(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError
     func perform(_ element: AXUIElement, _ action: CFString) -> AXError
@@ -217,9 +233,14 @@ protocol AccessibilityOperations: Sendable {
     func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool)
 }
 
+extension AccessibilityOperations {
+    func systemWide() -> AXUIElement? { nil }
+}
+
 struct NativeAccessibilityOperations: AccessibilityOperations {
     func isTrusted() -> Bool { AXIsProcessTrusted() }
     func application(_ pid: pid_t) -> AXUIElement { AXUIElementCreateApplication(pid) }
+    func systemWide() -> AXUIElement? { AXUIElementCreateSystemWide() }
     func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?) {
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(element, attribute, &value)
@@ -281,6 +302,49 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         guard let id = reader.cgWindowID(for: element, maxAttempts: 1), id != 0 else { return .init(result: .unread(.failure)) }
         guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
         return .init(result: .window(id), observedAt: observedAt)
+    }
+
+    func systemFocusedWindowRead(messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXSystemFocusedWindowObservation {
+        guard messagingTimeout.isFinite, messagingTimeout > 0 else { return .init(result: .unread(.illegalArgument)) }
+        guard accessibility.isTrusted() else { return .init(result: .unread(.apiDisabled)) }
+        var reader = self
+        reader.readMessagingTimeout = messagingTimeout
+        reader.budget = OperationReadBudget(maximumDuration: messagingTimeout * 2, cancellation: cancellation)
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        guard let system = accessibility.systemWide() else { return .init(result: .unread(.notImplemented)) }
+        let (error, value) = accessibility.copy(system, kAXFocusedUIElementAttribute as CFString)
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        if error == .noValue { return .init(result: .none) }
+        guard error == .success else { return .init(result: .unread(error)) }
+        guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return .init(result: .unread(.failure)) }
+        let focused = value as! AXUIElement
+        guard let pid = accessibility.pid(focused) else { return .init(result: .unread(.invalidUIElement)) }
+        var role: CFTypeRef?
+        let roleError = reader.copyAttributeValue(kAXRoleAttribute as CFString, from: focused, into: &role, maxAttempts: 1)
+        guard roleError == .success else { return .init(result: .unread(roleError)) }
+        let window: AXUIElement
+        if role as? String == kAXWindowRole as String {
+            window = focused
+        } else {
+            var windowValue: CFTypeRef?
+            let windowError = reader.copyAttributeValue(kAXWindowAttribute as CFString, from: focused, into: &windowValue, maxAttempts: 1)
+            if windowError == .noValue { return .init(result: .none) }
+            guard windowError == .success else { return .init(result: .unread(windowError)) }
+            guard let windowValue, CFGetTypeID(windowValue) == AXUIElementGetTypeID() else { return .init(result: .unread(.failure)) }
+            window = windowValue as! AXUIElement
+        }
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        guard accessibility.pid(window) == pid else { return .init(result: .unread(.invalidUIElement)) }
+        guard let remaining = reader.budget?.remaining, remaining > 0 else { return .init(result: .unread(.cannotComplete)) }
+        reader.applyMessagingTimeout(min(messagingTimeout, remaining), to: window)
+        guard let id = reader.cgWindowID(for: window, maxAttempts: 1), id != 0 else { return .init(result: .unread(.failure)) }
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        let (latestError, latest) = accessibility.copy(system, kAXFocusedUIElementAttribute as CFString)
+        guard reader.budget?.canContinue == true else { return .init(result: .unread(.cannotComplete)) }
+        guard latestError == .success else { return .init(result: .unread(latestError)) }
+        guard let latest, CFEqual(latest, focused), accessibility.pid(focused) == pid,
+              accessibility.pid(window) == pid else { return .init(result: .unread(.invalidUIElement)) }
+        return .init(result: .window(pid: pid, windowID: id))
     }
 
     static func validatedElements(_ value: CFTypeRef?, budget: OperationReadBudget? = nil) -> [AXUIElement]? {
@@ -404,23 +468,20 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         for target: AXWindowTarget,
         attempts: Int = 1,
         retryIntervalMicroseconds: useconds_t = 0,
-        messagingTimeout: TimeInterval? = nil
+        messagingTimeout: TimeInterval? = nil,
+        cancellation: OperationCancellation = OperationCancellation()
     ) -> AXWindowHandle? {
-        guard accessibility.isTrusted(), budget?.canContinue != false else { return nil }
+        guard !cancellation.isCancelled, accessibility.isTrusted(), budget?.canContinue != false else { return nil }
         let boundedAttempts = max(1, attempts)
 
         for attempt in 0..<boundedAttempts {
-            guard budget?.canContinue != false else { return nil }
+            guard !cancellation.isCancelled, budget?.canContinue != false else { return nil }
             let candidates: [AXWindowSnapshot]
-            if let timeout = messagingTimeout {
-                switch inventoryWindows(forPID: target.pid, messagingTimeout: timeout) {
-                case .success(let s): candidates = s
-                case .unread: candidates = []
-                }
-            } else {
-                candidates = windows(forPID: target.pid)
+            switch readWindows(forPID: target.pid, messagingTimeout: messagingTimeout, cancellation: cancellation) {
+            case .success(let snapshots): candidates = snapshots
+            case .unread: candidates = []
             }
-            guard budget?.canContinue != false else { return nil }
+            guard !cancellation.isCancelled, budget?.canContinue != false else { return nil }
             if let snapshot = bestMatch(for: target, from: candidates) {
                 return AXWindowHandle(
                     pid: target.pid,
@@ -445,7 +506,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         cgWindowID: CGWindowID,
         messagingTimeout: TimeInterval = 0.1
     ) -> AXWindowHandle? {
-        guard accessibility.isTrusted(),
+        guard budget?.canContinue != false, accessibility.isTrusted(),
               cgWindowID != 0,
               messagingTimeout.isFinite,
               messagingTimeout > 0 else {
@@ -456,6 +517,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         let appElement = accessibility.application(pid)
 
         func remainingTimeout() -> TimeInterval? {
+            guard budget?.canContinue != false else { return nil }
             let remaining = deadline - ProcessInfo.processInfo.systemUptime
             return remaining > 0 ? remaining : nil
         }

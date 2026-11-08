@@ -28,7 +28,7 @@ final class WindowOrderingTests: XCTestCase {
     func testManualReorderSurvivesSnapshotOrderChanges() {
         let store = makeStore()
         store.sync(current: ["a", "b", "c"])
-        store.reorder(draggedID: "c", relativeTo: "a", after: false, current: ["a", "b", "c"])
+        store.reorderGroup("c", relativeTo: "a", after: false, current: ["a", "b", "c"])
         store.sync(current: ["b", "a", "c"])
         XCTAssertEqual(store.liveOrder, ["c", "a", "b"])
     }
@@ -49,7 +49,7 @@ final class WindowOrderingTests: XCTestCase {
     func testBrieflyMissingWindowKeepsItsManualPosition() {
         let store = makeStore()
         store.sync(current: ["a", "b", "c"])
-        store.reorder(draggedID: "c", relativeTo: "a", after: false, current: ["a", "b", "c"])
+        store.reorderGroup("c", relativeTo: "a", after: false, current: ["a", "b", "c"])
         store.sync(current: ["a", "b"])
         XCTAssertEqual(store.reconciled(current: ["a", "b"]), ["a", "b"])
         clock.addTimeInterval(4)
@@ -73,7 +73,7 @@ final class WindowOrderingTests: XCTestCase {
         let store = makeStore()
         let ids = ["tabgrp-1-s1", "tabgrp-2-s1"]
         store.sync(current: ids)
-        store.reorder(draggedID: ids[1], relativeTo: ids[0], after: false, current: ids)
+        store.reorderGroup(ids[1], relativeTo: ids[0], after: false, current: ids)
         XCTAssertEqual(makeStore().reconciled(current: ids), Array(ids.reversed()))
         XCTAssertEqual(makeStore(boot: 2).reconciled(current: ids), ids)
     }
@@ -146,7 +146,7 @@ final class WindowOrderingTests: XCTestCase {
         let ids = ["tabgrp-a", "tabgrp-b"]
         let initial = makeStore()
         initial.sync(current: ids)
-        initial.reorder(draggedID: ids[1], relativeTo: ids[0], after: false, current: ids)
+        initial.reorderGroup(ids[1], relativeTo: ids[0], after: false, current: ids)
         let keys = [ids[0]: "bundle:/Applications/A.app", ids[1]: "bundle:/Applications/B.app"]
         makeStore().sync(current: ids, appKeyOf: keys)
         let current = ["tabgrp-a-new", "tabgrp-b-new"]
@@ -179,15 +179,17 @@ final class WindowOrderingTests: XCTestCase {
         let store = makeStore()
         let ids = ["a-left", "b-right", "c-left", "d-right"]
         store.sync(current: ids)
-        store.reorder(draggedID: "c-left", relativeTo: "a-left", after: false, current: ids)
+        store.reorderGroup("c-left", relativeTo: "a-left", after: false, current: ids)
         XCTAssertEqual(store.liveOrder, ["c-left", "a-left", "b-right", "d-right"])
         XCTAssertEqual(store.liveOrder.filter { $0.hasSuffix("right") }, ["b-right", "d-right"])
     }
 
-    func testInvalidDragTargetsDoNotChangeOrder() {
-        let order = ["a", "b"]
+    func testInvalidGroupDragTargetsDoNotChangeOrder() {
+        let order = ["a1", "a2", "b1", "b2"]
+        let keys = ["a1": "a", "a2": "a", "b1": "b", "b2": "b"]
         for pair in [("a", "a"), ("missing", "a"), ("a", "missing")] {
-            XCTAssertEqual(StripOrdering.reordering(order, move: pair.0, relativeTo: pair.1, after: true), order)
+            XCTAssertEqual(TaskbarGroupOrdering.moving(pair.0, relativeTo: pair.1, after: true,
+                                                       order: order, appKeys: keys), order)
         }
     }
 }

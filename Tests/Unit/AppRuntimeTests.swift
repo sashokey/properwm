@@ -42,11 +42,11 @@ private final class RuntimeExecutor: WindowActionExecuting {
 
 @MainActor
 final class AppRuntimeTests: XCTestCase {
-    private func snapshot() -> DockSnapshot {
+    private func snapshot(activeWindowID: String? = nil) -> DockSnapshot {
         let records = (1...2).map { index in
             WindowRecord(id: WindowID(rawValue: "window-\(index)"), appID: AppID(rawValue: "test"), pid: 42,
                          bundleIdentifier: "test.runtime", title: "Window \(index)", bounds: nil,
-                         status: .inactive, cgWindowID: UInt32(index))
+                         status: activeWindowID == "window-\(index)" ? .active : .inactive, cgWindowID: UInt32(index))
         }
         return DockSnapshot(windows: Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) }),
                             orderedWindowIDs: records.map(\.id))
@@ -58,9 +58,10 @@ final class AppRuntimeTests: XCTestCase {
         XCTAssertTrue(predicate())
     }
 
-    private func start(_ executor: RuntimeExecutor) async -> (AppRuntime, RuntimeInventory) {
-        let inventory = RuntimeInventory(snapshot())
-        let runtime = AppRuntime(tracker: inventory, actionExecutor: executor)
+    private func start(_ executor: RuntimeExecutor, activeWindowID: String? = nil) async -> (AppRuntime, RuntimeInventory) {
+        let inventory = RuntimeInventory(snapshot(activeWindowID: activeWindowID))
+        let runtime = AppRuntime(tracker: inventory, actionExecutor: executor,
+                                 isAppFrontmost: { activeWindowID != nil && $0 == 42 })
         runtime.start()
         await waitUntil { runtime.snapshot.windows.count == 2 }
         return (runtime, inventory)
@@ -107,8 +108,9 @@ final class AppRuntimeTests: XCTestCase {
 
     func testStopAndRestartRejectLateExecutionAndHandoffPrediction() async {
         let executor = RuntimeExecutor(results: [false], predictedWindow: WindowID(rawValue: "window-2"))
-        let (runtime, inventory) = await start(executor)
-        runtime.minimize(windowID: "window-1")
+        let (runtime, inventory) = await start(executor, activeWindowID: "window-1")
+        runtime.toggle(windowID: "window-1")
+        XCTAssertEqual(runtime.optimisticStatesByWindowID["window-1"]?.status, .minimized)
         await waitUntil { executor.calls.withLock { $0 } == 1 }
         let pending = runtime.pendingActionsForTesting
         runtime.stop()

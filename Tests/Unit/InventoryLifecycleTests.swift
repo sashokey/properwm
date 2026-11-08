@@ -193,6 +193,31 @@ final class InventoryLifecycleTests: XCTestCase {
         }
     }
 
+    func testIndependentMinimizedWindowOmittedBeforeSiblingAdmissionKeepsItsSeatWhenBothReturn() throws {
+        let tracker = inventoryTracker()
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(inventoryApp(entries: [
+            inventorySeat(77, token: "independent-X", bounds: inventoryFrame, minimized: true)
+        ]))
+        reconcileInventory(tracker, eligible: [inventoryWindow(88, bounds: inventoryFrame, minimized: true)],
+                           cg: inventoryCG(ids: [77, 88]))
+        let omitted = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+        XCTAssertEqual(omitted.windowOrder, [77, 88])
+        XCTAssertEqual(omitted.windowsByID[77]?.token, "independent-X")
+        XCTAssertFalse(omitted.windowsByID[88]?.formerCgIDs.contains(77) ?? true)
+        let siblingToken = omitted.windowsByID[88]?.token
+        for _ in 0..<3 {
+            reconcileInventory(tracker, eligible: [
+                inventoryWindow(77, bounds: inventoryFrame, minimized: true),
+                inventoryWindow(88, bounds: inventoryFrame, minimized: true)
+            ], cg: inventoryCG(ids: [77, 88]))
+            let returned = try XCTUnwrap(tracker.fixtureAppForTesting(pid: inventoryPID))
+            XCTAssertEqual(returned.windowOrder, [77, 88])
+            XCTAssertEqual(returned.windowsByID[77]?.token, "independent-X")
+            XCTAssertEqual(returned.windowsByID[88]?.token, siblingToken)
+        }
+    }
+
     func testNativeTabTearOutRetainsOriginalSeatAndAllocatesIndependentWindow() throws {
         let tracker = inventoryTracker()
         defer { tracker.stop() }
@@ -670,6 +695,223 @@ final class InventoryLifecycleTests: XCTestCase {
         }
     }
 
+    private func familyFocusTracker(_ desktop: FamilyFocusAccessibility, process: FamilyFocusProcess = FamilyFocusProcess()) async -> AppTracker {
+        let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001, 2001, 3000], onScreenWindowIDs: [1001, 2001, 3000],
+            windowIDsByPID: [-41000: [1001], -42000: [2001], -44000: [3000]], alphaByWindowID: [:])
+        let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: process,
+            cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001, 2001, 3000] })
+        tracker.setFrontmostPIDForTesting(-41000)
+        for app in FamilyRunningApplication.family {
+            tracker.runAdmissionForTesting(source: "seed", app: app, application: app.eligibility)
+            await drainInventory(tracker)
+        }
+        return tracker
+    }
+
+    private func drainInventory(_ tracker: AppTracker) async {
+        while !tracker.pendingInventoryWorkForTesting.isEmpty {
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+        }
+    }
+
+    private func assertFamilyActions(_ tracker: AppTracker, active: CGWindowID?, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(tracker.snapshot.windows.count, 3, file: file, line: line)
+        let planner = LifecycleActionPlanner(isAppFrontmost: { $0 == -41000 })
+        for window in tracker.snapshot.windows.values {
+            XCTAssertEqual(window.status, window.cgWindowID == active ? .active : .inactive, file: file, line: line)
+            XCTAssertEqual(planner.plan(intent: .toggle(window.id), snapshot: tracker.snapshot).kind,
+                           window.cgWindowID == active ? .minimizeWindow : .activateWindow, file: file, line: line)
+        }
+    }
+
+    func testFrontmostHostDoesNotPromoteFreshLocalFocusFromMultipleHelpers() async {
+        let desktop = FamilyFocusAccessibility()
+        let tracker = await familyFocusTracker(desktop)
+        defer { tracker.stop() }
+        tracker.scheduleFrontmostPollForTesting(pid: -41000)
+        await drainInventory(tracker)
+        assertFamilyActions(tracker, active: 1001)
+        XCTAssertTrue(desktop.desktop.state.withLock { $0.writes.isEmpty })
+    }
+
+    func testUnreadSystemFocusCannotMinimizeAnyCachedHelperWindow() async {
+        let desktop = FamilyFocusAccessibility()
+        let tracker = await familyFocusTracker(desktop)
+        defer { tracker.stop() }
+        desktop.state.withLock { $0.systemError = .cannotComplete }
+        tracker.handleFocusedWindowChanged(pid: -42000)
+        tracker.handleFocusedWindowChanged(pid: -44000)
+        await drainInventory(tracker)
+        assertFamilyActions(tracker, active: nil)
+    }
+
+    func testSystemSelectedHelperCanMinimizeWhileOtherFamilyWindowsActivate() async {
+        let desktop = FamilyFocusAccessibility()
+        desktop.state.withLock { $0.focused = 3000 }
+        let tracker = await familyFocusTracker(desktop)
+        defer { tracker.stop() }
+        tracker.handleFocusedWindowChanged(pid: -44000)
+        await drainInventory(tracker)
+        assertFamilyActions(tracker, active: 3000)
+    }
+
+    func testExcludedAndSelfApplicationActivationClearsThePreviousActiveHighlight() async {
+        for excluded in [FamilyRunningApplication(pid: -45000, identifier: DockWindowEligibilityPolicy.selfBundleIdentifier,
+                                                  policy: .regular, path: "/Applications/ProperWM.app"),
+                         FamilyRunningApplication(pid: -46000, identifier: "test.Excluded", policy: .prohibited,
+                                                  path: "/Applications/Excluded.app")] {
+            let tracker = focusTracker(FocusLifecycleReader(blockFirst: false), focused: 77)
+            tracker.runAdmissionForTesting(source: "seed", app: excluded, application: excluded.eligibility)
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            tracker.start()
+            defer { tracker.stop() }
+            for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.status, .active)
+            NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+                object: NSWorkspace.shared, userInfo: [NSWorkspace.applicationUserInfoKey: excluded])
+            for _ in 0..<10 { await Task.yield() }
+            XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.status, .inactive)
+        }
+    }
+
+    func testFamilySystemFocusReadCoalescesABurstAndSnapshotBuildingDoesNotReadAX() async {
+        let desktop = FamilyFocusAccessibility()
+        let tracker = await familyFocusTracker(desktop)
+        defer { desktop.gate.signal(); tracker.stop() }
+        let originalReads = desktop.state.withLock { $0.systemReads }
+        for _ in 0..<20 { tracker.rebuildSnapshotForTesting(onScreenCGIDs: [1001, 2001, 3000]) }
+        XCTAssertEqual(desktop.state.withLock { $0.systemReads }, originalReads)
+        desktop.state.withLock { $0.blockAtRead = originalReads + 1 }
+        tracker.handleFocusedWindowChanged(pid: -44000)
+        await waitForFocus { desktop.state.withLock { $0.systemReads == originalReads + 1 } }
+        desktop.state.withLock { $0.focused = 3000 }
+        for _ in 0..<20 { tracker.handleFocusedWindowChanged(pid: -44000) }
+        desktop.gate.signal()
+        await drainInventory(tracker)
+        assertFamilyActions(tracker, active: 3000)
+        XCTAssertLessThanOrEqual(desktop.state.withLock { $0.systemReads } - originalReads, 4)
+        XCTAssertFalse(desktop.state.withLock { $0.usedMainThread })
+    }
+
+    func testStableHelperFocusPollingDoesNotRepublishOrClearTheActiveSnapshot() async {
+        let desktop = FamilyFocusAccessibility()
+        desktop.state.withLock { $0.focused = 3000 }
+        let tracker = await familyFocusTracker(desktop)
+        defer { tracker.stop() }
+        assertFamilyActions(tracker, active: 3000)
+        var publications = 0
+        let subscription = tracker.$snapshot.sink { _ in publications += 1 }
+        defer { subscription.cancel() }
+        for _ in 0..<5 {
+            tracker.scheduleFrontmostPollForTesting(pid: -41000)
+            await drainInventory(tracker)
+            assertFamilyActions(tracker, active: 3000)
+        }
+        XCTAssertEqual(publications, 1)
+    }
+
+    func testLateFamilySystemFocusCannotPublishForAReplacedHelperOrHost() async {
+        for replacedPID: pid_t in [-41000, -44000] {
+            let desktop = FamilyFocusAccessibility()
+            let process = FamilyFocusProcess()
+            let tracker = await familyFocusTracker(desktop, process: process)
+            defer { desktop.gate.signal(); tracker.stop() }
+            let nextRead = desktop.state.withLock { $0.systemReads + 1 }
+            desktop.state.withLock { $0.focused = 3000; $0.blockAtRead = nextRead }
+            tracker.handleFocusedWindowChanged(pid: -44000)
+            await waitForFocus { desktop.state.withLock { $0.systemReads == nextRead } }
+            process.generations.withLock { $0[replacedPID] = 11 }
+            desktop.gate.signal()
+            await drainInventory(tracker)
+            XCTAssertFalse(tracker.snapshot.windows.values.contains { $0.status == .active })
+            XCTAssertNil(tracker.snapshot.windows[WindowID(rawValue: "cgw-3000")])
+        }
+    }
+
+    func testLateFamilySystemFocusCannotRestoreHighlightAfterAFrontmostChangeOrStop() async {
+        for stop in [false, true] {
+            let desktop = FamilyFocusAccessibility()
+            let tracker = await familyFocusTracker(desktop)
+            defer { desktop.gate.signal(); tracker.stop() }
+            let nextRead = desktop.state.withLock { $0.systemReads + 1 }
+            desktop.state.withLock { $0.focused = 3000; $0.blockAtRead = nextRead }
+            tracker.handleFocusedWindowChanged(pid: -44000)
+            await waitForFocus { desktop.state.withLock { $0.systemReads == nextRead } }
+            let pending = tracker.pendingInventoryWorkForTesting
+            if stop { tracker.stop() }
+            else {
+                tracker.setFrontmostPIDForTesting(-45000)
+                tracker.rebuildSnapshotForTesting(onScreenCGIDs: [1001, 2001, 3000])
+            }
+            desktop.gate.signal()
+            for task in pending { await task.value }
+            XCTAssertFalse(tracker.snapshot.windows.values.contains { $0.status == .active })
+            if stop { XCTAssertTrue(tracker.snapshot.windows.isEmpty) }
+        }
+    }
+
+    func testSystemFocusConfirmationCannotOutliveASeatMutation() async throws {
+        for delayed in [false, true] {
+            let desktop = FamilyFocusAccessibility()
+            desktop.state.withLock { $0.focused = 3000 }
+            let tracker = await familyFocusTracker(desktop)
+            defer { desktop.gate.signal(); tracker.stop() }
+            if delayed {
+                let nextRead = desktop.state.withLock { $0.systemReads + 1 }
+                desktop.state.withLock { $0.blockAtRead = nextRead }
+                tracker.handleFocusedWindowChanged(pid: -44000)
+                await waitForFocus { desktop.state.withLock { $0.systemReads == nextRead } }
+            }
+            var replacement = try XCTUnwrap(tracker.fixtureAppForTesting(pid: -44000))
+            replacement.windowsByID[3000] = WindowEntry(cgWindowID: 3000, token: "replacement-native-seat", title: "Replacement",
+                bounds: CGRect(x: 0, y: 30, width: 1920, height: 1050), isMinimized: false, isFocused: true)
+            tracker.installFixtureForTesting(replacement)
+            tracker.rebuildSnapshotForTesting(onScreenCGIDs: [1001, 2001, 3000])
+            desktop.gate.signal()
+            await drainInventory(tracker)
+            assertFamilyActions(tracker, active: nil)
+        }
+    }
+
+    func testSystemFocusReadResolvesAControlToItsNativeHelperWindowWithoutInventory() {
+        let desktop = FamilyFocusAccessibility()
+        desktop.state.withLock { $0.focused = 3000; $0.focusedControl = true }
+        let result = AXWindowReader(accessibility: desktop).systemFocusedWindowRead(messagingTimeout: 0.05,
+            cancellation: OperationCancellation())
+        XCTAssertEqual(result.result, .window(pid: -44000, windowID: 3000))
+        XCTAssertEqual(desktop.state.withLock { $0.attributes }, [kAXFocusedUIElementAttribute as String,
+            kAXRoleAttribute as String, kAXWindowAttribute as String, kAXFocusedUIElementAttribute as String])
+    }
+
+    func testSystemFocusReadDoesNotChangeTheClientGlobalMessagingTimeout() {
+        let desktop = FamilyFocusAccessibility()
+        let result = AXWindowReader(accessibility: desktop).systemFocusedWindowRead(messagingTimeout: 0.05,
+            cancellation: OperationCancellation())
+        XCTAssertEqual(result.result, .window(pid: -41000, windowID: 1001))
+        XCTAssertEqual(desktop.state.withLock { $0.systemTimeoutWrites }, 0)
+    }
+
+    func testSystemFocusReadRejectsChangedFocusMismatchedOwnersAndCancellation() {
+        for mode in ["changed", "owner", "cancel"] {
+            let desktop = FamilyFocusAccessibility()
+            let cancellation = OperationCancellation()
+            desktop.state.withLock {
+                $0.focused = 3000
+                $0.focusedControl = true
+                if mode == "owner" { $0.controlOwner = -42000 }
+                $0.beforeRead = { [weak desktop] attribute in
+                    guard attribute == kAXRoleAttribute as String else { return }
+                    if mode == "changed" { desktop?.state.withLock { $0.focused = 1001 } }
+                    if mode == "cancel" { cancellation.cancel() }
+                }
+            }
+            let result = AXWindowReader(accessibility: desktop).systemFocusedWindowRead(messagingTimeout: 0.05,
+                cancellation: cancellation)
+            XCTAssertEqual(result.result, .unread(mode == "cancel" ? .cannotComplete : .invalidUIElement), mode)
+            XCTAssertFalse(desktop.state.withLock { $0.attributes.contains(kAXWindowsAttribute as String) })
+        }
+    }
+
     private var embeddedApplication: AppTrackerWindowEligibility.Application {
         .init(bundleIdentifier: "test.Host.helper", appName: "Helper", activationPolicy: .accessory,
               executablePath: "/Applications/Host/Contents/MacOS/Frameworks/Helper.app/Contents/MacOS/Helper",
@@ -992,6 +1234,13 @@ private final class AdmissionWindowReader: AppTrackerWindowReading, Sendable {
     func windows(forPID pid: pid_t) -> [AXWindowSnapshot] { read(pid).windowsOrEmpty }
     func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult { read(pid) }
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult { read(pid) }
+    func systemFocusedWindowRead(messagingTimeout: TimeInterval, cancellation: OperationCancellation) -> AXSystemFocusedWindowObservation {
+        state.withLock {
+            guard !cancellation.isCancelled else { return .init(result: .unread(.cannotComplete)) }
+            guard $0.focused, let id = $0.windowID else { return .init(result: .none) }
+            return .init(result: .window(pid: NSRunningApplication.current.processIdentifier, windowID: id))
+        }
+    }
 
     private func read(_ pid: pid_t) -> AXWindowReadResult {
         let values = state.withLock {
@@ -1075,6 +1324,133 @@ private final class FocusListGate: Sendable {
         guard attribute == kAXWindowsAttribute as String else { return }
         entered.withLock { $0 = true }
         _ = release.wait(timeout: .now() + 3)
+    }
+}
+
+private final class FamilyRunningApplication: NSRunningApplication, @unchecked Sendable {
+    let fixturePID: pid_t
+    let eligibility: AppTrackerWindowEligibility.Application
+    init(pid: pid_t, identifier: String, policy: NSApplication.ActivationPolicy, path: String) {
+        fixturePID = pid
+        eligibility = .init(bundleIdentifier: identifier, appName: "Family", activationPolicy: policy,
+            executablePath: path + "/Contents/MacOS/Executable", bundleURL: URL(fileURLWithPath: path))
+        super.init()
+    }
+    override var processIdentifier: pid_t { fixturePID }
+    override var bundleIdentifier: String? { eligibility.bundleIdentifier }
+    override var localizedName: String? { eligibility.appName }
+    override var activationPolicy: NSApplication.ActivationPolicy { eligibility.activationPolicy }
+    override var bundleURL: URL? { eligibility.bundleURL }
+    override var executableURL: URL? { eligibility.executablePath.map { URL(fileURLWithPath: $0) } }
+    override var isHidden: Bool { false }
+    override var isTerminated: Bool { false }
+
+    static var family: [FamilyRunningApplication] {
+        [FamilyRunningApplication(pid: -41000, identifier: "test.Host", policy: .regular, path: "/Applications/Host"),
+         FamilyRunningApplication(pid: -42000, identifier: "test.HelperA", policy: .accessory,
+                                  path: "/Applications/Host/Contents/Frameworks/HelperA.app"),
+         FamilyRunningApplication(pid: -44000, identifier: "test.HelperB", policy: .accessory,
+                                  path: "/Applications/Host/Contents/Frameworks/HelperB.app")]
+    }
+}
+
+private final class FamilyFocusProcess: AppTrackerProcessProviding, Sendable {
+    let generations = Mutex<[pid_t: Int64]>([:])
+    func isAlive(pid: pid_t) -> Bool { true }
+    func identity(pid: pid_t, bundleID: String?) -> ScanAdmissionDecision.ProcessIdentity {
+        .init(pid: pid, startTimeSec: generations.withLock { $0[pid] ?? 10 }, startTimeUsec: 1, bundleID: bundleID)
+    }
+    func applicationOwner(pid: pid_t) -> ApplicationOwnerRead? {
+        guard pid == -42000 || pid == -44000 else { return nil }
+        return (identity(pid: -41000, bundleID: "test.Host"), FamilyRunningApplication.family[0].eligibility)
+    }
+}
+
+private final class FamilyFocusAccessibility: AccessibilityOperations, @unchecked Sendable {
+    struct State {
+        var focused: CGWindowID? = 1001
+        var systemError: AXError?
+        var systemReads = 0
+        var blockAtRead: Int?
+        var usedMainThread = false
+        var focusedControl = false
+        var controlOwner: pid_t?
+        var attributes: [String] = []
+        var beforeRead: (@Sendable (String) -> Void)?
+        var systemTimeoutWrites = 0
+    }
+    let state = Mutex(State())
+    let gate = DispatchSemaphore(value: 0)
+    let desktop = BehaviorDesktop(additionalWindows: 1)
+    let system = AXUIElementCreateApplication(-47000)
+    let control = AXUIElementCreateApplication(-48000)
+    let applications = Dictionary(uniqueKeysWithValues: [-41000, -42000, -44000].map { (pid_t($0), AXUIElementCreateApplication(pid_t($0))) })
+
+    init() {
+        desktop.state.withLock {
+            $0.windows.removeValue(forKey: 1002)
+            if let old = $0.windows[3000] {
+                $0.windows[3000] = WindowRecord(id: old.id, appID: AppID(rawValue: "HelperB"), pid: -44000,
+                    bundleIdentifier: "test.HelperB", title: old.title, bounds: old.bounds, status: .inactive, cgWindowID: 3000)
+            }
+        }
+    }
+
+    func systemWide() -> AXUIElement? { system }
+    func isTrusted() -> Bool { true }
+    func application(_ pid: pid_t) -> AXUIElement { applications[pid] ?? desktop.application(pid) }
+    func pid(_ element: AXUIElement) -> pid_t? {
+        if CFEqual(element, control) {
+            return state.withLock { value in
+                value.controlOwner ?? value.focused.flatMap { desktop.elements[$0] }.flatMap { desktop.pid($0) }
+            }
+        }
+        return applications.first { CFEqual($0.value, element) }?.key ?? desktop.pid(element)
+    }
+    func windowID(_ element: AXUIElement) -> CGWindowID? { desktop.windowID(element) }
+    func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError {
+        if CFEqual(element, system) { state.withLock { $0.systemTimeoutWrites += 1 } }
+        return .success
+    }
+    func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) { (.success, true) }
+    func set(_ element: AXUIElement, _ attribute: CFString, _ value: CFTypeRef) -> AXError { .failure }
+    func perform(_ element: AXUIElement, _ action: CFString) -> AXError { .failure }
+
+    func copy(_ element: AXUIElement, _ attribute: CFString) -> (AXError, CFTypeRef?) {
+        let name = attribute as String
+        let beforeRead = state.withLock { $0.attributes.append(name); return $0.beforeRead }
+        beforeRead?(name)
+        if CFEqual(element, system) {
+            let (result, block) = state.withLock { value -> ((AXError, CFTypeRef?), Bool) in
+                value.usedMainThread = value.usedMainThread || Thread.isMainThread
+                value.systemReads += 1
+                let block = value.systemReads == value.blockAtRead
+                if let error = value.systemError { return ((error, nil), block) }
+                guard name == kAXFocusedUIElementAttribute as String, let focused = value.focused else { return ((.noValue, nil), block) }
+                return ((.success, value.focusedControl ? control : desktop.elements[focused]), block)
+            }
+            if block { _ = gate.wait(timeout: .now() + 3) }
+            return result
+        }
+        if CFEqual(element, control) {
+            if name == kAXRoleAttribute as String { return (.success, kAXTextFieldRole as CFString) }
+            if name == kAXWindowAttribute as String {
+                return (.success, state.withLock { $0.focused.flatMap { desktop.elements[$0] } })
+            }
+            return (.noValue, nil)
+        }
+        if let pid = applications.first(where: { CFEqual($0.value, element) })?.key {
+            let windows = desktop.state.withLock { $0.windows.values.filter { $0.pid == pid }.sorted { $0.cgWindowID! < $1.cgWindowID! } }
+            if name == kAXWindowsAttribute as String {
+                return (.success, windows.compactMap { desktop.elements[$0.cgWindowID!] } as CFArray)
+            }
+            if name == kAXFocusedWindowAttribute as String || name == kAXMainWindowAttribute as String {
+                return (.success, windows.first.flatMap { desktop.elements[$0.cgWindowID!] })
+            }
+            if name == kAXRoleAttribute as String { return (.success, kAXApplicationRole as CFString) }
+            return (.noValue, nil)
+        }
+        return desktop.copy(element, attribute)
     }
 }
 

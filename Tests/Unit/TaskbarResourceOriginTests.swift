@@ -128,12 +128,16 @@ final class TaskbarResourceOriginTests: XCTestCase {
         let alphaOrigin = try XCTUnwrap(ApplicationOrigin(bundleURL: alpha))
         let betaOrigin = try XCTUnwrap(ApplicationOrigin(bundleURL: beta))
         let center = NotificationCenter()
+        let probe = IconStampReadProbe()
         var paths: [String] = []
         let resolver = AppIconResolver(notifications: center, applicationURL: { _ in alpha },
             imageForFile: { path in paths.append(path); return NSImage(size: NSSize(width: 32, height: 32)) },
-            fallbackImage: { NSImage(size: NSSize(width: 32, height: 32)) })
+            fallbackImage: { NSImage(size: NSSize(width: 32, height: 32)) }, stampAtPath: { probe.read($0) })
         _ = resolver.icon(for: "shared", origin: alphaOrigin)
         _ = resolver.icon(for: "shared", origin: betaOrigin)
+        await waitForIconStampReads(2, probe: probe)
+        center.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        await waitForIconStampReads(4, probe: probe)
         var invalidated = false
         let subscription = resolver.changes.sink { invalidated = true }
         defer { subscription.cancel() }

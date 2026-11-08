@@ -209,6 +209,23 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private var confirmedFocus: [pid_t: ConfirmedFocus] = [:]
     private var pendingFocusReads: [pid_t: PendingFocusRead] = [:]
     private var trailingFocusReads = Set<pid_t>()
+    private struct PendingSystemFocusRead {
+        let id = UUID()
+        let revision: UInt64
+        let frontmostPID: pid_t
+        let identities: [pid_t: ScanAdmissionDecision.ProcessIdentity]
+        let mutationGenerations: [pid_t: UInt64]
+    }
+    private struct ConfirmedSystemFocus {
+        let frontmostPID: pid_t
+        let identity: ScanAdmissionDecision.ProcessIdentity
+        let windowID: CGWindowID
+        let mutationGeneration: UInt64
+    }
+    private var systemFocusRevision: UInt64 = 0
+    private var pendingSystemFocusRead: PendingSystemFocusRead?
+    private var trailingSystemFocusRead = false
+    private var confirmedSystemFocus: ConfirmedSystemFocus?
     var mutationGenerations: [pid_t: UInt64] = [:]
 
     private let reader: any AppTrackerWindowReading
@@ -420,6 +437,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         confirmedFocus.removeAll()
         pendingFocusReads.removeAll()
         trailingFocusReads.removeAll()
+        systemFocusRevision &+= 1
+        pendingSystemFocusRead = nil
+        trailingSystemFocusRead = false
+        confirmedSystemFocus = nil
         mutationGenerations.removeAll()
         gateStates.removeAll()
         scanMemos.removeAll()
@@ -637,6 +658,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 // X 离开 AX：旧 frame 有没有新当前标签顶上 → 切标签
                 let replacements = seatKey.flatMap { eligibleByFrame[$0] }?.filter { s in
                        guard let c = s.cgWindowID, !usedEligible.contains(c), app.windowsByID[c] == nil else { return false }
+                       guard seat.formerCgIDs.contains(c) || (!seat.isMinimized && !app.isHidden && !s.isMinimized) else { return false }
                        return !cgSnapshot.captureFailed || (!s.isMinimized && seat.formerCgIDs.contains(c))
                 } ?? []
                 if let seatKey, seatsAtFrame(seatKey) == 1,
@@ -1548,6 +1570,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func handleAppActivated(_ app: NSRunningApplication) {
+        defer { rebuildSnapshot() }
+        requestSystemFocusedWindowRead()
         guard isWindowCandidate(app) else { return }
         for (pid, binding) in ownerBindings where binding.owner.identity.pid == app.processIdentifier {
             if applicationOwner(for: pid) != nil { requestFocusedWindowRead(pid: pid) }
@@ -1559,11 +1583,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         guard apps[app.processIdentifier] == nil else {
             markReconcileGateDirty(pid: app.processIdentifier)
             requestFocusedWindowRead(pid: app.processIdentifier)
-            rebuildSnapshot()  // frontmost changed → active highlight update
             return
         }
         addApp(app, enumerateImmediately: true)
-        rebuildSnapshot()
     }
 
     func handleAppTerminated(pid: pid_t) {
@@ -1645,6 +1667,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         scanMemos.removeValue(forKey: pid)
         scanDirtyPIDs.remove(pid)
         scanCandidateCache = nil
+        requestSystemFocusedWindowRead()
 
         if AXIsProcessTrusted() {
             let obs = AppWindowObserver(pid: pid)
@@ -1906,6 +1929,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func requestFocusedWindowRead(pid: pid_t) {
         guard work.isActive, apps[pid] != nil else { return }
+        requestSystemFocusedWindowRead()
         focusRevisions[pid, default: 0] &+= 1
         if pendingFocusReads[pid] != nil {
             trailingFocusReads.insert(pid)
@@ -1952,6 +1976,67 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 self.confirmedFocus[pid] = ConfirmedFocus(observedAt: result.observedAt, windowID: focused)
                 for id in app.windowOrder {
                     self.apps[pid]?.windowsByID[id]?.isFocused = id == focused
+                }
+                self.rebuildSnapshot(onScreenCGIDs: self.lastOnScreenCGIDs)
+            }
+        }
+    }
+
+    private func systemFocusFamily(frontmostPID: pid_t?) -> pid_t? {
+        guard let frontmostPID else { return nil }
+        if let binding = ownerBindings[frontmostPID] { return binding.owner.identity.pid }
+        return ownerBindings.contains { apps[$0.key] != nil && $0.value.owner.identity.pid == frontmostPID } ? frontmostPID : nil
+    }
+
+    private func requestSystemFocusedWindowRead(invalidate: Bool = true) {
+        guard work.isActive, systemFocusFamily(frontmostPID: currentFrontmostPID()) != nil else { return }
+        systemFocusRevision &+= 1
+        if invalidate {
+            let hadFocus = confirmedSystemFocus != nil
+            confirmedSystemFocus = nil
+            if hadFocus { rebuildSnapshot(onScreenCGIDs: lastOnScreenCGIDs) }
+        }
+        if pendingSystemFocusRead != nil {
+            trailingSystemFocusRead = true
+            return
+        }
+        beginSystemFocusedWindowRead()
+    }
+
+    private func beginSystemFocusedWindowRead() {
+        guard let frontmostPID = currentFrontmostPID(), let family = systemFocusFamily(frontmostPID: frontmostPID) else { return }
+        let identities = Dictionary(uniqueKeysWithValues: appOrder.compactMap { pid -> (pid_t, ScanAdmissionDecision.ProcessIdentity)? in
+            guard let app = apps[pid], pid == family || applicationOwner(for: pid)?.pid == family else { return nil }
+            let identity = processIdentity(pid: pid, bundleID: app.bundleIdentifier)
+            guard app.processGeneration != nil, app.processGeneration == processGeneration(identity) else { return nil }
+            return (pid, identity)
+        })
+        let request = PendingSystemFocusRead(revision: systemFocusRevision, frontmostPID: frontmostPID,
+            identities: identities, mutationGenerations: mutationGenerations)
+        pendingSystemFocusRead = request
+        let reader = reader
+        work.launch(priority: .userInitiated) { [weak self] generation in
+            let cancellation = OperationCancellation()
+            guard let result = await AsyncWorkScope.performBlocking(cancellation: cancellation, operation: {
+                reader.systemFocusedWindowRead(messagingTimeout: 0.05, cancellation: cancellation)
+            }) else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.work.isCurrent(generation), self.pendingSystemFocusRead?.id == request.id else { return }
+                self.pendingSystemFocusRead = nil
+                if self.trailingSystemFocusRead {
+                    self.trailingSystemFocusRead = false
+                    self.beginSystemFocusedWindowRead()
+                    return
+                }
+                guard self.systemFocusRevision == request.revision, self.currentFrontmostPID() == request.frontmostPID else { return }
+                self.confirmedSystemFocus = nil
+                if case let .window(pid, windowID) = result.result, let identity = request.identities[pid],
+                   self.mutationGenerations[pid, default: 0] == request.mutationGenerations[pid, default: 0],
+                   let app = self.apps[pid], app.processGeneration == self.processGeneration(identity),
+                   ScanAdmissionDecision.ProcessIdentity.matches(probed: identity,
+                       current: self.processIdentity(pid: pid, bundleID: app.bundleIdentifier)) {
+                    self.confirmedSystemFocus = ConfirmedSystemFocus(frontmostPID: request.frontmostPID,
+                        identity: identity, windowID: windowID, mutationGeneration: request.mutationGenerations[pid, default: 0])
                 }
                 self.rebuildSnapshot(onScreenCGIDs: self.lastOnScreenCGIDs)
             }
@@ -2301,6 +2386,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     private func scheduleFrontmostPoll(pid: pid_t) {
+        requestSystemFocusedWindowRead(invalidate: false)
         if apps[pid] != nil { scheduleEventRead(pid: pid, source: .frontmostPoll) }
         for (helper, binding) in ownerBindings where binding.owner.identity.pid == pid {
             if apps[helper] != nil, applicationOwner(for: helper) != nil {
@@ -2746,6 +2832,15 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private func rebuildSnapshot(onScreenCGIDs: Set<CGWindowID>? = nil) {
         pendingPeriodicSnapshot = nil
         let frontmostPID = currentFrontmostPID()
+        let family = systemFocusFamily(frontmostPID: frontmostPID)
+        let systemFocus = confirmedSystemFocus.flatMap { focus -> ConfirmedSystemFocus? in
+            guard focus.frontmostPID == frontmostPID, let app = apps[focus.identity.pid],
+                  focus.mutationGeneration == mutationGenerations[focus.identity.pid, default: 0],
+                  app.processGeneration == processGeneration(focus.identity),
+                  ScanAdmissionDecision.ProcessIdentity.matches(probed: focus.identity,
+                      current: processIdentity(pid: focus.identity.pid, bundleID: app.bundleIdentifier)) else { return nil }
+            return focus
+        }
         lastOnScreenCGIDs = onScreenCGIDs ?? onScreenWindowIDsProvider()
         var windows: [WindowID: WindowRecord] = [:]
         var orderedWindowIDs: [WindowID] = []
@@ -2760,7 +2855,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                     id: id, appID: AppID(rawValue: app.bundleIdentifier ?? app.appName), pid: pid,
                     bundleIdentifier: app.bundleIdentifier, title: seat.title, bounds: seat.bounds,
                     status: windowStatus(isHidden: app.isHidden, isMinimized: seat.isMinimized,
-                                         isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID, owningPID: owningApplication?.pid),
+                                         isFocused: seat.isFocused, pid: pid, frontmostPID: frontmostPID,
+                                         family: family, cgWindowID: cgID, systemFocus: systemFocus),
                     cgWindowID: cgID, isOnDesktop: !seat.isMinimized && !app.isHidden,
                     groupID: seat.token, displayUUID: seat.displayUUID,
                     applicationOrigin: app.applicationOrigin, processGeneration: app.processGeneration,
@@ -2774,10 +2870,14 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         snapshot = next
     }
 
-    private func windowStatus(isHidden: Bool, isMinimized: Bool, isFocused: Bool, pid: pid_t, frontmostPID: pid_t?, owningPID: pid_t?) -> WindowStatus {
+    private func windowStatus(isHidden: Bool, isMinimized: Bool, isFocused: Bool, pid: pid_t, frontmostPID: pid_t?,
+                              family: pid_t?, cgWindowID: CGWindowID, systemFocus: ConfirmedSystemFocus?) -> WindowStatus {
         if isHidden { return .hidden }
         if isMinimized { return .minimized }
-        if isFocused && (pid == frontmostPID || owningPID != nil && owningPID == frontmostPID) { return .active }
+        if family != nil {
+            return systemFocus?.identity.pid == pid && systemFocus?.windowID == cgWindowID ? .active : .inactive
+        }
+        if isFocused && pid == frontmostPID { return .active }
         return .inactive
     }
 
