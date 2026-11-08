@@ -327,28 +327,48 @@ final class WindowRestorationTests: XCTestCase {
 
     func testShutdownRestoresNewWindowsBeforeRetryingAnExistingBatch() async {
         let host = RestorationHost()
-        let calls = Mutex<[WindowLiftAvoidance.WindowKey]>([])
-        let second = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 2)
+        let progress = Mutex((active: 0, peak: 0, attempts: [WindowLiftAvoidance.WindowKey: Int]()))
+        let initialBatchGate = DispatchSemaphore(value: 0)
+        let responsive = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 55)
+        let oldKeys = Set(stride(from: 10, through: 80, by: 10).map {
+            WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: CGWindowID($0))
+        })
         let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
-            restoreWindow: { key, _, _, _, budget in
-                let attempt = calls.withLock { value in value.append(key); return value.filter { $0 == key }.count }
-                if key == second { return .handled }
-                if attempt == 1 { Thread.sleep(forTimeInterval: 0.5) }
-                else { while budget.canContinue { Thread.sleep(forTimeInterval: 0.001) } }
+            restoreWindow: { key, _, _, _, _ in
+                let attempt = progress.withLock { value in
+                    value.active += 1
+                    value.peak = max(value.peak, value.active)
+                    value.attempts[key, default: 0] += 1
+                    return value.attempts[key, default: 0]
+                }
+                defer { progress.withLock { $0.active -= 1 } }
+                if key == responsive { return .handled }
+                if attempt == 1 {
+                    if key.cgWindowID <= 40 { _ = initialBatchGate.wait(timeout: .now() + 3) }
+                } else {
+                    Thread.sleep(forTimeInterval: 2)
+                }
                 return .retry
             }, restorationWindowKeys: { nil })
-        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        for key in oldKeys { controller.enqueueRestorationForTesting(key: key, frames: frames) }
+        let beginning = ProcessInfo.processInfo.systemUptime
         controller.isEnabled = true
         controller.poll()
         let deadline = ContinuousClock.now + .seconds(2)
-        while calls.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
-        XCTAssertFalse(calls.withLock { $0.isEmpty })
-        controller.enqueueRestorationForTesting(key: second, frames: frames)
+        while progress.withLock({ $0.active }) < 4, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(progress.withLock { $0.active }, 4)
+        controller.enqueueRestorationForTesting(key: responsive, frames: frames)
+        for _ in 0..<4 { initialBatchGate.signal() }
         let result = await controller.stopAndRestore()
-        let attempts = calls.withLock { $0 }
-        XCTAssertEqual(result, .incomplete(remaining: 1))
-        XCTAssertEqual(Array(attempts.prefix(2)), [key, second])
-        XCTAssertNil(controller.pendingRestorations[second])
+        let final = progress.withLock { $0 }
+        XCTAssertEqual(result, .incomplete(remaining: 8))
+        XCTAssertNil(controller.pendingRestorations[responsive])
+        XCTAssertEqual(Set(controller.pendingRestorations.keys), oldKeys)
+        XCTAssertEqual(final.peak, 4)
+        XCTAssertEqual(final.active, 0)
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - beginning, 3)
+        XCTAssertNil(controller.restoreTask)
+        XCTAssertFalse(controller.isEnabled)
     }
 }
 
