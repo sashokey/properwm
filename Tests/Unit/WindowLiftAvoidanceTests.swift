@@ -1961,6 +1961,7 @@ private final class LiftCaptureSystem: WindowSystemAccess, @unchecked Sendable {
     let onScreen: [[String: Any]]?
     let all: [[String: Any]]?
     let options = Mutex<[CGWindowListOption]>([])
+    let descriptionRequests = Mutex<[[CGWindowID]]>([])
 
     init(onScreen: [[String: Any]]?, all: [[String: Any]]?) {
         self.onScreen = onScreen
@@ -1975,6 +1976,14 @@ private final class LiftCaptureSystem: WindowSystemAccess, @unchecked Sendable {
     func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]? {
         self.options.withLock { $0.append(options) }
         return options.contains(.optionOnScreenOnly) ? onScreen : all
+    }
+
+    func windowDescriptions(for windowIDs: [CGWindowID]) -> [[String: Any]]? {
+        descriptionRequests.withLock { $0.append(windowIDs) }
+        let requested = Set(windowIDs)
+        return all?.filter { info in
+            (info[kCGWindowNumber as String] as? NSNumber).map { requested.contains($0.uint32Value) } ?? false
+        }
     }
 }
 
@@ -2039,6 +2048,40 @@ extension WindowLiftAvoidanceTests {
 
         XCTAssertEqual(system.options.withLock { $0.count }, 2)
         XCTAssertEqual(result.liveWindowKeys, [tracked])
+    }
+
+    func testTrackedFrameProbeUsesOneExactBatchAndRejectsReusedWindowNumbers() {
+        let first = WindowLiftAvoidance.WindowKey(pid: 100, cgWindowID: 7)
+        let second = WindowLiftAvoidance.WindowKey(pid: 200, cgWindowID: 8)
+        let expected = CGRect(x: 10, y: 20, width: 300, height: 400)
+        let system = LiftCaptureSystem(onScreen: nil, all: [
+            liftWindowInfo(pid: 999, id: 7),
+            liftWindowInfo(pid: 200, id: 8, bounds: expected),
+            liftWindowInfo(pid: 500, id: 90)
+        ])
+        let frames = WindowLiftCGWindowProbe.frames(for: [first, second], system: system)
+
+        XCTAssertEqual(frames, [second: CGRect(x: 10, y: 20, width: 300, height: 400)])
+        XCTAssertEqual(system.descriptionRequests.withLock { $0.count }, 1)
+        XCTAssertEqual(system.descriptionRequests.withLock { $0.first.map(Set.init) }, [7, 8])
+        XCTAssertTrue(system.options.withLock { $0.isEmpty })
+    }
+
+    func testTrackedFrameProbeKeepsMissingOrUnreadWindowsUnknown() {
+        let keys: Set<WindowLiftAvoidance.WindowKey> = [.init(pid: 100, cgWindowID: 7), .init(pid: 200, cgWindowID: 8)]
+        for descriptions in [nil, []] as [[[String: Any]]?] {
+            let system = LiftCaptureSystem(onScreen: nil, all: descriptions)
+            XCTAssertTrue(WindowLiftCGWindowProbe.frames(for: keys, system: system).isEmpty)
+            XCTAssertEqual(system.descriptionRequests.withLock { $0.count }, 1)
+            XCTAssertTrue(system.options.withLock { $0.isEmpty })
+        }
+    }
+
+    func testTrackedFrameProbeDoesNotQueryAnEmptySet() {
+        let system = LiftCaptureSystem(onScreen: nil, all: nil)
+        XCTAssertTrue(WindowLiftCGWindowProbe.frames(for: [], system: system).isEmpty)
+        XCTAssertTrue(system.options.withLock { $0.isEmpty })
+        XCTAssertTrue(system.descriptionRequests.withLock { $0.isEmpty })
     }
 }
 

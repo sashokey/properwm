@@ -19,6 +19,7 @@ protocol WindowSystemAccess: Sendable {
     func unhide(_ pid: pid_t)
     func terminate(_ pid: pid_t) -> Bool
     func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]?
+    func windowDescriptions(for ids: [CGWindowID]) -> [[String: Any]]?
 }
 
 struct NativeWindowSystem: WindowSystemAccess {
@@ -33,6 +34,12 @@ struct NativeWindowSystem: WindowSystemAccess {
     func terminate(_ pid: pid_t) -> Bool { NSRunningApplication(processIdentifier: pid)?.terminate() ?? false }
     func windowInfo(_ options: CGWindowListOption, _ relative: CGWindowID) -> [[String: Any]]? {
         CGWindowListCopyWindowInfo(options, relative) as? [[String: Any]]
+    }
+    func windowDescriptions(for ids: [CGWindowID]) -> [[String: Any]]? {
+        guard !ids.isEmpty else { return [] }
+        var values = ids.map { UnsafeRawPointer(bitPattern: UInt($0)) }
+        guard let array = values.withUnsafeMutableBufferPointer({ CFArrayCreate(nil, $0.baseAddress, $0.count, nil) }) else { return nil }
+        return CGWindowListCreateDescriptionFromArray(array) as? [[String: Any]]
     }
 }
 

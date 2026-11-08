@@ -31,6 +31,11 @@ enum WindowRestorationOutcome: Equatable, Sendable {
     case retry
 }
 
+enum WindowRestorationCompletion: Equatable, Sendable {
+    case complete
+    case incomplete(remaining: Int)
+}
+
 protocol WindowRestorationAccess: Sendable {
     associatedtype Handle: Sendable
     func processStartTime(pid: pid_t) -> timeval?
@@ -70,8 +75,9 @@ struct WindowRestorer<Access: WindowRestorationAccess>: Sendable {
 
     func restore(key: WindowLiftAvoidance.WindowKey, frames: WindowRestorationFrames,
                  expectedStartTime: timeval?, liveWindowKeys: Set<WindowLiftAvoidance.WindowKey>?,
-                 cancellation: OperationCancellation = OperationCancellation()) -> WindowRestorationOutcome {
-        guard !cancellation.isCancelled else { return .retry }
+                 cancellation: OperationCancellation = OperationCancellation(),
+                 budget: OperationReadBudget? = nil) -> WindowRestorationOutcome {
+        guard !cancellation.isCancelled, budget?.canContinue != false else { return .retry }
         if liveWindowKeys?.contains(key) == false { return .handled }
         guard let expectedStartTime = expectedStartTime ?? frames.processGeneration.map({ timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }) else { return .retry }
         guard let currentStart = access.processStartTime(pid: key.pid) else { return .retry }
@@ -83,8 +89,10 @@ struct WindowRestorer<Access: WindowRestorationAccess>: Sendable {
         case .target, .managedTrajectory: break
         case .native, .external: return .handled
         }
-        guard !cancellation.isCancelled, let finalStart = access.processStartTime(pid: key.pid),
-              finalStart.tv_sec == expectedStartTime.tv_sec, finalStart.tv_usec == expectedStartTime.tv_usec else { return .retry }
+        guard !cancellation.isCancelled, budget?.canContinue != false,
+              let finalStart = access.processStartTime(pid: key.pid),
+              finalStart.tv_sec == expectedStartTime.tv_sec, finalStart.tv_usec == expectedStartTime.tv_usec,
+              !cancellation.isCancelled, budget?.canContinue != false else { return .retry }
         switch access.write(frames.nativeQuartz, to: handle, matching: current) {
         case .success: return .handled
         case .failure: return .retry

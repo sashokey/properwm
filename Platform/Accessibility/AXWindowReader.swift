@@ -107,9 +107,6 @@ enum AXWindowAttributeSettableStatus: Equatable {
 struct AXWindowFrameSettableStatus: Equatable {
     let position: AXWindowAttributeSettableStatus
     let size: AXWindowAttributeSettableStatus
-
-    var canSetSize: Bool { size.isSettable }
-    var canSetFrame: Bool { position.isSettable && size.isSettable }
 }
 
 enum AXWindowFrameWriteFailure: Error, Equatable {
@@ -306,10 +303,6 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
 
     func windowReadResult(forPID pid: pid_t) -> AXWindowReadResult {
         readWindows(forPID: pid, messagingTimeout: nil)
-    }
-
-    func inventoryWindows(for app: NSRunningApplication, messagingTimeout: TimeInterval) -> AXWindowReadResult {
-        readWindows(forPID: app.processIdentifier, messagingTimeout: messagingTimeout)
     }
 
     func inventoryWindows(forPID pid: pid_t, messagingTimeout: TimeInterval) -> AXWindowReadResult {

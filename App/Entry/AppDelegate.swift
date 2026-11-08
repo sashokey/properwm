@@ -197,7 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let reply = environment.replyToTermination
         terminationTask = Task { @MainActor [weak self] in
-            await controller.stopAndRestore()
+            let result = await controller.stopAndRestore()
+            if case let .incomplete(remaining) = result {
+                Logger(subsystem: "io.github.sashokey.properwm", category: "WindowRestoration")
+                    .error("termination restoration incomplete count=\(remaining, privacy: .public)")
+            }
             self?.terminationTask = nil
             reply(sender, true)
         }
@@ -374,7 +378,10 @@ extension AppDelegate: PermissionEffectHandler {
     }
 
     func restoreLiftedWindows(episode: UInt64) async {
-        await windowLiftAvoidanceController?.restoreAndStopForPermissionRecovery()
+        let result = await windowLiftAvoidanceController?.restoreAndStopForPermissionRecovery()
+        if case let .incomplete(remaining) = result {
+            permissionLogger.error("permission recovery restoration incomplete count=\(remaining, privacy: .public)")
+        }
         windowLiftAvoidanceController = nil
     }
 

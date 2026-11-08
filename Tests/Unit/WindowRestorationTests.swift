@@ -163,6 +163,193 @@ final class WindowRestorationTests: XCTestCase {
         XCTAssertEqual(attempts.withLock { $0 }, 3)
         XCTAssertEqual(controller.pendingRestorationCountForTesting, 1)
     }
+
+    func testShutdownVisitsAResponsiveWindowAfterFortySlowRestorations() async {
+        await assertResponsiveWindowIsRestored(recoveringPermission: false)
+    }
+
+    func testPermissionRecoveryVisitsAResponsiveWindowAfterFortySlowRestorations() async {
+        await assertResponsiveWindowIsRestored(recoveringPermission: true)
+    }
+
+    private func assertResponsiveWindowIsRestored(recoveringPermission: Bool) async {
+        let host = RestorationHost()
+        let responsive = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 41)
+        let calls = Mutex<Set<WindowLiftAvoidance.WindowKey>>([])
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                calls.withLock { _ = $0.insert(key) }
+                if key == responsive { return .handled }
+                Thread.sleep(forTimeInterval: 0.075)
+                return .retry
+            }, restorationWindowKeys: { nil })
+        for id in 1...41 {
+            controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames)
+        }
+        controller.isEnabled = true
+        if recoveringPermission {
+            controller.beginPermissionUncertainty()
+            await controller.restoreAndStopForPermissionRecovery()
+        } else {
+            await controller.stopAndRestore()
+        }
+        XCTAssertTrue(calls.withLock { $0.contains(responsive) })
+        XCTAssertNil(controller.pendingRestorations[responsive])
+        XCTAssertNil(controller.restoreTask)
+        XCTAssertFalse(controller.isEnabled)
+    }
+
+    func testIdlePollTimerAllowsWakeupCoalescing() throws {
+        let host = RestorationHost()
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil })
+        defer { controller.stop() }
+        controller.isEnabled = true
+        controller.updatePollTimerLifecycle()
+        let timer = try XCTUnwrap(Mirror(reflecting: controller).children.first { $0.label == "pollTimer" }?.value as? Timer)
+        XCTAssertGreaterThanOrEqual(timer.tolerance, timer.timeInterval * 0.1)
+    }
+
+    func testExpiredBudgetAfterReadingGeometryPreventsRestorationWrite() {
+        let now = Mutex<TimeInterval>(0)
+        let budget = OperationReadBudget(maximumDuration: 0.1, cancellation: OperationCancellation(), uptime: { now.withLock { $0 } })
+        let access = RestorationFixture(onRead: { now.withLock { $0 = 1 } })
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames,
+            expectedStartTime: nil, liveWindowKeys: [key], budget: budget), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testFirstAttemptsPrecedeRetriesWithAtMostFourActiveRestorations() async {
+        let host = RestorationHost()
+        let progress = Mutex((active: 0, peak: 0, calls: [WindowLiftAvoidance.WindowKey]()))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                let first = progress.withLock { value in
+                    value.active += 1
+                    value.peak = max(value.peak, value.active)
+                    let first = !value.calls.contains(key)
+                    value.calls.append(key)
+                    return first
+                }
+                Thread.sleep(forTimeInterval: 0.02)
+                progress.withLock { $0.active -= 1 }
+                return first ? .retry : .handled
+            }, restorationWindowKeys: { nil })
+        let keys = Set((1...12).map { WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: CGWindowID($0)) })
+        for key in keys { controller.enqueueRestorationForTesting(key: key, frames: frames) }
+        let result = await controller.stopAndRestore()
+        let final = progress.withLock { $0 }
+        XCTAssertEqual(result, .complete)
+        XCTAssertEqual(final.calls.count, 24)
+        XCTAssertEqual(Set(final.calls.prefix(12)), keys)
+        XCTAssertGreaterThan(final.peak, 1)
+        XCTAssertLessThanOrEqual(final.peak, 4)
+        XCTAssertEqual(final.active, 0)
+    }
+
+    func testPermissionFreezeDrainsFourRestorationsAndRejectsTheirOldResults() async {
+        let host = RestorationHost()
+        let gate = DispatchSemaphore(value: 0)
+        let progress = Mutex((blocked: true, active: 0))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in
+                let block = progress.withLock { value in value.active += 1; return value.blocked }
+                if block { _ = gate.wait(timeout: .now() + 3) }
+                progress.withLock { $0.active -= 1 }
+                return .handled
+            }, restorationWindowKeys: { nil })
+        for id in 1...8 { controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames) }
+        let stopping = Task { await controller.stopAndRestore() }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while progress.withLock({ $0.active }) < 4, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(progress.withLock { $0.active }, 4)
+        controller.beginPermissionUncertainty()
+        progress.withLock { $0.blocked = false }
+        for _ in 0..<4 { gate.signal() }
+        let frozenResult = await stopping.value
+        XCTAssertEqual(frozenResult, .incomplete(remaining: 8))
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 8)
+        XCTAssertEqual(progress.withLock { $0.active }, 0)
+        let recovered = await controller.restoreAndStopForPermissionRecovery()
+        XCTAssertEqual(recovered, .complete)
+    }
+
+    func testExhaustedShutdownBudgetReportsRemainingWindowsAndDrainsStartedWork() async {
+        let host = RestorationHost()
+        let progress = Mutex((active: 0, calls: 0))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in
+                progress.withLock { $0.active += 1; $0.calls += 1 }
+                Thread.sleep(forTimeInterval: 0.075)
+                progress.withLock { $0.active -= 1 }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        for id in 1...200 { controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames) }
+        let started = ProcessInfo.processInfo.systemUptime
+        let result = await controller.stopAndRestore()
+        XCTAssertEqual(result, .incomplete(remaining: 200))
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - started, 3)
+        XCTAssertLessThan(progress.withLock { $0.calls }, 200)
+        XCTAssertEqual(progress.withLock { $0.active }, 0)
+        XCTAssertNil(controller.restoreTask)
+    }
+
+    func testNewRestorationsShareTheOriginalShutdownDeadline() async {
+        let host = RestorationHost()
+        let started = Mutex(false)
+        let secondBudget = Mutex<TimeInterval?>(nil)
+        let second = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 2)
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, budget in
+                if key.cgWindowID == 1 {
+                    started.withLock { $0 = true }
+                    Thread.sleep(forTimeInterval: 1.25)
+                    return .handled
+                }
+                secondBudget.withLock { $0 = budget.remaining }
+                while budget.canContinue { Thread.sleep(forTimeInterval: 0.001) }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        let beginning = ProcessInfo.processInfo.systemUptime
+        let stopping = Task { await controller.stopAndRestore() }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !started.withLock({ $0 }), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertTrue(started.withLock { $0 })
+        controller.enqueueRestorationForTesting(key: second, frames: frames)
+        let result = await stopping.value
+        XCTAssertEqual(result, .incomplete(remaining: 1))
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - beginning, 2.8)
+        XCTAssertLessThan(secondBudget.withLock { $0 } ?? .infinity, 1)
+        XCTAssertNil(controller.pendingRestorations[key])
+        XCTAssertNotNil(controller.pendingRestorations[second])
+    }
+
+    func testShutdownRestoresNewWindowsBeforeRetryingAnExistingBatch() async {
+        let host = RestorationHost()
+        let calls = Mutex<[WindowLiftAvoidance.WindowKey]>([])
+        let second = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 2)
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, budget in
+                let attempt = calls.withLock { value in value.append(key); return value.filter { $0 == key }.count }
+                if key == second { return .handled }
+                if attempt == 1 { Thread.sleep(forTimeInterval: 0.5) }
+                else { while budget.canContinue { Thread.sleep(forTimeInterval: 0.001) } }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        controller.isEnabled = true
+        controller.poll()
+        let deadline = ContinuousClock.now + .seconds(2)
+        while calls.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertFalse(calls.withLock { $0.isEmpty })
+        controller.enqueueRestorationForTesting(key: second, frames: frames)
+        let result = await controller.stopAndRestore()
+        let attempts = calls.withLock { $0 }
+        XCTAssertEqual(result, .incomplete(remaining: 1))
+        XCTAssertEqual(Array(attempts.prefix(2)), [key, second])
+        XCTAssertNil(controller.pendingRestorations[second])
+    }
 }
 
 private final class LiftProbeFixture: WindowLiftWindowProbing, Sendable {

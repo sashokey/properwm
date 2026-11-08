@@ -224,6 +224,12 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
                         kCGWindowBounds as String: $0.bounds!.dictionaryRepresentation] }
         }
     }
+    func windowDescriptions(for ids: [CGWindowID]) -> [[String: Any]]? {
+        let requested = Set(ids)
+        return windowInfo(.optionAll, kCGNullWindowID)?.filter {
+            ($0[kCGWindowNumber as String] as? NSNumber).map { requested.contains($0.uint32Value) } ?? false
+        }
+    }
     func setFrontmost(pid: pid_t, windowID: CGWindowID, mode: UInt32) -> Bool {
         let accepted = state.withLock { value in
             guard !value.denyFocus, let window = value.windows[windowID], window.pid == pid, window.status != .minimized || value.allowFocusOfMinimized else { return false }
@@ -791,9 +797,9 @@ final class WindowLiftBehaviorTests: XCTestCase {
             desktop.generation(pid).map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }
         })
         let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
-            restoreWindow: { key, frames, start, live, cancellation in
+            restoreWindow: { key, frames, start, live, budget in
                 WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
-                                                       liveWindowKeys: live, cancellation: cancellation)
+                                                       liveWindowKeys: live, cancellation: budget.cancellation, budget: budget)
             }, restorationWindowKeys: { desktop.state.withLock { Set($0.windows.values.map { .init(pid: $0.pid, cgWindowID: $0.cgWindowID!) }) } },
             windowProbe: probe ?? LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
             makeGeometryObserver: { geometryObserver ?? FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) },
@@ -1955,9 +1961,9 @@ final class ApplicationBehaviorTests: XCTestCase {
                     desktop.generation(pid).map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) }
                 })
                 let lift = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
-                    restoreWindow: { key, frames, start, live, cancellation in
+                    restoreWindow: { key, frames, start, live, budget in
                         WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: start,
-                            liveWindowKeys: live, cancellation: cancellation)
+                            liveWindowKeys: live, cancellation: budget.cancellation, budget: budget)
                     }, restorationWindowKeys: { nil }, windowProbe: LiveWindowLiftProbe(system: desktop), reader: reader, system: desktop,
                     makeGeometryObserver: { FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none }) })
                 effects.lift = lift

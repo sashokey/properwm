@@ -107,12 +107,12 @@ enum WindowLiftCGWindowProbe {
         for keys: Set<WindowLiftAvoidance.WindowKey>,
         system: any WindowSystemAccess = NativeWindowSystem()
     ) -> [WindowLiftAvoidance.WindowKey: CGRect] {
-        guard !keys.isEmpty else { return [:] }
+        guard !keys.isEmpty,
+              let list = system.windowDescriptions(for: Array(Set(keys.map(\.cgWindowID)))) else { return [:] }
 
         var frames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
-        for key in keys {
-            guard let list = system.windowInfo([.optionOnScreenAboveWindow, .optionIncludingWindow, .excludeDesktopElements], key.cgWindowID),
-                  let info = list.first(where: { windowKey(in: $0) == key }),
+        for info in list {
+            guard let key = windowKey(in: info), keys.contains(key),
                   let bounds = windowBounds(in: info) else {
                 continue
             }
@@ -344,16 +344,17 @@ final class WindowLiftAvoidanceController {
     private let workspaceNotificationCenter: NotificationCenter
     private var pendingRestorationDrains: [Task<Void, Never>] = []
 
-    typealias RestoreWindow = @Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames, timeval?, Set<WindowLiftAvoidance.WindowKey>?, OperationCancellation) -> WindowRestorationOutcome
+    typealias RestoreWindow = @Sendable (WindowLiftAvoidance.WindowKey, WindowRestorationFrames, timeval?, Set<WindowLiftAvoidance.WindowKey>?, OperationReadBudget) -> WindowRestorationOutcome
     private let restoreWindow: RestoreWindow
     private let restorationWindowKeys: @Sendable () -> Set<WindowLiftAvoidance.WindowKey>?
     private var nextRestoreRetryAt: TimeInterval = 0
     private var lastRestorationAttemptKey: WindowLiftAvoidance.WindowKey?
 
     init(host: WindowLiftAvoidanceHost, isTrustedProbe: @escaping () -> Bool = { AXIsProcessTrusted() },
-         restoreWindow: @escaping RestoreWindow = { key, frames, start, live, cancellation in
-             WindowRestorer(access: AXWindowRestorationAccess()).restore(key: key, frames: frames,
-                 expectedStartTime: start, liveWindowKeys: live, cancellation: cancellation)
+         restoreWindow: @escaping RestoreWindow = { key, frames, start, live, budget in
+             WindowRestorer(access: AXWindowRestorationAccess(reader: AXWindowReader().withOperationBudget(budget)))
+                 .restore(key: key, frames: frames, expectedStartTime: start, liveWindowKeys: live,
+                          cancellation: budget.cancellation, budget: budget)
          },
          restorationWindowKeys: @escaping @Sendable () -> Set<WindowLiftAvoidance.WindowKey>? = WindowLiftCGWindowProbe.liveWindowKeys,
          windowProbe: any WindowLiftWindowProbing = LiveWindowLiftProbe(),
@@ -401,7 +402,8 @@ final class WindowLiftAvoidanceController {
     }
 
     /// 权限刚刚恢复、准备重启进程之前调用：排空 → 解冻 → 还原 → 等还原跑完。
-    func restoreAndStopForPermissionRecovery() async {
+    @discardableResult
+    func restoreAndStopForPermissionRecovery() async -> WindowRestorationCompletion {
         freezeGeneration &+= 1
         let drains = pendingDrains
         pendingDrains.removeAll()
@@ -412,6 +414,7 @@ final class WindowLiftAvoidanceController {
         while let task = restoreTask {
             await task.value
         }
+        return restorationCompletion
     }
 
     private func enterFreeze(reason: String) {
@@ -557,11 +560,18 @@ final class WindowLiftAvoidanceController {
         workspaceObservers.removeAll()
     }
 
-    func stopAndRestore() async {
+    @discardableResult
+    func stopAndRestore() async -> WindowRestorationCompletion {
         stop()
         while let task = restoreTask {
             await task.value
         }
+        return restorationCompletion
+    }
+
+    private var restorationCompletion: WindowRestorationCompletion {
+        let remaining = Set(pendingRestorations.keys).union(managedFrames.keys).count
+        return remaining == 0 ? .complete : .incomplete(remaining: remaining)
     }
 
     private func subscribeWorkspaceNotifications() {
@@ -667,6 +677,7 @@ final class WindowLiftAvoidanceController {
                 self.poll()
             }
         }
+        if interval == WindowLiftAvoidance.PollCadence.idleInterval { timer.tolerance = interval * 0.1 }
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
         pollTimerInterval = interval
@@ -2245,9 +2256,8 @@ final class WindowLiftAvoidanceController {
         updateTrackedProbeLifecycle()
     }
 
-    /// One pass over `pendingRestorations`, after `cancelledWrites` have drained. Scans and the
-    /// tracked probe pause while it runs (`restoreTask`), so nothing re-lifts a window mid-restore.
-    private func launchRestoreTask(cancelledWrites: [Task<Void, Never>]) {
+    private func launchRestoreTask(cancelledWrites: [Task<Void, Never>], budget inheritedBudget: OperationReadBudget? = nil,
+                                   preferring newKeys: Set<WindowLiftAvoidance.WindowKey> = []) {
         pendingRestorationDrains.append(contentsOf: cancelledWrites)
         guard !pendingRestorations.isEmpty || !pendingRestorationDrains.isEmpty, restoreTask == nil else {
             updatePollTimerLifecycle()
@@ -2261,40 +2271,70 @@ final class WindowLiftAvoidanceController {
         let start = lastRestorationAttemptKey.flatMap { previous in
             keys.firstIndex { ($0.pid, $0.cgWindowID) > (previous.pid, previous.cgWindowID) }
         } ?? 0
-        let orderedKeys = Array(keys[start...]) + keys[..<start]
+        let rotatedKeys = Array(keys[start...]) + keys[..<start]
+        let orderedKeys = newKeys.isEmpty ? rotatedKeys :
+            rotatedKeys.filter { newKeys.contains($0) } + rotatedKeys.filter { !newKeys.contains($0) }
         let startTimes = items.compactMapValues { $0.processGeneration.map { timeval(tv_sec: Int($0.seconds), tv_usec: $0.microseconds) } }
         let restoreWindow = restoreWindow
         let windowKeys = restorationWindowKeys
-        let cancellation = OperationCancellation()
         let cancelledWrites = pendingRestorationDrains
         pendingRestorationDrains.removeAll()
         restoreTask = Task.detached { [weak self] in
             for task in cancelledWrites { await task.value }
-            let deadline = ProcessInfo.processInfo.systemUptime + 2
+            let budget = inheritedBudget ?? OperationReadBudget(maximumDuration: 2, cancellation: OperationCancellation())
             var remaining = items
-            var lastAttempted: WindowLiftAvoidance.WindowKey?
+            var lastAttemptedIndex: Int?
             for attempt in 0..<3 {
-                guard !Task.isCancelled, !remaining.isEmpty,
-                      ProcessInfo.processInfo.systemUptime < deadline else { break }
+                guard !Task.isCancelled, !remaining.isEmpty, budget.canContinue else { break }
                 if attempt > 0 { try? await Task.sleep(for: .milliseconds(100)) }
-                let liveWindowKeys = await AsyncWorkScope.performBlocking(cancellation: cancellation) { windowKeys() }
-                for key in orderedKeys {
-                    guard !Task.isCancelled, ProcessInfo.processInfo.systemUptime < deadline else { break }
-                    guard let frames = remaining[key] else { continue }
-                    let outcome = await AsyncWorkScope.performBlocking(cancellation: cancellation) {
-                        restoreWindow(key, frames, startTimes[key], liveWindowKeys ?? nil, cancellation)
+                guard !Task.isCancelled, budget.canContinue else { break }
+                if attempt > 0 {
+                    let needsNewBatch = await MainActor.run { [weak self] in
+                        guard let self, self.restoreGeneration == generation else { return true }
+                        return !self.pendingRestorationDrains.isEmpty ||
+                            self.pendingRestorations.keys.contains { items[$0] == nil }
                     }
-                    guard let outcome else { break }
-                    lastAttempted = key
-                    guard outcome == .handled else { continue }
-                    remaining[key] = nil
-                    await MainActor.run { [weak self] in
-                        guard let self, self.restoreGeneration == generation else { return }
-                        self.pendingRestorations.removeValue(forKey: key)
+                    if needsNewBatch { break }
+                }
+                let liveWindowKeys = await AsyncWorkScope.performBlocking(cancellation: budget.cancellation) {
+                    budget.canContinue ? windowKeys() : nil
+                }
+                let attemptItems = orderedKeys.enumerated().compactMap { index, key in
+                    remaining[key].map { (index, key, $0) }
+                }
+                await withTaskGroup(of: (Int, WindowLiftAvoidance.WindowKey, WindowRestorationOutcome?).self) { group in
+                    var nextIndex = 0
+                    func enqueueNext() {
+                        guard !Task.isCancelled, budget.canContinue, nextIndex < attemptItems.count else { return }
+                        let (index, key, frames) = attemptItems[nextIndex]
+                        let batches = max(1, (attemptItems.count - nextIndex + 3) / 4)
+                        let windowBudget = budget.limited(to: budget.remaining / Double(batches))
+                        nextIndex += 1
+                        group.addTask {
+                            let outcome = await AsyncWorkScope.performBlocking(cancellation: budget.cancellation) {
+                                guard windowBudget.canContinue else { return nil as WindowRestorationOutcome? }
+                                return restoreWindow(key, frames, startTimes[key], liveWindowKeys ?? nil, windowBudget)
+                            }
+                            return (index, key, outcome ?? nil)
+                        }
+                    }
+                    for _ in 0..<4 { enqueueNext() }
+                    while let (index, key, outcome) = await group.next() {
+                        if let outcome {
+                            lastAttemptedIndex = max(lastAttemptedIndex ?? index, index)
+                            if outcome == .handled {
+                                remaining[key] = nil
+                                await MainActor.run { [weak self] in
+                                    guard let self, self.restoreGeneration == generation else { return }
+                                    self.pendingRestorations.removeValue(forKey: key)
+                                }
+                            }
+                        }
+                        enqueueNext()
                     }
                 }
             }
-            let latestAttempted = lastAttempted
+            let latestAttempted = lastAttemptedIndex.map { orderedKeys[$0] }
             await MainActor.run { [weak self] in
                 guard let self, self.restoreGeneration == generation else { return }
                 self.restoreTask = nil
@@ -2305,8 +2345,9 @@ final class WindowLiftAvoidanceController {
                 if !self.pendingRestorations.isEmpty {
                     self.logger.error("window restoration pending count=\(self.pendingRestorations.count, privacy: .public)")
                 }
-                if !self.pendingRestorationDrains.isEmpty || self.pendingRestorations.keys.contains(where: { items[$0] == nil }) {
-                    self.launchRestoreTask(cancelledWrites: [])
+                let newKeys = Set(self.pendingRestorations.keys).subtracting(items.keys)
+                if !self.pendingRestorationDrains.isEmpty || (budget.canContinue && !newKeys.isEmpty) {
+                    self.launchRestoreTask(cancelledWrites: [], budget: budget, preferring: newKeys)
                     return
                 }
                 self.updatePollTimerLifecycle()
