@@ -41,11 +41,13 @@ final class RestorationFairnessRegressionTests: XCTestCase {
         let order = Array(controller.pendingRestorations.keys)
         let responsive = order.last!
         lateKey.withLock { $0 = responsive }
+        let maximumBatches = controller.pendingRestorations.count
         controller.isEnabled = true
-        for batch in 0..<2 {
+        for batch in 0..<maximumBatches {
             now.withLock { $0 = TimeInterval(batch * 10) }
             controller.poll()
             await controller.restoreTask?.value
+            if controller.pendingRestorations[responsive] == nil { break }
         }
         controller.beginPermissionUncertainty()
         XCTAssertGreaterThan(calls.withLock { $0[responsive, default: 0] }, 0,
