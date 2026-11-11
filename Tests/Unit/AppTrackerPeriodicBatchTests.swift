@@ -210,6 +210,27 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         XCTAssertEqual(reader.readCount, 2)
     }
 
+    func testNativeParentChangeReopensGateWithoutAWindowIDChange() async {
+        let reader = PeriodicBatchReader(resultsByPID: [
+            pidA: .success([makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Window")])
+        ])
+        let tracker = AppTracker(reader: reader, processProvider: BatchFixedProcessProvider(),
+            cgSnapshotProvider: { [snapshot = cgSnapshot()] in snapshot })
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
+        tracker.setObserverActiveForTesting(pid: pidA, active: true)
+        tracker.runPeriodicBatchForTesting(cgSnapshot: cgSnapshot())
+        await waitUntil { !tracker.hasPendingEventReadForTesting(pid: self.pidA) }
+        tracker.runPeriodicBatchForTesting(cgSnapshot: cgSnapshot())
+        XCTAssertEqual(reader.readCount, 1)
+        let child = AppTrackerCGWindowSnapshot(allWindowIDs: [cgWindowA], onScreenWindowIDs: [cgWindowA],
+            windowIDsByPID: [pidA: [cgWindowA]], alphaByWindowID: [cgWindowA: 1], parentWindowIDs: [cgWindowA: 999])
+        tracker.runPeriodicBatchForTesting(cgSnapshot: child)
+        await waitUntil { !tracker.hasPendingEventReadForTesting(pid: self.pidA) }
+        XCTAssertEqual(reader.readCount, 2)
+        XCTAssertTrue(tracker.snapshot.windows.isEmpty)
+    }
+
     func testCGSetChangeReopensGate() async {
         let reader = PeriodicBatchReader(resultsByPID: [
             pidA: .success([makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Window")]),
@@ -486,6 +507,50 @@ final class AppTrackerPeriodicBatchTests: XCTestCase {
         XCTAssertEqual(counters.captures, capturesAfterFirst + 1)
         XCTAssertNotNil(tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowB])
         XCTAssertEqual(tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowA]?.token, tokenA)
+    }
+
+    func testCachedChildCannotRetireARootWhenPublishedWindowsAreMissing() async {
+        for readable in [false, true] {
+            let counters = CGCallCounters()
+            let uptime = UptimeBox(value: 1000)
+            let reader = PeriodicBatchReader(resultsByPID: [
+                pidA: readable ? .success([makeSnapshot(pid: pidA, cgWindowID: cgWindowA, title: "Window")]) : .unread(.cannotComplete),
+                pidB: .success([makeSnapshot(pid: pidB, cgWindowID: cgWindowB, title: "Window")])
+            ])
+            let table = SnapshotBox(value: AppTrackerCGWindowSnapshot(
+                allWindowIDs: [cgWindowA, cgWindowB], onScreenWindowIDs: [cgWindowA, cgWindowB],
+                windowIDsByPID: [pidA: [cgWindowA], pidB: [cgWindowB]], alphaByWindowID: [:],
+                parentWindowIDs: [cgWindowA: cgWindowB, cgWindowB: 0]))
+            let child = table.value
+            let onScreen: Set<CGWindowID> = [cgWindowA, cgWindowB]
+            let tracker = AppTracker(reader: reader, processProvider: BatchFixedProcessProvider(),
+                cgSnapshotProvider: { counters.noteCapture(); return table.value },
+                onScreenWindowIDsProvider: { counters.noteProbe(); return onScreen },
+                cgSnapshotReuseEnabled: true, uptimeProvider: { uptime.value })
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(makeApp(pid: pidA, cgWindowID: cgWindowA))
+            tracker.installFixtureForTesting(makeApp(pid: pidB, cgWindowID: cgWindowB))
+            tracker.setObserverActiveForTesting(pid: pidA, active: true)
+            tracker.setObserverActiveForTesting(pid: pidB, active: true)
+            tracker.scheduleEventReadForTesting(pid: pidB, source: .frontmostPoll)
+            await waitUntil { !tracker.hasPendingEventReadForTesting(pid: self.pidB) }
+            XCTAssertEqual(counters.captures, 1)
+            let token = tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowA]?.token
+            table.value = AppTrackerCGWindowSnapshot(allWindowIDs: onScreen, onScreenWindowIDs: onScreen,
+                windowIDsByPID: [pidA: [cgWindowA], pidB: [cgWindowB]], alphaByWindowID: [:],
+                parentWindowIDs: [cgWindowA: 0, cgWindowB: 0])
+            await runEventRead(tracker)
+            XCTAssertEqual(counters.captures, 2, "readable=\(readable)")
+            XCTAssertEqual(tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowA]?.token, token)
+            table.value = child
+            await runEventRead(tracker)
+            XCTAssertEqual(counters.captures, 2)
+            XCTAssertNotNil(tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowA])
+            uptime.value = 1000 + CGSnapshotReuseDecision.defaultMaxCacheAge + 0.1
+            await runEventRead(tracker)
+            XCTAssertEqual(counters.captures, 3)
+            XCTAssertNil(tracker.fixtureAppForTesting(pid: pidA)?.windowsByID[cgWindowA])
+        }
     }
 
     /// Accepted cost, pinned: a failed capture cannot veto, so a desktop-layer window is seated for

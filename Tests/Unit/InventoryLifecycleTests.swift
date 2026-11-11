@@ -695,6 +695,255 @@ final class InventoryLifecycleTests: XCTestCase {
         }
     }
 
+    func testCustomWindowIsDiscoveredThroughEachAdmissionPathWithAnEmptyList() async throws {
+        for source in ["seed", "scan", "launchRetry"] {
+            for listed in [false, true] {
+                let pid = ProcessInfo.processInfo.processIdentifier
+                let desktop = BehaviorDesktop(browserPID: pid)
+                desktop.state.withLock {
+                    $0.focused = 2001
+                    $0.windows[2001]?.title = "Scene"
+                    $0.subroles[2001] = kAXUnknownSubrole as String
+                    $0.modalWindows[2001] = false
+                    $0.topLevelWindows.insert(2001)
+                    $0.enumeratedWindows[pid] = listed ? [2001] : []
+                }
+                let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [2001], onScreenWindowIDs: [2001],
+                    windowIDsByPID: [pid: [2001]], alphaByWindowID: [2001: 1], parentWindowIDs: [2001: 0])
+                let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                    cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [2001] })
+                defer { tracker.stop() }
+                let app = FamilyRunningApplication(pid: pid, identifier: "test.Renderer", policy: .regular,
+                    path: "/Applications/Renderer.app")
+                tracker.runAdmissionForTesting(source: source, app: app, application: app.eligibility)
+                await drainInventory(tracker)
+                let window = try XCTUnwrap(tracker.snapshot.windows.values.first, "\(source), listed=\(listed)")
+                XCTAssertEqual(tracker.snapshot.windows.count, 1)
+                XCTAssertEqual(window.cgWindowID, 2001)
+                XCTAssertEqual(window.pid, pid)
+                XCTAssertEqual(window.title, "Scene")
+                if source == "seed", !listed {
+                    desktop.state.withLock { $0.generationsByPID[pid] = window.processGeneration }
+                    let executor = PlatformActionExecutor(reader: AXWindowReader(accessibility: desktop), system: desktop, focusBackend: desktop)
+                    func execute(_ kind: PlatformActionRequest.ActionKind, minimized: Bool = false) -> Bool {
+                        executor.execute(.init(kind: kind, windowID: window.id), snapshot: tracker.snapshot,
+                            forcedMinimizedPrior: minimized, cancellation: OperationCancellation(), onHandoffActivePrediction: nil)
+                    }
+                    XCTAssertTrue(execute(.minimizeWindow))
+                    XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.status }, .minimized)
+                    XCTAssertTrue(execute(.activateWindow, minimized: true))
+                    XCTAssertEqual(desktop.state.withLock { $0.windows[2001]?.status }, .active)
+                    XCTAssertTrue(execute(.closeWindow))
+                    XCTAssertNil(desktop.state.withLock { $0.windows[2001] })
+                    XCTAssertEqual(desktop.state.withLock { $0.windows[1002]?.status }, .inactive)
+                    XCTAssertEqual(desktop.state.withLock { $0.windows[1001]?.status }, .inactive)
+                }
+            }
+        }
+    }
+
+    func testCustomWindowAdmissionRequiresIndependentNativeAndSemanticEvidence() async {
+        for rejection in ["child", "utility", "modal", "unreadModal", "nested", "unreadRoot",
+                          "foreignCG", "offLayer", "transparent", "untitledInactive", "tooSmall"] {
+            let desktop = BehaviorDesktop()
+            desktop.state.withLock {
+                $0.windows = $0.windows.filter { $0.key == 1001 }
+                $0.subroles[1001] = rejection == "utility" ? kAXFloatingWindowSubrole as String : kAXUnknownSubrole as String
+                $0.modalWindows[1001] = rejection == "unreadModal" ? nil : rejection == "modal"
+                if rejection != "nested" { $0.topLevelWindows.insert(1001) }
+                if rejection == "untitledInactive" { $0.windows[1001]?.title = ""; $0.focused = nil }
+                if rejection == "tooSmall" { $0.windows[1001]?.bounds = CGRect(x: 40, y: 40, width: 20, height: 20) }
+            }
+            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [1001],
+                windowIDsByPID: rejection == "offLayer" ? [:] : [rejection == "foreignCG" ? -42000 : -41000: [1001]],
+                alphaByWindowID: [1001: rejection == "transparent" ? 0 : 1],
+                parentWindowIDs: rejection == "unreadRoot" ? [:] : [1001: rejection == "child" ? 2000 : 0])
+            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001] })
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.Renderer", appName: "Renderer",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            tracker.scheduleFrontmostPollForTesting(pid: -41000)
+            await drainInventory(tracker)
+            XCTAssertTrue(tracker.snapshot.windows.isEmpty, rejection)
+        }
+    }
+
+    func testUntitledCustomWindowNeedsExactWindowFocus() async {
+        for focused in [false, true] {
+            let desktop = BehaviorDesktop()
+            desktop.state.withLock {
+                $0.windows = $0.windows.filter { $0.key == 1001 }
+                $0.windows[1001]?.title = ""
+                $0.subroles[1001] = kAXUnknownSubrole as String
+                $0.modalWindows[1001] = false
+                $0.topLevelWindows.insert(1001)
+                $0.focused = focused ? 1001 : nil
+            }
+            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [1001],
+                windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1], parentWindowIDs: [1001: 0])
+            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001] })
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.Renderer", appName: "Renderer",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            tracker.scheduleFrontmostPollForTesting(pid: -41000)
+            await drainInventory(tracker)
+            XCTAssertEqual(tracker.snapshot.windows.count, focused ? 1 : 0)
+        }
+    }
+
+    func testChangingFocusBetweenOverlappingCustomRootsPreservesIndependentSeats() async throws {
+        for listed in [false, true] {
+            let desktop = BehaviorDesktop()
+            desktop.state.withLock {
+                if !listed { $0.enumeratedWindows[-41000] = [] }
+                for id: CGWindowID in [1001, 1002] {
+                    $0.windows[id]?.title = ""
+                    $0.subroles[id] = kAXUnknownSubrole as String
+                    $0.modalWindows[id] = false
+                    $0.topLevelWindows.insert(id)
+                }
+            }
+            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001, 1002], onScreenWindowIDs: [1001, 1002],
+                windowIDsByPID: [-41000: [1001, 1002]], alphaByWindowID: [1001: 1, 1002: 1],
+                parentWindowIDs: [1001: 0, 1002: 0])
+            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001, 1002] })
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.Renderer", appName: "Renderer",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            tracker.scheduleFrontmostPollForTesting(pid: -41000)
+            await drainInventory(tracker)
+            let originalID = try XCTUnwrap(tracker.snapshot.windows.values.first?.id)
+            for focused: CGWindowID in [1002, 1001, 1002] {
+                desktop.state.withLock { $0.focused = focused }
+                tracker.scheduleFrontmostPollForTesting(pid: -41000)
+                await drainInventory(tracker)
+                XCTAssertEqual(Set(tracker.snapshot.windows.values.compactMap(\.cgWindowID)), [1001, 1002])
+                XCTAssertEqual(tracker.snapshot.windows[originalID]?.cgWindowID, 1001)
+                XCTAssertTrue(tracker.fixtureAppForTesting(pid: -41000)?.windowsByID.values.allSatisfy { $0.formerCgIDs.isEmpty } == true)
+            }
+        }
+    }
+
+    func testConfirmedNativeChildRetiresWithoutTreatingMissingParentDataAsAbsence() async {
+        for outcome in ["child", "unreadChild", "unknownParent", "failedCapture"] {
+            let pid = ProcessInfo.processInfo.processIdentifier
+            let desktop = BehaviorDesktop(browserPID: pid)
+            desktop.state.withLock {
+                $0.focused = 2001
+                $0.enumeratedWindows[pid] = [2001]
+                $0.subroles[2001] = kAXUnknownSubrole as String
+                $0.modalWindows[2001] = false
+                $0.topLevelWindows.insert(2001)
+            }
+            let original = AppTrackerCGWindowSnapshot(allWindowIDs: [2001], onScreenWindowIDs: [2001],
+                windowIDsByPID: [pid: [2001]], alphaByWindowID: [2001: 1], parentWindowIDs: [2001: 0])
+            let current = Mutex(original)
+            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+                cgSnapshotProvider: { current.withLock { $0 } }, onScreenWindowIDsProvider: { [2001] })
+            defer { tracker.stop() }
+            tracker.installFixtureForTesting(AppEntry(pid: pid, bundleIdentifier: "test.Renderer", appName: "Renderer",
+                activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+            tracker.scheduleFrontmostPollForTesting(pid: pid)
+            await drainInventory(tracker)
+            XCTAssertEqual(tracker.snapshot.windows.count, 1)
+            XCTAssertEqual(AXElementCache.shared.containsForTesting(pid: pid, cgWindowID: 2001), AXElementCache.isEnabled)
+            current.withLock {
+                $0 = outcome == "failedCapture" ? .failed : AppTrackerCGWindowSnapshot(
+                    allWindowIDs: [2001], onScreenWindowIDs: [2001], windowIDsByPID: [pid: [2001]],
+                    alphaByWindowID: [2001: 1], parentWindowIDs: outcome == "unknownParent" ? [:] : [2001: 2000])
+            }
+            if outcome == "unreadChild" { desktop.state.withLock { $0.unreadInventories.insert(pid) } }
+            tracker.scheduleFrontmostPollForTesting(pid: pid)
+            await drainInventory(tracker)
+            let detached = outcome == "child" || outcome == "unreadChild"
+            XCTAssertEqual(tracker.snapshot.windows.count, detached ? 0 : 1, outcome)
+            XCTAssertEqual(AXElementCache.shared.containsForTesting(pid: pid, cgWindowID: 2001), !detached && AXElementCache.isEnabled, outcome)
+            if detached {
+                current.withLock { $0 = original }
+                desktop.state.withLock { $0.unreadInventories.remove(pid) }
+                tracker.scheduleFrontmostPollForTesting(pid: pid)
+                await drainInventory(tracker)
+                XCTAssertEqual(tracker.snapshot.windows.count, 1, "A detached root must return without a destroy tombstone")
+            }
+        }
+    }
+
+    func testKnownUntitledCustomRootRefreshesMinimizedStateAfterFocusIsLost() async {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock {
+            $0.windows[1001]?.title = ""
+            $0.enumeratedWindows[-41000] = [1001]
+            $0.subroles[1001] = kAXUnknownSubrole as String
+            $0.modalWindows[1001] = false
+            $0.topLevelWindows.insert(1001)
+        }
+        let current = Mutex(AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [1001],
+            windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1], parentWindowIDs: [1001: 0]))
+        let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+            cgSnapshotProvider: { current.withLock { $0 } }, onScreenWindowIDsProvider: { [] })
+        defer { tracker.stop() }
+        tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.Renderer", appName: "Renderer",
+            activationPolicy: .regular, executablePath: nil, windowsByID: [:], windowOrder: [], isHidden: false))
+        tracker.scheduleFrontmostPollForTesting(pid: -41000)
+        await drainInventory(tracker)
+        XCTAssertEqual(tracker.snapshot.windows.count, 1)
+        desktop.state.withLock { $0.focused = nil; $0.windows[1001]?.status = .minimized }
+        current.withLock {
+            $0 = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [],
+                windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1], parentWindowIDs: [1001: 0])
+        }
+        tracker.scheduleFrontmostPollForTesting(pid: -41000)
+        await drainInventory(tracker)
+        XCTAssertEqual(tracker.snapshot.windows.values.first?.status, .minimized)
+        XCTAssertEqual(tracker.fixtureAppForTesting(pid: -41000)?.windowsByID[1001]?.isMinimized, true)
+    }
+
+    func testFreshConfirmedFocusIsAppliedBeforeCustomWindowEligibility() async {
+        let desktop = BehaviorDesktop()
+        let gate = CustomFocusGate()
+        desktop.state.withLock {
+            for id: CGWindowID in [1001, 1002] {
+                $0.windows[id]?.title = ""
+                $0.subroles[id] = kAXUnknownSubrole as String
+                $0.modalWindows[id] = false
+                $0.topLevelWindows.insert(id)
+            }
+            $0.beforeRead = { gate.read($0) }
+        }
+        let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001, 1002], onScreenWindowIDs: [1001, 1002],
+            windowIDsByPID: [-41000: [1001, 1002]], alphaByWindowID: [1001: 1, 1002: 1],
+            parentWindowIDs: [1001: 0, 1002: 0])
+        let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
+            cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001, 1002] })
+        defer { gate.first.signal(); gate.second.signal(); tracker.stop() }
+        let entries = [UInt32(1001)].map { id in
+            WindowEntry(cgWindowID: id, token: "tabgrp-\(id)", title: "",
+                bounds: CGRect(x: 0, y: 30, width: 1920, height: 1050),
+                isMinimized: false, isFocused: id == 1001, everSeenVisible: true)
+        }
+        tracker.installFixtureForTesting(AppEntry(pid: -41000, bundleIdentifier: "test.Renderer", appName: "Renderer",
+            activationPolicy: .regular, executablePath: nil,
+            windowsByID: Dictionary(uniqueKeysWithValues: entries.map { ($0.cgWindowID, $0) }),
+            windowOrder: [1001], isHidden: false))
+        tracker.setFrontmostPIDForTesting(-41000)
+        tracker.rebuildSnapshotForTesting(onScreenCGIDs: [1001, 1002])
+        tracker.scheduleEventReadForTesting(pid: -41000, source: .frontmostPoll)
+        await waitForFocus { gate.state.withLock { $0.heldFirst } }
+        let old = tracker.pendingInventoryWorkForTesting
+        desktop.state.withLock { $0.focused = 1002 }
+        tracker.handleFocusedWindowChanged(pid: -41000)
+        await waitForFocus { tracker.snapshot.windows[WindowID(rawValue: "cgw-1001")]?.status == .inactive }
+        XCTAssertNil(tracker.snapshot.windows[WindowID(rawValue: "cgw-1002")])
+        gate.first.signal()
+        for task in old { await task.value }
+        await waitForFocus { gate.state.withLock { $0.heldSecond } }
+        XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-1002")]?.status, .active)
+        XCTAssertEqual(tracker.snapshot.windows.count, 2)
+    }
+
     private func familyFocusTracker(_ desktop: FamilyFocusAccessibility, process: FamilyFocusProcess = FamilyFocusProcess()) async -> AppTracker {
         let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001, 2001, 3000], onScreenWindowIDs: [1001, 2001, 3000],
             windowIDsByPID: [-41000: [1001], -42000: [2001], -44000: [3000]], alphaByWindowID: [:])
@@ -766,6 +1015,8 @@ final class InventoryLifecycleTests: XCTestCase {
             tracker.start()
             defer { tracker.stop() }
             for task in tracker.pendingInventoryWorkForTesting { await task.value }
+            tracker.setFrontmostPIDForTesting(42)
+            tracker.rebuildSnapshotForTesting(onScreenCGIDs: [77, 88])
             XCTAssertEqual(tracker.snapshot.windows[WindowID(rawValue: "cgw-77")]?.status, .active)
             NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
                 object: NSWorkspace.shared, userInfo: [NSWorkspace.applicationUserInfoKey: excluded])
@@ -1324,6 +1575,32 @@ private final class FocusListGate: Sendable {
         guard attribute == kAXWindowsAttribute as String else { return }
         entered.withLock { $0 = true }
         _ = release.wait(timeout: .now() + 3)
+    }
+}
+
+private final class CustomFocusGate: Sendable {
+    struct State {
+        var lists = 0
+        var heldFirst = false
+        var heldSecond = false
+    }
+    let state = Mutex(State())
+    let first = DispatchSemaphore(value: 0)
+    let second = DispatchSemaphore(value: 0)
+    func read(_ attribute: String) {
+        let hold = state.withLock { value -> Int in
+            if attribute == kAXWindowsAttribute as String {
+                value.lists += 1
+                if value.lists == 2 { value.heldSecond = true; return 2 }
+            }
+            if attribute == kAXMinimizedAttribute as String, !value.heldFirst {
+                value.heldFirst = true
+                return 1
+            }
+            return 0
+        }
+        if hold == 1 { _ = first.wait(timeout: .now() + 3) }
+        if hold == 2 { _ = second.wait(timeout: .now() + 3) }
     }
 }
 

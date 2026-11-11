@@ -36,6 +36,8 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var modalWindows: [CGWindowID: Bool] = [:]
         var topLevelWindows = Set<CGWindowID>()
         var enumeratedWindows: [pid_t: [CGWindowID]] = [:]
+        var publishedFocusedWindows: [pid_t: CGWindowID] = [:]
+        var publishedMainWindows: [pid_t: CGWindowID] = [:]
         var unreadOwners = Set<CGWindowID>()
         var unreadPositions = Set<CGWindowID>()
     }
@@ -113,6 +115,12 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
                     if let ids = value.enumeratedWindows[app] { return (.success, ids.compactMap { elements[$0] } as CFArray) }
                     return (.success, value.windows.values.filter { $0.pid == app && !value.missingWindows.contains($0.cgWindowID!) }
                         .sorted { $0.cgWindowID! < $1.cgWindowID! }.compactMap { elements[$0.cgWindowID!] } as CFArray)
+                }
+                if name == kAXFocusedWindowAttribute as String, let id = value.publishedFocusedWindows[app] {
+                    return (.success, elements[id])
+                }
+                if name == kAXMainWindowAttribute as String, let id = value.publishedMainWindows[app] {
+                    return (.success, elements[id])
                 }
                 if name == kAXFocusedWindowAttribute as String || name == kAXMainWindowAttribute as String,
                    let focused = value.focused, value.windows[focused]?.pid == app {

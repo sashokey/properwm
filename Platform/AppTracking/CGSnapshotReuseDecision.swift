@@ -85,4 +85,9 @@ enum CGSnapshotReuseDecision {
     ) -> Bool {
         !axWindowIDs.isDisjoint(with: cachedBelowNormalLayerIDs)
     }
+
+    static func cachedParentVetoApplies(windowIDs: Set<CGWindowID>,
+                                       cachedParentWindowIDs: [CGWindowID: CGWindowID]) -> Bool {
+        windowIDs.contains { cachedParentWindowIDs[$0].map { $0 != 0 } == true }
+    }
 }

@@ -134,6 +134,60 @@ final class AXWindowReaderResultTests: XCTestCase {
     }
 }
 
+final class PublishedWindowInventoryTests: XCTestCase {
+    func testFocusedWindowSurvivesAnEmptyPublishedList() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.enumeratedWindows[-41000] = [] }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        XCTAssertTrue(result.isSuccess)
+        XCTAssertEqual(result.windowsOrEmpty.compactMap(\.cgWindowID), [1001])
+        XCTAssertEqual(result.windowsOrEmpty.map(\.isFocusedWindow), [true])
+    }
+
+    func testMainWindowSurvivesAnEmptyListWithoutFocus() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock {
+            $0.enumeratedWindows[-41000] = []
+            $0.focused = nil
+            $0.publishedMainWindows[-41000] = 1002
+        }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        XCTAssertEqual(result.windowsOrEmpty.compactMap(\.cgWindowID), [1002])
+        XCTAssertEqual(result.windowsOrEmpty.map(\.isFocusedWindow), [false])
+    }
+
+    func testListFocusAndMainAreMergedWithoutDuplicateSeats() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock {
+            $0.enumeratedWindows[-41000] = [1002]
+            $0.publishedMainWindows[-41000] = 1002
+        }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        XCTAssertEqual(result.windowsOrEmpty.compactMap(\.cgWindowID), [1002, 1001])
+    }
+
+    func testAFormerFocusedWindowCannotBeRelabeledWithAnotherOwner() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock {
+            $0.enumeratedWindows[-41000] = []
+            $0.publishedFocusedWindows[-41000] = 2001
+            $0.publishedMainWindows[-41000] = 1002
+        }
+        let result = AXWindowReader(accessibility: desktop).inventoryWindows(forPID: -41000, messagingTimeout: 0.1)
+        XCTAssertEqual(result.windowsOrEmpty.compactMap(\.cgWindowID), [1002])
+        XCTAssertEqual(result.windowsOrEmpty.map(\.isFocusedWindow), [false])
+    }
+
+    func testUnreadListDoesNotBecomeASuccessfulPartialInventory() {
+        let desktop = BehaviorDesktop()
+        desktop.state.withLock { $0.unreadInventories.insert(-41000) }
+        guard case .unread(.cannotComplete) = AXWindowReader(accessibility: desktop)
+            .inventoryWindows(forPID: -41000, messagingTimeout: 0.1) else {
+            return XCTFail("A focused window must not turn an unanswered inventory into confirmed absence of its siblings")
+        }
+    }
+}
+
 final class ActionExecutionSwitchesTests: XCTestCase {
     func testFastHandleMetadataPreservesSnapshotTarget() {
         let bounds = CGRect(x: 10, y: 20, width: 900, height: 700)
@@ -743,7 +797,8 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
         _ = reconcile(
             replacementTracker,
             eligible: [makeSnapshot(cgWindowID: replacementID, titleRead: .unread(.cannotComplete))],
-            allCGWindowIDs: [cgWindowID, replacementID]
+            allCGWindowIDs: [cgWindowID, replacementID],
+            onScreenCGWindowIDs: [replacementID]
         )
 
         let newWindowID: CGWindowID = 99
@@ -796,7 +851,8 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
         _ = reconcile(
             tracker,
             eligible: [makeSnapshot(cgWindowID: replacementID, titleRead: .unread(.cannotComplete))],
-            allCGWindowIDs: [cgWindowID, replacementID]
+            allCGWindowIDs: [cgWindowID, replacementID],
+            onScreenCGWindowIDs: [replacementID]
         )
 
         let app = tracker.fixtureAppForTesting(pid: pid)
@@ -997,14 +1053,15 @@ final class AppTrackerReadSemanticsTests: XCTestCase {
     private func reconcile(
         _ tracker: AppTracker,
         eligible: [AXWindowSnapshot],
-        allCGWindowIDs: Set<CGWindowID>? = nil
+        allCGWindowIDs: Set<CGWindowID>? = nil,
+        onScreenCGWindowIDs: Set<CGWindowID>? = nil
     ) -> Bool {
         let ids = allCGWindowIDs ?? Set(eligible.compactMap(\.cgWindowID))
         return tracker.reconcileFixtureForTesting(
             pid: pid,
             cgSnapshot: AppTrackerCGWindowSnapshot(
                 allWindowIDs: ids,
-                onScreenWindowIDs: ids,
+                onScreenWindowIDs: onScreenCGWindowIDs ?? ids,
                 windowIDsByPID: [pid: ids],
                 alphaByWindowID: [:]
             ),

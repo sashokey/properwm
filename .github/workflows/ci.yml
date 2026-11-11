@@ -123,6 +123,7 @@ jobs:
             -enableCodeCoverage NO \
             -destination 'platform=macOS' \
             -only-testing:ProperWMTests/InventoryLifecycleTests \
+            -only-testing:ProperWMTests/AppTrackerPeriodicBatchTests \
             -only-testing:ProperWMTests/AppRuntimeTests \
             -only-testing:ProperWMTests/WindowCommandLifecycleTests \
             -only-testing:ProperWMTests/WindowObservationLifecycleTests \

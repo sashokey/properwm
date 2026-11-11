@@ -71,6 +71,14 @@ Keep the native window PID, bundle origin, generation, AX element and CG identit
 
 AX lists may expose another process's elements. Skip confirmed foreign owners rather than relabeling them; unread ownership is a failed inventory read, not confirmation that windows disappeared. Independently switchable nonmodal AXDialog windows require a confirmed application-level parent and a reasonable frame. Sheets, modal dialogs, unknown dialog metadata and floating utility windows remain excluded.
 
+## Custom application windows
+
+Inventory merges an application's published window list with its focused and main window elements. A failed whole-list read remains unknown; a successful empty list does not discard separately published roots. Validate native ownership and retain the exact AX element for window commands.
+
+A substantial AXWindow with AXUnknown subrole can be an independent window. Require a confirmed nonmodal application parent and the same-owner, normal-layer WindowServer root. A nonempty title or exact window focus supplies initial positive evidence; an already admitted independent root can continue without either, while retaining its native ownership, parent and modal guards. Main-window capability is not required. Existing application, utility, system, transparency and geometry exclusions still apply. Missing parent or modal data does not establish eligibility.
+
+A filtered window that remains in raw AX is not an absent tab. Preserve independent seats when focus or title evidence changes. Apply newer confirmed focus before eligibility. A confirmed native child loses its independent seat without a destroy tombstone; missing native metadata preserves prior inventory and a detached root can be discovered again.
+
 ## Menu-bar application windows
 
 A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Embedded helpers must satisfy the verified ownership rules above.

@@ -2,6 +2,22 @@ import CoreGraphics
 import XCTest
 
 final class CGWindowSnapshotTests: XCTestCase {
+    func testNativeRootEvidenceRequiresSameOwnerNormalLayerAndKnownParent() {
+        let snapshot = AppTrackerCGWindowSnapshot.parse([
+            windowInfo(id: 11, layer: 0, isOnScreen: true, pid: 100),
+            windowInfo(id: 12, layer: 0, isOnScreen: true, pid: 100),
+            windowInfo(id: 13, layer: 0, isOnScreen: true, pid: 100),
+            windowInfo(id: 14, layer: 3, isOnScreen: true, pid: 100)
+        ], parentWindowIDs: [11: 0, 12: 11, 14: 0, 99: 0])
+        XCTAssertTrue(snapshot.isNormalRoot(windowID: 11, pid: 100))
+        XCTAssertFalse(snapshot.isNormalRoot(windowID: 11, pid: 200))
+        XCTAssertFalse(snapshot.isNormalRoot(windowID: 12, pid: 100))
+        XCTAssertFalse(snapshot.isNormalRoot(windowID: 13, pid: 100))
+        XCTAssertFalse(snapshot.isNormalRoot(windowID: 14, pid: 100))
+        XCTAssertEqual(snapshot.parentWindowIDs, [11: 0, 12: 11])
+        XCTAssertFalse(AppTrackerCGWindowSnapshot.failed.isNormalRoot(windowID: 11, pid: 100))
+    }
+
     func testParseSeparatesAllAndOnScreenLayerZeroWindows() {
         let snapshot = AppTrackerCGWindowSnapshot.parse([
             windowInfo(id: 11, layer: 0, isOnScreen: true, pid: 100),

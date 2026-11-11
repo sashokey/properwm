@@ -512,9 +512,31 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let cgIDs = cgSnapshot.allWindowIDs
         let onScreenCGIDs = cgSnapshot.onScreenWindowIDs
         let cgPidIDs = cgSnapshot.windowIDsByPID[pid] ?? []
+        let before = seatSignature(app)
+        let nativeChildren = cgSnapshot.captureFailed ? Set<CGWindowID>() : Set(cgPidIDs.filter {
+            cgSnapshot.parentWindowIDs[$0].map { $0 != 0 } ?? false
+        })
+        let retiredChildren = Set(app.windowOrder).intersection(nativeChildren)
+        if !nativeChildren.isEmpty {
+            for id in retiredChildren {
+                if let seat = app.windowsByID.removeValue(forKey: id), let episode = seat.absenceEpisodeID {
+                    heldLogDeduplicator.clear(pid: pid, seatToken: seat.token, episodeID: episode)
+                }
+                elementCache.remove(pid: pid, cgWindowID: id)
+                pendingCGDisplayKeys.removeValue(forKey: id)
+            }
+            app.windowOrder.removeAll { nativeChildren.contains($0) }
+            app.shadowTabCgIDs.subtract(nativeChildren)
+            for id in Array(app.windowsByID.keys) { app.windowsByID[id]?.formerCgIDs.subtract(nativeChildren) }
+            apps[pid] = app
+            if !retiredChildren.isEmpty {
+                _ = observers[pid]?.retainSubscriptions(keep: cgIDs.union(app.windowOrder)
+                    .union(preloadedEligible.compactMap(\.cgWindowID)).subtracting(nativeChildren))
+            }
+        }
         // 影子标签池按【上一轮】的快照判定：最小化爆发瞬间所有标签涌进 AX，本轮现算池子会是空的。
         let shadowPool = app.shadowTabCgIDs
-        let eligible = preloadedEligible
+        let eligible = preloadedEligible.filter { $0.cgWindowID.map { !nativeChildren.contains($0) } ?? true }
         let axReadOutcome = preloadedReadOutcome ?? .success(count: preloadedEligible.count)
 
         if axReadOutcome.kind == .unread {
@@ -529,7 +551,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 errorCode: axReadOutcome.errorCode ?? AXError.failure.rawValue
             )))
             gateStates[pid]?.lastReadWasUnread = true
-            return false
+            return seatSignature(app) != before
         }
         let reconcileContext = inventoryLog.isEnabled
             ? inventoryReconcileContext(
@@ -558,7 +580,6 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             if !cgSnapshot.captureFailed { elementCache.retain(pid: pid, liveCGWindowIDs: cgIDs) }
         }
 
-        let before = seatSignature(app)
         var usedEligible: Set<CGWindowID> = []
         var newOrder: [CGWindowID] = []
         var newByID: [CGWindowID: WindowEntry] = [:]
@@ -658,6 +679,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                 // X 离开 AX：旧 frame 有没有新当前标签顶上 → 切标签
                 let replacements = seatKey.flatMap { eligibleByFrame[$0] }?.filter { s in
                        guard let c = s.cgWindowID, !usedEligible.contains(c), app.windowsByID[c] == nil else { return false }
+                       guard seat.formerCgIDs.contains(c)
+                           || (rawAXCgIDs?.contains(X) != true && !onScreenCGIDs.contains(X)) else { return false }
                        guard seat.formerCgIDs.contains(c) || (!seat.isMinimized && !app.isHidden && !s.isMinimized) else { return false }
                        return !cgSnapshot.captureFailed || (!s.isMinimized && seat.formerCgIDs.contains(c))
                 } ?? []
@@ -940,6 +963,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             pool.formIntersection(cgPidIDs)
             for s in eligible { if let c = s.cgWindowID, !s.isMinimized { pool.remove(c) } }
             pool.formUnion(cgPidIDs.subtracting(eligibleByCgID.keys).subtracting(newOrder))
+            pool.subtract(nativeChildren)
             app.shadowTabCgIDs = pool
 
             if let reconcileContext {
@@ -1763,7 +1787,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             isBelowNormalLayer: snap.cgWindowID.map {
                 cgSnapshot.belowNormalLayerWindowIDs.contains($0)
             } ?? false,
-            application: application, isModal: snap.isModal, isTopLevel: snap.isTopLevel
+            application: application, isModal: snap.isModal, isTopLevel: snap.isTopLevel,
+            isNativeRoot: snap.cgWindowID.map { cgSnapshot.isNormalRoot(windowID: $0, pid: snap.pid) } ?? false,
+            isFocusedWindow: snap.isFocusedWindow,
+            isKnownWindow: snap.cgWindowID.map { apps[snap.pid]?.windowsByID[$0] != nil } ?? false
         )
     }
 
@@ -2125,6 +2152,9 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
                            !CGSnapshotReuseDecision.cachedLayerVetoApplies(
                                axWindowIDs: Set(result.windowsOrEmpty.compactMap(\.cgWindowID)),
                                cachedBelowNormalLayerIDs: cached.belowNormalLayerWindowIDs
+                           ), !CGSnapshotReuseDecision.cachedParentVetoApplies(
+                               windowIDs: ticket.seatedWindowIDs.union(result.windowsOrEmpty.compactMap(\.cgWindowID)),
+                               cachedParentWindowIDs: cached.parentWindowIDs
                            ) {
                             acquisition = CGSnapshotAcquisition(
                                 snapshot: cached, probeIDs: probe, fresh: false, ticket: ticket
@@ -2175,6 +2205,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         let cachedProbeIDs: Set<CGWindowID>?
         let uptime: TimeInterval
         let generation: UInt64
+        let seatedWindowIDs: Set<CGWindowID>
     }
 
     private func makeCGSnapshotReuseTicket(pid: pid_t) -> CGSnapshotReuseTicket {
@@ -2199,7 +2230,8 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             cachedSnapshot: cachedCGSnapshot,
             cachedProbeIDs: cachedCGProbeIDs,
             uptime: now,
-            generation: cgEventGeneration
+            generation: cgEventGeneration,
+            seatedWindowIDs: Set(app?.windowOrder ?? [])
         )
     }
 
@@ -2252,23 +2284,22 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             readOutcome = .success(count: windows.count)
             rawAXCgIDs = Set(windows.compactMap(\.cgWindowID))
             let application = eligibilityApplication(for: app)
-            let observed = windows.filter {
-                isEligible($0, application: application, cgSnapshot: cgSnapshot)
-            }
+            let observed: [AXWindowSnapshot]
             let observedAt = windows.first?.focusReadUptime
             if let focus = confirmedFocus[pid], observedAt.map({ $0 < focus.observedAt }) ?? true {
-                eligible = observed.map { snapshot in
+                observed = windows.map { snapshot in
                     var snapshot = snapshot
                     snapshot.isFocusedWindow = focus.windowID.map { snapshot.cgWindowID == $0 } ?? false
                     return snapshot
                 }
             } else {
-                eligible = observed
+                observed = windows
                 if let observedAt {
                     let focused = windows.first(where: \.isFocusedWindow)?.cgWindowID
                     confirmedFocus[pid] = ConfirmedFocus(observedAt: observedAt, windowID: focused)
                 }
             }
+            eligible = observed.filter { isEligible($0, application: application, cgSnapshot: cgSnapshot) }
         case .unread(let error):
             readOutcome = .unread(errorCode: error.rawValue)
             eligible = []
@@ -2478,6 +2509,10 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         app: AppEntry,
         cgSnapshot: AppTrackerCGWindowSnapshot
     ) -> Bool {
+        if !cgSnapshot.captureFailed, app.windowOrder.contains(where: {
+            cgSnapshot.windowIDsByPID[pid]?.contains($0) == true
+                && cgSnapshot.parentWindowIDs[$0].map { $0 != 0 } == true
+        }) { return false }
         let gate = gateStates[pid]
         let input = PeriodicReconcileSkipDecision.Input(
             captureFailed: cgSnapshot.captureFailed,

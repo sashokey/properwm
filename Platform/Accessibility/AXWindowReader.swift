@@ -399,7 +399,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             maxAttempts: maxAttempts
         )
         guard result == .success else { return .unread(result) }
-        guard let elements = Self.validatedElements(rawWindows, budget: budget) else {
+        guard var elements = Self.validatedElements(rawWindows, budget: budget) else {
             return .unread(budget?.canContinue == false ? .cannotComplete : .failure)
         }
 
@@ -412,6 +412,11 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         } else { focusedElement = nil }
         let focusReadUptime: TimeInterval? = focusedElement != nil || focusedError == .noValue
             ? ProcessInfo.processInfo.systemUptime : nil
+        let mainElement = elementAttribute(kAXMainWindowAttribute as CFString, from: appElement, maxAttempts: maxAttempts)
+        for element in [focusedElement, mainElement].compactMap({ $0 }) {
+            guard !elements.contains(where: { CFEqual($0, element) }) else { continue }
+            elements.append(element)
+        }
         var snapshots: [AXWindowSnapshot] = []
         for element in elements {
             guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
@@ -438,7 +443,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             let subrole = stringAttribute(kAXSubroleAttribute as CFString, from: element, maxAttempts: maxAttempts)
             var isModal: Bool?
             var isTopLevel: Bool?
-            if subrole == kAXDialogSubrole as String {
+            if subrole == kAXDialogSubrole as String || subrole == kAXUnknownSubrole as String {
                 isModal = boolAttribute(kAXModalAttribute as CFString, from: element, maxAttempts: maxAttempts)
                 if let parent = elementAttribute(kAXParentAttribute as CFString, from: element, maxAttempts: maxAttempts) {
                     isTopLevel = accessibility.pid(parent) == pid
@@ -637,7 +642,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
         messagingTimeout: TimeInterval
     ) -> Bool? {
         applyMessagingTimeout(messagingTimeout, to: element)
-        guard let actual = AXWindowIDBridge.cgWindowID(for: element) else { return nil }
+        guard let actual = accessibility.windowID(element) else { return nil }
         return actual == expected
     }
 

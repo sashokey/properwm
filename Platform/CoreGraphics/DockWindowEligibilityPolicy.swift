@@ -28,6 +28,7 @@ struct DockWindowEligibilityPolicy {
         let alpha: Double?
         let activationPolicy: NSApplication.ActivationPolicy
         let executablePath: String?
+        var allowsUntitledWindow = false
     }
 
     func evaluate(_ candidate: Candidate) -> Decision {
@@ -68,7 +69,7 @@ struct DockWindowEligibilityPolicy {
             if hasTitle(candidate.title) {
                 return .eligible
             }
-            guard candidate.subrole == (kAXStandardWindowSubrole as String),
+            guard candidate.subrole == (kAXStandardWindowSubrole as String) || candidate.allowsUntitledWindow,
                   hasMinimumFrame(candidate.bounds) else {
                 return .emptyTitleNotStandardOrTooSmall
             }
@@ -189,21 +190,27 @@ struct AppTrackerWindowEligibility {
         alpha: Double?,
         isMinimized: Bool,
         isBelowNormalLayer: Bool,
-        application: Application, isModal: Bool? = nil, isTopLevel: Bool? = nil
+        application: Application, isModal: Bool? = nil, isTopLevel: Bool? = nil,
+        isNativeRoot: Bool = false, isFocusedWindow: Bool = false, isKnownWindow: Bool = false
     ) -> Bool {
         verdict(title: title, role: role, subrole: subrole, bounds: bounds, alpha: alpha,
                 isMinimized: isMinimized, isBelowNormalLayer: isBelowNormalLayer,
-                application: application, isModal: isModal, isTopLevel: isTopLevel) == .eligible
+                application: application, isModal: isModal, isTopLevel: isTopLevel,
+                isNativeRoot: isNativeRoot, isFocusedWindow: isFocusedWindow, isKnownWindow: isKnownWindow) == .eligible
     }
 
     func verdict(
         title: String?, role: String?, subrole: String?, bounds: CGRect?, alpha: Double?,
         isMinimized: Bool, isBelowNormalLayer: Bool, application: Application,
-        isModal: Bool? = nil, isTopLevel: Bool? = nil
+        isModal: Bool? = nil, isTopLevel: Bool? = nil,
+        isNativeRoot: Bool = false, isFocusedWindow: Bool = false, isKnownWindow: Bool = false
     ) -> DockWindowEligibilityPolicy.Verdict {
         // Desktop-layer windows (widgets, wallpaper surfaces) are not windows the user switches
         // to. No default on the parameter: an omitted layer check must not compile.
         guard !isBelowNormalLayer else { return .belowNormalLayer }
+        let customWindow = AXTaskbarWindowRules.isCustomWindowRoot(role: role, subrole: subrole, bounds: bounds,
+            title: title, isModal: isModal, isTopLevel: isTopLevel,
+            isNativeRoot: isNativeRoot, isFocusedWindow: isFocusedWindow, isKnownWindow: isKnownWindow)
         let candidate = DockWindowEligibilityPolicy.Candidate(
             bundleIdentifier: application.bundleIdentifier,
             appName: application.appName,
@@ -212,7 +219,8 @@ struct AppTrackerWindowEligibility {
             bounds: bounds,
             alpha: alpha,
             activationPolicy: application.activationPolicy,
-            executablePath: application.executablePath
+            executablePath: application.executablePath,
+            allowsUntitledWindow: customWindow
         )
         let verdict = policy.verdict(candidate)
         guard verdict == .eligible else { return verdict }
@@ -232,7 +240,7 @@ struct AppTrackerWindowEligibility {
             ) ? .eligible : .finderNotTrackable
         }
 
-        return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
+        return customWindow || AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
             ? .eligible : .notMainWindow
     }
 }
@@ -251,6 +259,14 @@ enum FeishuBundleRules {
 }
 
 enum AXTaskbarWindowRules {
+    static func isCustomWindowRoot(role: String?, subrole: String?, bounds: CGRect?, title: String?,
+                                   isModal: Bool?, isTopLevel: Bool?, isNativeRoot: Bool,
+                                   isFocusedWindow: Bool, isKnownWindow: Bool) -> Bool {
+        role == kAXWindowRole as String && subrole == kAXUnknownSubrole as String
+            && isModal == false && isTopLevel == true && isNativeRoot && hasReasonableFrame(bounds)
+            && (isKnownWindow || isFocusedWindow || title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+    }
+
     enum Decision: Equatable {
         case mainWindow
         case unconfirmedMainWindow
