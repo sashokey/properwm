@@ -29,13 +29,21 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       version: ${{ steps.request.outputs.version }}
       prerelease: ${{ steps.request.outputs.prerelease }}
       draft: ${{ steps.request.outputs.draft }}
       notes: ${{ steps.request.outputs.notes }}
+      source_sha: ${{ steps.request.outputs.source_sha }}
+      resume_run_id: ${{ steps.request.outputs.resume_run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Verify release workflow behavior
+        run: node --test Scripts/check_release_workflow.mjs
 
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         id: request
@@ -68,13 +76,49 @@ jobs:
             if (typeof notes !== 'string') {
               throw new Error('notes must be a string');
             }
-            try {
-              await github.rest.git.getRef({
-                ...context.repo, ref: 'tags/v' + version
+            const lookupTag = () => github.request('GET /repos/{owner}/{repo}/git/ref/tags/{tag}', {
+              ...context.repo, tag: 'v' + version
+            });
+            if (request.resume_run_id !== undefined) {
+              const runID = request.resume_run_id;
+              if (!Number.isSafeInteger(runID) || runID <= 0) throw new Error('Invalid resume_run_id');
+              const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: runID });
+              if (run.status !== 'completed' || run.conclusion !== 'failure'
+                  || run.path !== '.github/workflows/release.yml' || run.event !== 'push'
+                  || run.head_branch !== 'master' || !/^[a-f0-9]{40}$/.test(run.head_sha)
+                  || run.head_repository?.full_name !== context.repo.owner + '/' + context.repo.repo) {
+                throw new Error('Resume requires a completed release run from this repository master');
+              }
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                ...context.repo, run_id: runID, filter: 'latest', per_page: 100
               });
-              throw new Error('This version already has a tag. Use a new version.');
-            } catch (error) {
-              if (error.status !== 404) throw error;
+              const builds = jobs.filter(job => job.name.startsWith('build / '));
+              if (!builds.length || builds.some(job => job.status !== 'completed' || job.conclusion !== 'success')
+                  || !jobs.some(job => job.name === 'validate' && job.conclusion === 'success')
+                  || !jobs.some(job => job.name === 'publish' && job.conclusion === 'failure')) {
+                throw new Error('Resume requires a successful versioned build and a failed publication');
+              }
+              const { data: source } = await github.rest.repos.getContent({
+                ...context.repo, path: '.github/release.json', ref: run.head_sha
+              });
+              if (source.encoding !== 'base64') throw new Error('Source release request is unavailable');
+              const original = JSON.parse(Buffer.from(source.content, 'base64').toString('utf8'));
+              if (original.version !== version || original.prerelease !== prerelease || original.draft !== draft) {
+                throw new Error('Resume request does not match the tested release request');
+              }
+              const { data: tag } = await lookupTag();
+              if (tag.object.type !== 'commit' || tag.object.sha !== run.head_sha) {
+                throw new Error('Resume tag points to a different source commit');
+              }
+              core.setOutput('source_sha', run.head_sha);
+              core.setOutput('resume_run_id', String(runID));
+            } else {
+              try {
+                await lookupTag();
+                throw new Error('This version already has a tag. Use a new version.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
             }
             core.setOutput('version', version);
             core.setOutput('draft', String(draft));
@@ -82,12 +126,17 @@ jobs:
             if (notes) core.setOutput('notes', notes);
 
   build:
+    if: needs.validate.outputs.resume_run_id == ''
     needs: validate
     uses: ./.github/workflows/ci.yml
     with:
       version: ${{ needs.validate.outputs.version }}
 
   publish:
+    if: >-
+      always() && needs.validate.result == 'success' &&
+      (needs.build.result == 'success' ||
+       (needs.build.result == 'skipped' && needs.validate.outputs.resume_run_id != ''))
     needs: [validate, build]
     runs-on: ubuntu-latest
     permissions:
@@ -98,6 +147,8 @@ jobs:
         with:
           name: ProperWM
           path: dist
+          run-id: ${{ needs.validate.outputs.resume_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
@@ -105,11 +156,13 @@ jobs:
           RELEASE_DRAFT: ${{ needs.validate.outputs.draft }}
           RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
           RELEASE_NOTES: ${{ needs.validate.outputs.notes }}
+          RELEASE_SOURCE_SHA: ${{ needs.validate.outputs.source_sha || github.sha }}
         with:
           script: |
             const fs = require('node:fs/promises');
             const crypto = require('node:crypto');
             const version = process.env.RELEASE_VERSION;
+            const sourceSHA = process.env.RELEASE_SOURCE_SHA || context.sha;
             const names = ['ProperWM-' + version + '.zip'];
             const sums = await fs.readFile('dist/SHA256SUMS.txt', 'utf8');
             for (const name of names) {
@@ -121,8 +174,10 @@ jobs:
             }
             const tagRef = 'tags/v' + version;
             async function requireExpectedTag() {
-              const { data } = await github.rest.git.getRef({ ...context.repo, ref: tagRef });
-              if (data.object.type !== 'commit' || data.object.sha !== context.sha) {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/git/ref/tags/{tag}', {
+                ...context.repo, tag: 'v' + version
+              });
+              if (data.object.type !== 'commit' || data.object.sha !== sourceSHA) {
                 throw new Error('Release tag points to a different commit');
               }
             }
@@ -131,16 +186,25 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
               try {
-                await github.rest.git.createRef({ ...context.repo, ref: 'refs/' + tagRef, sha: context.sha });
+                await github.rest.git.createRef({ ...context.repo, ref: 'refs/' + tagRef, sha: sourceSHA });
               } catch (creationError) {
                 if (creationError.status !== 422) throw creationError;
               }
               await requireExpectedTag();
             }
-            const { data: release } = await github.rest.repos.createRelease({
+            const matches = (await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo, per_page: 100
+            })).filter(release => release.tag_name === 'v' + version);
+            if (matches.length > 1) throw new Error('Multiple releases use the requested tag');
+            let release = matches[0];
+            if (release && (release.target_commitish !== sourceSHA
+                || release.prerelease !== (process.env.RELEASE_PRERELEASE === 'true'))) {
+              throw new Error('Existing release metadata does not match the tested source');
+            }
+            if (!release) ({ data: release } = await github.rest.repos.createRelease({
               ...context.repo,
               tag_name: 'v' + version,
-              target_commitish: context.sha,
+              target_commitish: sourceSHA,
               name: 'ProperWM ' + version,
               draft: true,
               prerelease: process.env.RELEASE_PRERELEASE === 'true',
@@ -151,18 +215,32 @@ jobs:
                 'The installable app ZIP is attached.',
                 "Source is available through GitHub's standard Source code archives for this release tag.",
                 'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo
-                  + '/blob/' + context.sha + '/TESTING.md'
+                  + '/blob/' + sourceSHA + '/TESTING.md'
               ].filter(Boolean).join('\n\n')
-            });
+            }));
+            if (release.assets.some(asset => !names.includes(asset.name))) {
+              throw new Error('Existing release contains unexpected assets');
+            }
             for (const name of names) {
+              const bytes = await fs.readFile('dist/' + name);
+              const digest = 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex');
+              const assets = release.assets.filter(asset => asset.name === name);
+              if (assets.length > 1) throw new Error('Duplicate release asset: ' + name);
+              if (assets.length === 1) {
+                if (assets[0].state !== 'uploaded' || assets[0].size !== bytes.length || assets[0].digest !== digest) {
+                  throw new Error('Existing release asset does not match the verified archive: ' + name);
+                }
+                continue;
+              }
+              if (!release.draft) throw new Error('Published release is missing the verified asset');
               await github.rest.repos.uploadReleaseAsset({
                 ...context.repo, release_id: release.id, name,
                 headers: { 'content-type': name.endsWith('.zip') ? 'application/zip' : 'text/plain' },
-                data: await fs.readFile('dist/' + name)
+                data: bytes
               });
             }
             await requireExpectedTag();
-            if (process.env.RELEASE_DRAFT !== 'true') {
+            if (process.env.RELEASE_DRAFT !== 'true' && release.draft) {
               await github.rest.repos.updateRelease({
                 ...context.repo, release_id: release.id, draft: false
               });
