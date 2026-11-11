@@ -34,6 +34,8 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
         var generationsByPID: [pid_t: ProcessGeneration] = [:]
         var subroles: [CGWindowID: String] = [:]
         var modalWindows: [CGWindowID: Bool] = [:]
+        var nonMainWindows = Set<CGWindowID>()
+        var unreadMainCapabilities = Set<CGWindowID>()
         var topLevelWindows = Set<CGWindowID>()
         var enumeratedWindows: [pid_t: [CGWindowID]] = [:]
         var unreadOwners = Set<CGWindowID>()
@@ -98,6 +100,11 @@ final class BehaviorDesktop: AccessibilityOperations, WindowSystemAccess, Window
     func setTimeout(_ element: AXUIElement, _ timeout: Float) -> AXError { .success }
     func isSettable(_ element: AXUIElement, _ attribute: CFString) -> (AXError, Bool) {
         state.withLock { $0.beforeSettable }?(attribute as String)
+        if attribute as String == kAXMainAttribute as String, let id = number(element) {
+            return state.withLock {
+                $0.unreadMainCapabilities.contains(id) ? (.cannotComplete, false) : (.success, !$0.nonMainWindows.contains(id))
+            }
+        }
         return (.success, true)
     }
 

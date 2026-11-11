@@ -189,17 +189,17 @@ struct AppTrackerWindowEligibility {
         alpha: Double?,
         isMinimized: Bool,
         isBelowNormalLayer: Bool,
-        application: Application, isModal: Bool? = nil, isTopLevel: Bool? = nil
+        application: Application, isModal: Bool? = nil, isTopLevel: Bool? = nil, canBecomeMain: Bool? = nil
     ) -> Bool {
         verdict(title: title, role: role, subrole: subrole, bounds: bounds, alpha: alpha,
                 isMinimized: isMinimized, isBelowNormalLayer: isBelowNormalLayer,
-                application: application, isModal: isModal, isTopLevel: isTopLevel) == .eligible
+                application: application, isModal: isModal, isTopLevel: isTopLevel, canBecomeMain: canBecomeMain) == .eligible
     }
 
     func verdict(
         title: String?, role: String?, subrole: String?, bounds: CGRect?, alpha: Double?,
         isMinimized: Bool, isBelowNormalLayer: Bool, application: Application,
-        isModal: Bool? = nil, isTopLevel: Bool? = nil
+        isModal: Bool? = nil, isTopLevel: Bool? = nil, canBecomeMain: Bool? = nil
     ) -> DockWindowEligibilityPolicy.Verdict {
         // Desktop-layer windows (widgets, wallpaper surfaces) are not windows the user switches
         // to. No default on the parameter: an omitted layer check must not compile.
@@ -217,8 +217,13 @@ struct AppTrackerWindowEligibility {
         let verdict = policy.verdict(candidate)
         guard verdict == .eligible else { return verdict }
 
+        if subrole == kAXUnknownSubrole as String,
+           title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            return .emptyTitleNotStandardOrTooSmall
+        }
+
         if FeishuBundleRules.isFeishu(bundleIdentifier: application.bundleIdentifier) {
-            return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
+            return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel, canBecomeMain: canBecomeMain)
                 ? .eligible : .feishuNotMainWindow
         }
 
@@ -232,7 +237,7 @@ struct AppTrackerWindowEligibility {
             ) ? .eligible : .finderNotTrackable
         }
 
-        return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel)
+        return AXTaskbarWindowRules.isMainWindow(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel, canBecomeMain: canBecomeMain)
             ? .eligible : .notMainWindow
     }
 }
@@ -262,7 +267,7 @@ enum AXTaskbarWindowRules {
     }
 
     static func decision(role: String?, subrole: String?, bounds: CGRect?,
-                         isModal: Bool? = nil, isTopLevel: Bool? = nil) -> Decision {
+                         isModal: Bool? = nil, isTopLevel: Bool? = nil, canBecomeMain: Bool? = nil) -> Decision {
         guard role == (kAXWindowRole as String) else { return .rejected }
 
         if subrole == (kAXStandardWindowSubrole as String) {
@@ -273,6 +278,11 @@ enum AXTaskbarWindowRules {
             return .mainWindow
         }
 
+        if subrole == kAXUnknownSubrole as String, isModal == false, isTopLevel == true,
+           canBecomeMain == true, hasReasonableFrame(bounds) {
+            return .unconfirmedMainWindow
+        }
+
         guard subrole == nil, hasReasonableFrame(bounds) else {
             return .rejected
         }
@@ -281,8 +291,8 @@ enum AXTaskbarWindowRules {
     }
 
     static func isMainWindow(role: String?, subrole: String?, bounds: CGRect?,
-                             isModal: Bool? = nil, isTopLevel: Bool? = nil) -> Bool {
-        decision(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel).isAccepted
+                             isModal: Bool? = nil, isTopLevel: Bool? = nil, canBecomeMain: Bool? = nil) -> Bool {
+        decision(role: role, subrole: subrole, bounds: bounds, isModal: isModal, isTopLevel: isTopLevel, canBecomeMain: canBecomeMain).isAccepted
     }
 
     private static func hasReasonableFrame(_ bounds: CGRect?) -> Bool {
