@@ -1763,7 +1763,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
             isBelowNormalLayer: snap.cgWindowID.map {
                 cgSnapshot.belowNormalLayerWindowIDs.contains($0)
             } ?? false,
-            application: application, isModal: snap.isModal, isTopLevel: snap.isTopLevel, canBecomeMain: snap.canBecomeMain
+            application: application, isModal: snap.isModal, isTopLevel: snap.isTopLevel
         )
     }
 

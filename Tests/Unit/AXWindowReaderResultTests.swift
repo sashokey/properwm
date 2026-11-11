@@ -3,88 +3,6 @@ import Combine
 import XCTest
 
 final class ExternalWindowGeometryTests: XCTestCase {
-    @MainActor
-    func testNativeBorderlessGameWindowIsEligibleWithoutShowingIt() {
-        _ = NSApplication.shared
-        let window = BorderlessGameWindow(contentRect: CGRect(x: 0, y: 0, width: 2560, height: 1440),
-                                          styleMask: .borderless, backing: .buffered, defer: true)
-        window.title = "World of Warcraft"
-        window.isReleasedWhenClosed = false
-        defer { window.close() }
-        XCTAssertFalse(window.isVisible)
-        XCTAssertEqual(window.accessibilitySubrole()?.rawValue, "AXUnknown")
-        let application = AppTrackerWindowEligibility.Application(
-            bundleIdentifier: "com.blizzard.worldofwarcraft", appName: "Wow", activationPolicy: .regular,
-            executablePath: "/Applications/World of Warcraft/_forever_/World of Warcraft.app/Contents/MacOS/World of Warcraft")
-        XCTAssertTrue(AppTrackerWindowEligibility().isEligible(
-            title: window.title, role: window.accessibilityRole()?.rawValue,
-            subrole: window.accessibilitySubrole()?.rawValue, bounds: window.frame,
-            alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-            isModal: window.isAccessibilityModal(), isTopLevel: true,
-            canBecomeMain: window.accessibilityIsAttributeSettable(.main)))
-        let popup = NSWindow(contentRect: CGRect(x: 1131, y: 116, width: 403, height: 84),
-                             styleMask: .borderless, backing: .buffered, defer: true)
-        popup.title = "Find in page"
-        popup.isReleasedWhenClosed = false
-        defer { popup.close() }
-        XCTAssertFalse(AppTrackerWindowEligibility().isEligible(title: popup.title,
-            role: popup.accessibilityRole()?.rawValue, subrole: popup.accessibilitySubrole()?.rawValue,
-            bounds: popup.frame, alpha: 1, isMinimized: false, isBelowNormalLayer: false,
-            application: application, isModal: popup.isAccessibilityModal(), isTopLevel: true,
-            canBecomeMain: popup.accessibilityIsAttributeSettable(.main)))
-        XCTAssertFalse(popup.isVisible)
-    }
-
-    func testUnknownSubroleRequiresConfirmedStandaloneNonmodalWindow() {
-        let application = AppTrackerWindowEligibility.Application(
-            bundleIdentifier: "test.BorderlessGame", appName: "Game", activationPolicy: .regular, executablePath: nil)
-        let frame = CGRect(x: 0, y: 0, width: 2560, height: 1440)
-        let policy = AppTrackerWindowEligibility()
-        XCTAssertTrue(policy.isEligible(title: "Game", role: "AXWindow", subrole: "AXUnknown", bounds: frame,
-            alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-            isModal: false, isTopLevel: true, canBecomeMain: true))
-        for capability: Bool? in [false, nil] {
-            XCTAssertFalse(policy.isEligible(title: "Game", role: "AXWindow", subrole: "AXUnknown", bounds: frame,
-                alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-                isModal: false, isTopLevel: true, canBecomeMain: capability))
-        }
-        for modal: Bool? in [true, nil] {
-            XCTAssertFalse(policy.isEligible(title: "Game", role: "AXWindow", subrole: "AXUnknown", bounds: frame,
-                alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-                isModal: modal, isTopLevel: true, canBecomeMain: true))
-        }
-        for topLevel: Bool? in [false, nil] {
-            XCTAssertFalse(policy.isEligible(title: "Game", role: "AXWindow", subrole: "AXUnknown", bounds: frame,
-                alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-                isModal: false, isTopLevel: topLevel, canBecomeMain: true))
-        }
-        for bounds: CGRect? in [nil, CGRect(x: 0, y: 0, width: 79, height: 1440),
-                                CGRect(x: 0, y: 0, width: 2560, height: 39),
-                                CGRect(x: CGFloat.nan, y: 0, width: 2560, height: 1440)] {
-            XCTAssertFalse(policy.isEligible(title: "Game", role: "AXWindow", subrole: "AXUnknown", bounds: bounds,
-                alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-                isModal: false, isTopLevel: true, canBecomeMain: true))
-        }
-        for (title, role, alpha, below): (String?, String, Double, Bool) in [
-            (nil, "AXWindow", 1, false), ("Game", "AXGroup", 1, false),
-            ("Game", "AXWindow", 0, false), ("Game", "AXWindow", 1, true)] {
-            XCTAssertFalse(policy.isEligible(title: title, role: role, subrole: "AXUnknown", bounds: frame,
-                alpha: alpha, isMinimized: false, isBelowNormalLayer: below, application: application,
-                isModal: false, isTopLevel: true, canBecomeMain: true))
-        }
-    }
-
-    func testUntitledUnknownWindowsCannotUseTheFeishuTitleFallback() {
-        let application = AppTrackerWindowEligibility.Application(bundleIdentifier: "com.feishu.app",
-            appName: "Feishu", activationPolicy: .regular, executablePath: nil)
-        for title: String? in [nil, "", " \n "] {
-            XCTAssertFalse(AppTrackerWindowEligibility().isEligible(title: title, role: "AXWindow",
-                subrole: "AXUnknown", bounds: CGRect(x: 0, y: 0, width: 2560, height: 1440),
-                alpha: 1, isMinimized: false, isBelowNormalLayer: false, application: application,
-                isModal: false, isTopLevel: true, canBecomeMain: true))
-        }
-    }
-
     func testInventoryRejectsInvalidKnownGeometryBeforeTabFolding() {
         let app = AppTrackerWindowEligibility.Application(
             bundleIdentifier: "audit.example.geometry", appName: "Geometry",
@@ -124,12 +42,6 @@ final class ExternalWindowGeometryTests: XCTestCase {
             ))
         }
     }
-}
-
-@MainActor
-private final class BorderlessGameWindow: NSWindow {
-    override var canBecomeMain: Bool { true }
-    override var canBecomeKey: Bool { true }
 }
 
 final class AXWindowReaderResultTests: XCTestCase {

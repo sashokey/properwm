@@ -71,8 +71,6 @@ Keep the native window PID, bundle origin, generation, AX element and CG identit
 
 AX lists may expose another process's elements. Skip confirmed foreign owners rather than relabeling them; unread ownership is a failed inventory read, not confirmation that windows disappeared. Independently switchable nonmodal AXDialog windows require a confirmed application-level parent and a reasonable frame. Sheets, modal dialogs, unknown dialog metadata and floating utility windows remain excluded.
 
-Named borderless windows can expose AXWindow with AXUnknown instead of AXStandardWindow. Admit them only with a confirmed nonmodal state, a same-process application-level parent, a reasonable frame and confirmed AXMain settable capability. Read the capability without changing the window; do not require the window to be main or focused now. Require a nonempty title even for applications with a title fallback. Preserve the shared title, transparency, geometry, layer and system-surface filters; missing metadata does not establish a switchable custom window. Keep these windows in the ordinary admission, minimized-window and current-Space presentation paths without a game-name exception.
-
 ## Menu-bar application windows
 
 A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Embedded helpers must satisfy the verified ownership rules above.

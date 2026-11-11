@@ -663,91 +663,12 @@ final class InventoryLifecycleTests: XCTestCase {
         XCTAssertEqual(tracker.mutationGenerationCountForTesting, 1)
     }
 
-    func testBorderlessPopupWithoutMainWindowCapabilityIsNotAdmitted() async {
-        for unread in [false, true] {
-            let desktop = BehaviorDesktop()
-            desktop.state.withLock {
-                $0.windows = $0.windows.filter { $0.key == 1001 }
-                $0.windows[1001]?.title = "Find in page\n    New Tab"
-                $0.windows[1001]?.bounds = CGRect(x: 1131, y: 116, width: 403, height: 84)
-                $0.subroles[1001] = "AXUnknown"
-                $0.modalWindows[1001] = false
-                $0.topLevelWindows.insert(1001)
-                if unread { $0.unreadMainCapabilities.insert(1001) }
-                else { $0.nonMainWindows.insert(1001) }
-            }
-            let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: [1001],
-                windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1])
-            let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
-                cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { [1001] })
-            defer { tracker.stop() }
-            let application = FamilyRunningApplication(pid: -41000, identifier: "com.google.Chrome",
-                policy: .regular, path: "/Applications/Google Chrome.app")
-            tracker.runAdmissionForTesting(source: "seed", app: application, application: application.eligibility)
-            await drainInventory(tracker)
-            XCTAssertTrue(StripItem.openWindows(from: tracker.snapshot).isEmpty, "unread=\(unread)")
-        }
-    }
-
-    func testBorderlessGameAdmissionPreservesCurrentSpacePresentationAndMinimizedWindows() async throws {
-        let displayTable = WindowDisplayAttribution.Table(displays: [
-            .init(uuid: "A", cgFrame: CGRect(x: 0, y: 0, width: 2560, height: 1440)),
-            .init(uuid: "B", cgFrame: CGRect(x: 2560, y: 0, width: 2560, height: 1440))], primaryUUID: "A")
-        for source in ["seed", "scan", "launchRetry"] {
-            for minimized in [false, true] {
-                let desktop = BehaviorDesktop()
-                desktop.state.withLock {
-                    $0.windows = $0.windows.filter { $0.key == 1001 }
-                    $0.windows[1001]?.title = "World of Warcraft"
-                    $0.windows[1001]?.bounds = CGRect(x: 0, y: 0, width: 2560, height: 1440)
-                    $0.windows[1001]?.status = minimized ? .minimized : .inactive
-                    $0.subroles[1001] = "AXUnknown"
-                    $0.modalWindows[1001] = false
-                    $0.topLevelWindows.insert(1001)
-                }
-                let cg = AppTrackerCGWindowSnapshot(allWindowIDs: [1001], onScreenWindowIDs: minimized ? [] : [1001],
-                    windowIDsByPID: [-41000: [1001]], alphaByWindowID: [1001: 1])
-                let tracker = AppTracker(reader: AXWindowReader(accessibility: desktop), processProvider: LifecycleProcess(),
-                    cgSnapshotProvider: { cg }, onScreenWindowIDsProvider: { cg.onScreenWindowIDs },
-                    displayTableProvider: { displayTable })
-                defer { tracker.stop() }
-                let application = FamilyRunningApplication(pid: -41000, identifier: "com.blizzard.worldofwarcraft",
-                    policy: .regular, path: "/Applications/World of Warcraft/_forever_/World of Warcraft.app")
-                tracker.runAdmissionForTesting(source: source, app: application, application: application.eligibility)
-                await drainInventory(tracker)
-                let items = StripItem.openWindows(from: tracker.snapshot)
-                XCTAssertEqual(items.map(\.title), ["World of Warcraft"], "\(source) minimized=\(minimized)")
-                XCTAssertTrue(desktop.state.withLock { $0.writes.isEmpty })
-                guard let item = items.first else { continue }
-                XCTAssertEqual(item.displayUUID, minimized ? nil : "A")
-                let identity = try XCTUnwrap(item.spaceIdentity)
-                var spaces = WindowSpaceSnapshot(layouts: ["Main": .init(orderedSpaceIDs: [1, 180],
-                    fullscreenSpaceIDs: [], currentSpaceID: 1)], memberships: [identity: [1]])
-                var filter = StripDisplayFilter(scope: "A", connectedUUIDs: ["A", "B"], primaryUUID: "A")
-                func groups() -> [TaskbarGroupPresentation] {
-                    TaskbarPresentation.groups(items: items, order: items.map(\.id), filter: filter,
-                        optimisticStates: [:], spaces: spaces, appName: { _ in "World of Warcraft" })
-                }
-                XCTAssertEqual(groups().flatMap(\.windows).map(\.title), ["World of Warcraft"])
-                filter = StripDisplayFilter(scope: "B", connectedUUIDs: ["A", "B"], primaryUUID: "A")
-                XCTAssertTrue(groups().isEmpty)
-                filter = StripDisplayFilter(scope: "A", connectedUUIDs: ["A", "B"], primaryUUID: "A")
-                spaces.layouts["Main"] = .init(orderedSpaceIDs: [1, 180], fullscreenSpaceIDs: [], currentSpaceID: 180)
-                XCTAssertTrue(groups().isEmpty)
-            }
-        }
-    }
-
     func testStandaloneNonmodalSettingsDialogsAreShownWithoutAdmittingSheetsOrUtilityPanels() async {
         let cases: [(modal: Bool?, topLevel: Bool, subrole: String, count: Int)] = [
             (false, true, kAXDialogSubrole as String, 1),
             (true, true, kAXDialogSubrole as String, 0),
             (nil, true, kAXDialogSubrole as String, 0),
             (false, false, kAXDialogSubrole as String, 0),
-            (false, true, kAXUnknownSubrole as String, 1),
-            (true, true, kAXUnknownSubrole as String, 0),
-            (nil, true, kAXUnknownSubrole as String, 0),
-            (false, false, kAXUnknownSubrole as String, 0),
             (false, true, kAXFloatingWindowSubrole as String, 0)
         ]
         for sample in cases {

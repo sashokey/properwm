@@ -51,14 +51,13 @@ struct AXWindowSnapshot {
     let focusReadUptime: TimeInterval?
     let isModal: Bool?
     let isTopLevel: Bool?
-    let canBecomeMain: Bool?
 
     var title: String? { titleRead.title }
 
     init(pid: Int32, cgWindowID: UInt32?, titleRead: AXWindowTitleRead, bounds: CGRect?,
          role: String?, subrole: String?, isMinimized: Bool, isFocusedWindow: Bool, element: AXUIElement,
          isMinimizedRead: Bool? = nil, focusReadUptime: TimeInterval? = nil,
-         isModal: Bool? = nil, isTopLevel: Bool? = nil, canBecomeMain: Bool? = nil) {
+         isModal: Bool? = nil, isTopLevel: Bool? = nil) {
         self.pid = pid
         self.cgWindowID = cgWindowID
         self.titleRead = titleRead
@@ -72,7 +71,6 @@ struct AXWindowSnapshot {
         self.focusReadUptime = focusReadUptime
         self.isModal = isModal
         self.isTopLevel = isTopLevel
-        self.canBecomeMain = canBecomeMain
     }
 }
 
@@ -440,18 +438,12 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
             let subrole = stringAttribute(kAXSubroleAttribute as CFString, from: element, maxAttempts: maxAttempts)
             var isModal: Bool?
             var isTopLevel: Bool?
-            var canBecomeMain: Bool?
-            if subrole == kAXDialogSubrole as String || subrole == kAXUnknownSubrole as String {
+            if subrole == kAXDialogSubrole as String {
                 isModal = boolAttribute(kAXModalAttribute as CFString, from: element, maxAttempts: maxAttempts)
                 if let parent = elementAttribute(kAXParentAttribute as CFString, from: element, maxAttempts: maxAttempts) {
                     isTopLevel = accessibility.pid(parent) == pid
                         && stringAttribute(kAXRoleAttribute as CFString, from: parent, maxAttempts: maxAttempts) == kAXApplicationRole as String
                 }
-            }
-            if subrole == kAXUnknownSubrole as String {
-                guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
-                let (error, settable) = accessibility.isSettable(element, kAXMainAttribute as CFString)
-                if error == .success { canBecomeMain = settable }
             }
             snapshots.append(AXWindowSnapshot(
                 pid: pid,
@@ -465,7 +457,7 @@ struct AXWindowReader: AppTrackerWindowReading, Sendable {
                 element: element,
                 isMinimizedRead: minimized,
                 focusReadUptime: focusReadUptime,
-                isModal: isModal, isTopLevel: isTopLevel, canBecomeMain: canBecomeMain
+                isModal: isModal, isTopLevel: isTopLevel
             ))
         }
         guard budget?.canContinue ?? true else { return .unread(.cannotComplete) }
