@@ -14,7 +14,7 @@ struct DockWindowEligibilityPolicy {
     enum Verdict: String, Equatable, CaseIterable {
         case eligible, selfApp, transparent, invalidGeometry
         case systemSurfaceBundle, systemSurfaceAppName, systemSurfaceExtension
-        case systemSurfaceExecutable, systemSurfaceTitle
+        case systemSurfaceExecutable
         case prohibitedPolicy, accessoryWithoutTitleOrTooSmall, emptyTitleNotStandardOrTooSmall
         case belowNormalLayer, feishuNotMainWindow, finderNotTrackable, notMainWindow
     }
@@ -99,11 +99,6 @@ struct DockWindowEligibilityPolicy {
             }
         }
 
-        if let title = candidate.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-           filteredTitles.contains(title) {
-            return .systemSurfaceTitle
-        }
-
         return nil
     }
 
@@ -125,11 +120,6 @@ struct DockWindowEligibilityPolicy {
     private let filteredAppNames: Set<String> = [
         "Notification Center",
         "Control Center"
-    ]
-
-    private let filteredTitles: Set<String> = [
-        "Notification Center",
-        "通知中心"
     ]
 
     private let filteredExecutablePathFragments: [String] = [

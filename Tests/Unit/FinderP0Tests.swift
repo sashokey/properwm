@@ -1223,16 +1223,16 @@ final class FinderP0Tests: XCTestCase {
         )
     }
 
-    func testWindowEligibilityFiltersNotificationCenterByTitle() {
+    func testWindowEligibilityKeepsOrdinaryWindowsWithSystemSurfaceTitles() {
         let policy = DockWindowEligibilityPolicy()
 
         XCTAssertEqual(
             policy.evaluate(candidate(title: "Notification Center", activationPolicy: .regular)),
-            .filter
+            .keep
         )
         XCTAssertEqual(
             policy.evaluate(candidate(title: "通知中心", activationPolicy: .regular)),
-            .filter
+            .keep
         )
     }
 

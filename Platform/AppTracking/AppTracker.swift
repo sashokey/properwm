@@ -191,8 +191,14 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         var absenceProbes: [AbsentSeatProbeRequest] = []
     }
 
+    private struct QueuedPeriodicRead: Sendable {
+        let token: UInt64
+        let identity: ScanAdmissionDecision.ProcessIdentity
+    }
+
     private var nextEventReadToken: UInt64 = 0
     private var pendingEventReads: [pid_t: PendingEventRead] = [:]
+    private var queuedPeriodicReads: [pid_t: QueuedPeriodicRead] = [:]
     private var trailingEventSources: [pid_t: InventoryReconcileSource] = [:]
     private var pendingPeriodicSnapshot: (token: UInt64, onScreenIDs: Set<CGWindowID>)?
     private struct PendingFocusRead {
@@ -431,6 +437,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         heldLogDeduplicator.removeAll()
         ownerBindings.removeAll()
         pendingEventReads.removeAll()
+        queuedPeriodicReads.removeAll()
         trailingEventSources.removeAll()
         pendingPeriodicSnapshot = nil
         focusRevisions.removeAll()
@@ -1627,6 +1634,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         ownerBindings.removeValue(forKey: pid)
         appOrder.removeAll { $0 == pid }
         pendingEventReads.removeValue(forKey: pid)
+        queuedPeriodicReads.removeValue(forKey: pid)
         trailingEventSources.removeValue(forKey: pid)
         focusRevisions.removeValue(forKey: pid)
         confirmedFocus.removeValue(forKey: pid)
@@ -2094,6 +2102,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
 
     private func scheduleEventRead(pid: pid_t, source: InventoryReconcileSource) {
         guard work.isActive, apps[pid] != nil else { return }
+        queuedPeriodicReads.removeValue(forKey: pid)
         if pendingEventReads[pid] != nil {
             // Coalesce any burst while a read is in flight into exactly one read using the latest
             // event source. Completion consumes and clears this slot before starting it.
@@ -2464,22 +2473,21 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     private func schedulePeriodicBatchRead(cgSnapshot: AppTrackerCGWindowSnapshot, timeout: TimeInterval) {
         guard work.isActive else { return }
         for observer in observers.values { observer.start() }
-        var batch: [(pid: pid_t, request: PendingEventRead)] = []
+        var batch: [(pid: pid_t, request: QueuedPeriodicRead)] = []
         for pid in appOrder {
-            guard pendingEventReads[pid] == nil, let app = apps[pid] else { continue }
+            guard pendingEventReads[pid] == nil, queuedPeriodicReads[pid] == nil,
+                  let app = apps[pid] else { continue }
             let identity = processIdentity(pid: pid, bundleID: app.bundleIdentifier)
             guard canReadTrackedProcess(pid: pid, identity: identity) else { continue }
             if reconcileSkipEnabled, shouldSkipPeriodicRead(pid: pid, app: app, cgSnapshot: cgSnapshot) {
                 continue
             }
             nextEventReadToken &+= 1
-            let request = PendingEventRead(
+            let request = QueuedPeriodicRead(
                 token: nextEventReadToken,
-                mutationGeneration: mutationGenerations[pid, default: 0],
-                identity: identity,
-                source: .periodicReconcile
+                identity: identity
             )
-            pendingEventReads[pid] = request
+            queuedPeriodicReads[pid] = request
             batch.append((pid, request))
         }
         guard !batch.isEmpty else { return }
@@ -2489,17 +2497,37 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
         work.launch { [weak self] generation in
             for entry in pending {
                 guard !Task.isCancelled else { return }
+                guard let request = await self?.beginPeriodicRead(
+                    pid: entry.pid, request: entry.request, generation: generation
+                ) else { continue }
                 let cancellation = OperationCancellation()
                 guard let result = await AsyncWorkScope.performBlocking(on: .global(qos: .utility), cancellation: cancellation, operation: {
                     reader.inventoryWindows(forPID: entry.pid, messagingTimeout: timeout, cancellation: cancellation)
                 }) else { return }
                 await MainActor.run { [weak self] in
                     guard let self, self.work.isCurrent(generation) else { return }
-                    self.completePeriodicRead(pid: entry.pid, request: entry.request, result: result,
+                    self.completePeriodicRead(pid: entry.pid, request: request, result: result,
                                               cgSnapshot: cgSnapshot, generation: generation)
                 }
             }
         }
+    }
+
+    private func beginPeriodicRead(pid: pid_t, request: QueuedPeriodicRead, generation: UInt64) -> PendingEventRead? {
+        guard work.isCurrent(generation), queuedPeriodicReads[pid]?.token == request.token else { return nil }
+        queuedPeriodicReads.removeValue(forKey: pid)
+        guard pendingEventReads[pid] == nil, let app = apps[pid],
+              app.processGeneration == processGeneration(request.identity) else { return nil }
+        let identity = processIdentity(pid: pid, bundleID: app.bundleIdentifier)
+        guard ScanAdmissionDecision.ProcessIdentity.matches(probed: request.identity, current: identity) else { return nil }
+        let admitted = PendingEventRead(
+            token: request.token,
+            mutationGeneration: mutationGenerations[pid, default: 0],
+            identity: identity,
+            source: .periodicReconcile
+        )
+        pendingEventReads[pid] = admitted
+        return admitted
     }
 
     /// 静默跳读判定（纯决策：PeriodicReconcileSkipDecision，八个条件全过才跳）。
@@ -3083,7 +3111,7 @@ final class AppTracker: ObservableObject, WindowInventoryTracking {
     }
 
     func hasPendingEventReadForTesting(pid: pid_t) -> Bool {
-        pendingEventReads[pid] != nil || trailingEventSources[pid] != nil
+        pendingEventReads[pid] != nil || queuedPeriodicReads[pid] != nil || trailingEventSources[pid] != nil
     }
 
     func setFrontmostPIDForTesting(_ pid: pid_t?) {

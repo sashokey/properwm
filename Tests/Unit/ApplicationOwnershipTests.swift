@@ -1,9 +1,25 @@
 import AppKit
 import Foundation
+import Security
 import Synchronization
 import XCTest
 
 final class ApplicationOwnershipTests: XCTestCase {
+    func testNativeSignatureValidationDisallowsNetworkAndRejectsValidationFailure() throws {
+        let observedFlags = Mutex<UInt32?>(nil)
+        let result = ApplicationOwnership.verifiedSigningTeam(
+            pid: ProcessInfo.processInfo.processIdentifier, identifier: "test.signature",
+            validate: { _, flags, _ in
+                observedFlags.withLock { $0 = flags.rawValue }
+                return errSecCSReqFailed
+            }
+        )
+
+        let flags = try XCTUnwrap(observedFlags.withLock { $0 })
+        XCTAssertNotEqual(flags & SecCSFlags.noNetworkAccess.rawValue, 0)
+        XCTAssertNil(result)
+    }
+
     private func application(_ pid: pid_t, root: String, identifier: String, helper: Bool = false,
                              executable: String? = nil, seconds: Int64? = 10) -> ApplicationOwnerRead {
         (.init(pid: pid, startTimeSec: seconds, startTimeUsec: 1, bundleID: identifier),

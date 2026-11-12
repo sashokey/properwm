@@ -28,13 +28,13 @@ final class IntentPipeline {
     func registerPending(intent: UserIntent, request: PlatformActionRequest) {
         feedbackState.begin(
             windowID: intent.windowID.rawValue,
-            action: feedbackAction(for: request, fallback: intent.action),
+            action: feedbackAction(for: request),
             at: Date()
         )
     }
 
     func registerExecutionResult(intent: UserIntent, request: PlatformActionRequest, success: Bool) {
-        let action = feedbackAction(for: request, fallback: intent.action)
+        let action = feedbackAction(for: request)
         if success {
             feedbackState.markSucceededImmediatelyIfNeeded(
                 windowID: intent.windowID.rawValue,
@@ -56,10 +56,7 @@ final class IntentPipeline {
         }
     }
 
-    private func feedbackAction(
-        for request: PlatformActionRequest,
-        fallback: UserIntentAction
-    ) -> UserIntentAction {
+    private func feedbackAction(for request: PlatformActionRequest) -> UserIntentAction {
         switch request.kind {
         case .activateWindow:
             return .activate

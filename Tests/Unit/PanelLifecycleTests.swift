@@ -29,7 +29,7 @@ final class PanelLifecycleTests: XCTestCase {
         let panel = NSPanel(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
         XCTAssertNil(coordinator.panelCurrentScreen(panel: panel))
         coordinator.dockPanel = panel
-        coordinator.relayout(animated: false)
+        coordinator.relayout()
         XCTAssertFalse(panel.isVisible)
         coordinator.tearDown()
     }

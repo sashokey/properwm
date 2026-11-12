@@ -42,7 +42,7 @@ extension PanelCoordinator {
     func presentInitialPanels() {
         guard let dock = dockPanel else { return }
         dock.layoutIfNeeded()
-        relayout(animated: false)
+        relayout()
         orderDockSurfaceFront()
     }
 

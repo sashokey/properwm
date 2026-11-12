@@ -27,7 +27,7 @@ enum AXWindowTitleRead: Equatable {
         case .success:
             guard let text = value as? String else { return .unread(.failure) }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? .empty : .value(trimmed)
+            return trimmed.isEmpty ? .empty : .value(text)
         case .attributeUnsupported, .noValue:
             return .empty
         default:

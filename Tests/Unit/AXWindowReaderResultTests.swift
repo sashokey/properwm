@@ -45,6 +45,30 @@ final class ExternalWindowGeometryTests: XCTestCase {
 }
 
 final class AXWindowReaderResultTests: XCTestCase {
+    func testSuccessfulTitleReadPreservesOriginalNonemptyText() {
+        let original = "  Window  "
+        XCTAssertEqual(AXWindowTitleRead.classify(result: .success, value: original as CFString),
+                       .value(original))
+    }
+
+    func testOrdinaryEditorWindowIsNotFilteredByItsDocumentTitle() {
+        let app = AppTrackerWindowEligibility.Application(
+            bundleIdentifier: "review.example.editor", appName: "Review Editor",
+            activationPolicy: .regular,
+            executablePath: "/Applications/ReviewEditor.app/Contents/MacOS/ReviewEditor"
+        )
+        let policy = AppTrackerWindowEligibility()
+        func eligible(_ title: String) -> Bool {
+            policy.isEligible(title: title, role: kAXWindowRole as String,
+                subrole: kAXStandardWindowSubrole as String,
+                bounds: CGRect(x: 100, y: 100, width: 800, height: 600), alpha: 1,
+                isMinimized: false, isBelowNormalLayer: false, application: app,
+                isModal: false, isTopLevel: true, isNativeRoot: true, isFocusedWindow: true)
+        }
+        XCTAssertTrue(eligible("Ordinary document"))
+        XCTAssertTrue(eligible("Notification Center"))
+    }
+
     func testRollbackAcceptsOnlyFramesOwnedByThePartialWrite() {
         let original = CGRect(x: 100, y: 100, width: 900, height: 700)
         let partial = CGRect(x: 100, y: 100, width: 900, height: 668)
@@ -111,7 +135,7 @@ final class AXWindowReaderResultTests: XCTestCase {
     func testTitleReadClassifiesNonEmptyAndKnownEmptyValues() {
         XCTAssertEqual(
             AXWindowTitleRead.classify(result: .success, value: "  Window  " as CFString),
-            .value("Window")
+            .value("  Window  ")
         )
         XCTAssertEqual(AXWindowTitleRead.classify(result: .success, value: "" as CFString), .empty)
         XCTAssertEqual(

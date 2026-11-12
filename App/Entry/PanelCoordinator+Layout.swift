@@ -7,10 +7,10 @@ extension PanelCoordinator {
             .removeDuplicates()
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.relayout(animated: false) }
+            .sink { [weak self] _ in self?.relayout() }
     }
 
-    func relayout(animated: Bool) {
+    func relayout() {
         guard let panel = dockPanel else { return }
         guard let screen = resolvedPinnedScreen() ?? panelCurrentScreen(panel: panel) else {
             orderDockSurfaceOut()
@@ -26,7 +26,7 @@ extension PanelCoordinator {
 
     func screenParametersChanged() {
         taskbarView?.taskbarContent.prepareForHiding()
-        relayout(animated: false)
+        relayout()
         reconcilePanelVisibility()
     }
 }

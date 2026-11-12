@@ -10,7 +10,9 @@ struct ApplicationOwnership: Sendable {
     init(applications: @escaping @Sendable () -> [ApplicationOwnerRead] = ApplicationOwnership.runningApplications,
          identity: @escaping @Sendable (pid_t, String?) -> ScanAdmissionDecision.ProcessIdentity = {
              LiveAppTrackerProcessProvider().identity(pid: $0, bundleID: $1)
-         }, signingTeam: @escaping @Sendable (pid_t, String) -> String? = ApplicationOwnership.verifiedSigningTeam) {
+         }, signingTeam: @escaping @Sendable (pid_t, String) -> String? = {
+             ApplicationOwnership.verifiedSigningTeam(pid: $0, identifier: $1)
+         }) {
         self.applications = applications
         self.identity = identity
         self.signingTeam = signingTeam
@@ -81,14 +83,17 @@ struct ApplicationOwnership: Sendable {
         }
     }
 
-    static func verifiedSigningTeam(pid: pid_t, identifier: String) -> String? {
+    static func verifiedSigningTeam(
+        pid: pid_t, identifier: String,
+        validate: @Sendable (SecCode, SecCSFlags, SecRequirement) -> OSStatus = { SecCodeCheckValidity($0, $1, $2) }
+    ) -> String? {
         guard pid > 0, !identifier.isEmpty else { return nil }
         var code: SecCode?
         guard SecCodeCopyGuestWithAttributes(nil, [kSecGuestAttributePid: pid] as CFDictionary, [], &code) == errSecSuccess,
               let code else { return nil }
         var requirement: SecRequirement?
         guard SecRequirementCreateWithString("anchor apple generic" as CFString, [], &requirement) == errSecSuccess,
-              let requirement, SecCodeCheckValidity(code, [], requirement) == errSecSuccess else { return nil }
+              let requirement, validate(code, .noNetworkAccess, requirement) == errSecSuccess else { return nil }
         var staticCode: SecStaticCode?
         guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
         var information: CFDictionary?

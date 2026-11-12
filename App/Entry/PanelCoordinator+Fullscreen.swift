@@ -223,7 +223,6 @@ extension PanelCoordinator {
     ) {
         guard !isSuspendedForPermissionLoss else { return }
         switch FullscreenSpaceHoldDecision.disposition(
-            isFullscreenVerdict: isFullscreen,
             expectedGeneration: expectedSpaceHoldGeneration,
             activeGeneration: fullscreenSpaceHold?.generation,
             isFinalWindowedConfirmation: isFinalSpaceHoldWindowedConfirmation

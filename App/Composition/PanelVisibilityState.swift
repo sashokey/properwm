@@ -17,7 +17,6 @@ enum FullscreenSpaceHoldDecision {
     static let activationFallbackDelay: TimeInterval = 0.5
 
     static func disposition(
-        isFullscreenVerdict: Bool,
         expectedGeneration: UInt64?,
         activeGeneration: UInt64?,
         isFinalWindowedConfirmation: Bool
