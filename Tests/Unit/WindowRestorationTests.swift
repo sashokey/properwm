@@ -1,0 +1,1067 @@
+import AppKit
+import ApplicationServices
+import Combine
+import Synchronization
+import XCTest
+
+private final class RestorationFixture: WindowRestorationAccess {
+    let writes = Mutex(0)
+    let writtenFrames = Mutex<[CGRect]>([])
+    let current: CGRect?
+    let result: AXWindowFrameWriteResult
+    let start: timeval?
+    let onRead: @Sendable () -> Void
+
+    init(current: CGRect? = CGRect(x: 0, y: 0, width: 100, height: 68),
+         result: AXWindowFrameWriteResult = .failure(reason: .writeFailed(attribute: .size, error: .cannotComplete), rollback: .notRequested),
+         start: timeval? = timeval(tv_sec: 10, tv_usec: 0), onRead: @escaping @Sendable () -> Void = {}) {
+        self.current = current
+        self.result = result
+        self.start = start
+        self.onRead = onRead
+    }
+    func processStartTime(pid: pid_t) -> timeval? { start }
+    func capture(_ key: WindowLiftAvoidance.WindowKey, expectedElement: AXElementKey?) -> Result<Int, WindowRestorationCaptureFailure> {
+        .success(1)
+    }
+    func frame(_ handle: Int) -> CGRect? { onRead(); return current }
+    func write(_ frame: CGRect, to handle: Int, matching current: CGRect,
+               onAttempt: (CGRect) -> Void,
+               checkWriteAdmission: () -> AXWindowFrameWriteFailure?) -> AXWindowFrameWriteResult {
+        if let failure = checkWriteAdmission() { return .failure(reason: failure, rollback: .notRequested) }
+        writes.withLock { $0 += 1 }
+        writtenFrames.withLock { $0.append(frame) }
+        return result
+    }
+}
+
+@MainActor
+private final class RestorationHost: WindowLiftAvoidanceHost {
+    func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] { [] }
+    func windowGeometryChanged() {}
+}
+
+@MainActor
+private final class RestorationWriterGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var hasEntered = false
+    private(set) var hasDrained = false
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            hasEntered = true
+        }
+        hasDrained = true
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
+final class WindowRestorationTests: XCTestCase {
+    private let key = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 1)
+    private let frames = WindowRestorationFrames(nativeAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
+        targetAppKit: CGRect(x: 0, y: 32, width: 100, height: 68), nativeQuartz: CGRect(x: 0, y: 0, width: 100, height: 100),
+        targetQuartz: CGRect(x: 0, y: 0, width: 100, height: 68), primaryScreenHeight: 100,
+        processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0)))
+
+    func testMissingOriginalProcessIdentityDefersRestorationWithoutWriting() {
+        var unknown = frames
+        unknown.processGeneration = nil
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: unknown,
+            expectedStartTime: nil, liveWindowKeys: [key]), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testRestorationUsesGenerationCapturedWithTheOriginalLift() {
+        var captured = frames
+        captured.processGeneration = ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))
+        let access = RestorationFixture(start: timeval(tv_sec: 20, tv_usec: 0))
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: captured,
+            expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testFailedOrUnverifiedRestorationRemainsPending() {
+        for result in [AXWindowFrameWriteResult.failure(reason: .writeFailed(attribute: .size, error: .cannotComplete), rollback: .notRequested),
+                       .failure(reason: .verificationUnavailable, rollback: .notRequested),
+                       .failure(reason: .verificationMismatch(expected: frames.nativeQuartz, actual: frames.targetQuartz), rollback: .notRequested)] {
+            let access = RestorationFixture(result: result)
+            XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: nil, liveWindowKeys: [key]), .retry)
+            XCTAssertEqual(access.writes.withLock { $0 }, 1)
+        }
+    }
+
+    func testConfirmedWriteCompletesRestoration() {
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames, expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+    }
+
+    func testInterruptedRestorationPreservesUnrecordedResizeWithinLiftTrajectory() {
+        var interrupted = frames
+        interrupted.restoresSettledTarget = false
+        interrupted.interruptedWriteFrames = .init(
+            acknowledged: CGRect(x: 0, y: 0, width: 100, height: 94),
+            attempted: CGRect(x: 0, y: 0, width: 100, height: 89)
+        )
+        let access = RestorationFixture(current: CGRect(x: 0, y: 0, width: 100, height: 83),
+                                        result: .success(actualFrame: frames.nativeQuartz))
+
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: interrupted,
+            expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [])
+    }
+
+    func testInterruptedRestorationRestoresAcknowledgedOrAttemptedFramesWithinTolerance() {
+        var interrupted = frames
+        interrupted.restoresSettledTarget = false
+        interrupted.interruptedWriteFrames = .init(
+            acknowledged: CGRect(x: 0, y: 0, width: 100, height: 94),
+            attempted: CGRect(x: 0, y: 0, width: 100, height: 89)
+        )
+        for height: CGFloat in [95, 88] {
+            let access = RestorationFixture(current: CGRect(x: 0, y: 0, width: 100, height: height),
+                                            result: .success(actualFrame: frames.nativeQuartz))
+
+            XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: interrupted,
+                expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+            XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        }
+    }
+
+    func testRestorationUsesTheNewGeometryAfterFullscreenReturnRecovery() {
+        let native = CGRect(x: 2560, y: 0, width: 2560, height: 1410)
+        let target = CGRect(x: 2560, y: 34, width: 2560, height: 1376)
+        let recoveredFrames = WindowRestorationFrames(
+            nativeAppKit: native, targetAppKit: target, primaryScreenHeight: 1440,
+            processGeneration: ProcessGeneration(timeval(tv_sec: 10, tv_usec: 0))
+        )
+        let expectedNative = CGRect(x: 2560, y: 30, width: 2560, height: 1410)
+        let access = RestorationFixture(
+            current: CGRect(x: 2560, y: 30, width: 2560, height: 1376),
+            result: .success(actualFrame: expectedNative)
+        )
+        XCTAssertEqual(WindowRestorer(access: access).restore(
+            key: key, frames: recoveredFrames, expectedStartTime: nil, liveWindowKeys: [key]
+        ), .handled)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [expectedNative])
+    }
+
+    func testMovedOrReusedWindowsAreNeverWritten() {
+        let moved = RestorationFixture(current: CGRect(x: 40, y: 40, width: 30, height: 30))
+        XCTAssertEqual(WindowRestorer(access: moved).restore(key: key, frames: frames, expectedStartTime: nil, liveWindowKeys: [key]), .handled)
+        XCTAssertEqual(moved.writes.withLock { $0 }, 0)
+        let reused = RestorationFixture(start: timeval(tv_sec: 20, tv_usec: 0))
+        XCTAssertEqual(WindowRestorer(access: reused).restore(key: key, frames: frames,
+            expectedStartTime: timeval(tv_sec: 10, tv_usec: 0), liveWindowKeys: [key]), .handled)
+        XCTAssertEqual(reused.writes.withLock { $0 }, 0)
+    }
+
+    func testUnavailableProcessIdentityDoesNotDiscardALiveWindow() {
+        let access = RestorationFixture(start: nil)
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames,
+            expectedStartTime: timeval(tv_sec: 10, tv_usec: 0), liveWindowKeys: [key]), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testCancellationAfterReadingGeometryPreventsRestorationWrite() {
+        let cancellation = OperationCancellation()
+        let access = RestorationFixture(onRead: { cancellation.cancel() })
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames,
+            expectedStartTime: nil, liveWindowKeys: [key], cancellation: cancellation), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testPermissionFreezePreservesRestorationUntilOldWorkDrains() async {
+        let attempts = Mutex(0)
+        let gate = DispatchSemaphore(value: 0)
+        let controller = WindowLiftAvoidanceController(host: RestorationHost(), isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in
+                let count = attempts.withLock { $0 += 1; return $0 }
+                if count == 1 { _ = gate.wait(timeout: .now() + 2) }
+                return .handled
+            }, restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        let stopping = Task { await controller.stopAndRestore() }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while attempts.withLock({ $0 }) == 0, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(attempts.withLock { $0 }, 1)
+        controller.beginPermissionUncertainty()
+        gate.signal()
+        await stopping.value
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 1)
+        await controller.restoreAndStopForPermissionRecovery()
+        XCTAssertEqual(attempts.withLock { $0 }, 2)
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 0)
+    }
+
+    func testControllerRetriesFailureAndRemovesOnlyConfirmedRestoration() async {
+        let attempts = Mutex(0)
+        let controller = WindowLiftAvoidanceController(host: RestorationHost(), isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in attempts.withLock { count in count += 1; return count < 2 ? .retry : .handled } },
+            restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        await controller.stopAndRestore()
+        XCTAssertEqual(attempts.withLock { $0 }, 2)
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 0)
+    }
+
+    func testControllerStopsRetryingWithoutDroppingFailedState() async {
+        let attempts = Mutex(0)
+        let controller = WindowLiftAvoidanceController(host: RestorationHost(), isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in attempts.withLock { $0 += 1 }; return .retry }, restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        await controller.stopAndRestore()
+        XCTAssertEqual(attempts.withLock { $0 }, 3)
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 1)
+    }
+
+    func testShutdownVisitsAResponsiveWindowAfterFortySlowRestorations() async {
+        await assertResponsiveWindowIsRestored(recoveringPermission: false)
+    }
+
+    func testPermissionRecoveryVisitsAResponsiveWindowAfterFortySlowRestorations() async {
+        await assertResponsiveWindowIsRestored(recoveringPermission: true)
+    }
+
+    private func assertResponsiveWindowIsRestored(recoveringPermission: Bool) async {
+        let host = RestorationHost()
+        let responsive = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 41)
+        let calls = Mutex<Set<WindowLiftAvoidance.WindowKey>>([])
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                calls.withLock { _ = $0.insert(key) }
+                if key == responsive { return .handled }
+                Thread.sleep(forTimeInterval: 0.075)
+                return .retry
+            }, restorationWindowKeys: { nil })
+        for id in 1...41 {
+            controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames)
+        }
+        controller.isEnabled = true
+        if recoveringPermission {
+            controller.beginPermissionUncertainty()
+            await controller.restoreAndStopForPermissionRecovery()
+        } else {
+            await controller.stopAndRestore()
+        }
+        XCTAssertTrue(calls.withLock { $0.contains(responsive) })
+        XCTAssertNil(controller.pendingRestorations[responsive])
+        XCTAssertNil(controller.restoreTask)
+        XCTAssertFalse(controller.isEnabled)
+    }
+
+    func testIdlePollTimerAllowsWakeupCoalescing() throws {
+        let host = RestorationHost()
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil })
+        defer { controller.stop() }
+        controller.isEnabled = true
+        controller.updatePollTimerLifecycle()
+        let timer = try XCTUnwrap(Mirror(reflecting: controller).children.first { $0.label == "pollTimer" }?.value as? Timer)
+        XCTAssertGreaterThanOrEqual(timer.tolerance, timer.timeInterval * 0.1)
+    }
+
+    func testExpiredBudgetAfterReadingGeometryPreventsRestorationWrite() {
+        let now = Mutex<TimeInterval>(0)
+        let budget = OperationReadBudget(maximumDuration: 0.1, cancellation: OperationCancellation(), uptime: { now.withLock { $0 } })
+        let access = RestorationFixture(onRead: { now.withLock { $0 = 1 } })
+        XCTAssertEqual(WindowRestorer(access: access).restore(key: key, frames: frames,
+            expectedStartTime: nil, liveWindowKeys: [key], budget: budget), .retry)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+    }
+
+    func testFirstAttemptsPrecedeRetriesWithAtMostFourActiveRestorations() async {
+        let host = RestorationHost()
+        let progress = Mutex((active: 0, peak: 0, calls: [WindowLiftAvoidance.WindowKey]()))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                let first = progress.withLock { value in
+                    value.active += 1
+                    value.peak = max(value.peak, value.active)
+                    let first = !value.calls.contains(key)
+                    value.calls.append(key)
+                    return first
+                }
+                Thread.sleep(forTimeInterval: 0.02)
+                progress.withLock { $0.active -= 1 }
+                return first ? .retry : .handled
+            }, restorationWindowKeys: { nil })
+        let keys = Set((1...12).map { WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: CGWindowID($0)) })
+        for key in keys { controller.enqueueRestorationForTesting(key: key, frames: frames) }
+        let result = await controller.stopAndRestore()
+        let final = progress.withLock { $0 }
+        XCTAssertEqual(result, .complete)
+        XCTAssertEqual(final.calls.count, 24)
+        XCTAssertEqual(Set(final.calls.prefix(12)), keys)
+        XCTAssertGreaterThan(final.peak, 1)
+        XCTAssertLessThanOrEqual(final.peak, 4)
+        XCTAssertEqual(final.active, 0)
+    }
+
+    func testPermissionFreezeDrainsFourRestorationsAndRejectsTheirOldResults() async {
+        let host = RestorationHost()
+        let gate = DispatchSemaphore(value: 0)
+        let progress = Mutex((blocked: true, active: 0))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in
+                let block = progress.withLock { value in value.active += 1; return value.blocked }
+                if block { _ = gate.wait(timeout: .now() + 3) }
+                progress.withLock { $0.active -= 1 }
+                return .handled
+            }, restorationWindowKeys: { nil })
+        for id in 1...8 { controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames) }
+        let stopping = Task { await controller.stopAndRestore() }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while progress.withLock({ $0.active }) < 4, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(progress.withLock { $0.active }, 4)
+        controller.beginPermissionUncertainty()
+        progress.withLock { $0.blocked = false }
+        for _ in 0..<4 { gate.signal() }
+        let frozenResult = await stopping.value
+        XCTAssertEqual(frozenResult, .incomplete(remaining: 8))
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 8)
+        XCTAssertEqual(progress.withLock { $0.active }, 0)
+        let recovered = await controller.restoreAndStopForPermissionRecovery()
+        XCTAssertEqual(recovered, .complete)
+    }
+
+    func testExhaustedShutdownBudgetReportsRemainingWindowsAndDrainsStartedWork() async {
+        let host = RestorationHost()
+        let progress = Mutex((active: 0, calls: 0))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in
+                progress.withLock { $0.active += 1; $0.calls += 1 }
+                Thread.sleep(forTimeInterval: 0.075)
+                progress.withLock { $0.active -= 1 }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        for id in 1...200 { controller.enqueueRestorationForTesting(key: .init(pid: 42, cgWindowID: CGWindowID(id)), frames: frames) }
+        let started = ProcessInfo.processInfo.systemUptime
+        let result = await controller.stopAndRestore()
+        XCTAssertEqual(result, .incomplete(remaining: 200))
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - started, 3)
+        XCTAssertLessThan(progress.withLock { $0.calls }, 200)
+        XCTAssertEqual(progress.withLock { $0.active }, 0)
+        XCTAssertNil(controller.restoreTask)
+    }
+
+    func testNewRestorationsShareTheOriginalShutdownDeadline() async {
+        let host = RestorationHost()
+        let started = Mutex(false)
+        let secondBudget = Mutex<TimeInterval?>(nil)
+        let second = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 2)
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, budget in
+                if key.cgWindowID == 1 {
+                    started.withLock { $0 = true }
+                    Thread.sleep(forTimeInterval: 1.25)
+                    return .handled
+                }
+                secondBudget.withLock { $0 = budget.remaining }
+                while budget.canContinue { Thread.sleep(forTimeInterval: 0.001) }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        controller.enqueueRestorationForTesting(key: key, frames: frames)
+        let beginning = ProcessInfo.processInfo.systemUptime
+        let stopping = Task { await controller.stopAndRestore() }
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !started.withLock({ $0 }), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertTrue(started.withLock { $0 })
+        controller.enqueueRestorationForTesting(key: second, frames: frames)
+        let result = await stopping.value
+        XCTAssertEqual(result, .incomplete(remaining: 1))
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - beginning, 2.8)
+        XCTAssertLessThan(secondBudget.withLock { $0 } ?? .infinity, 1)
+        XCTAssertNil(controller.pendingRestorations[key])
+        XCTAssertNotNil(controller.pendingRestorations[second])
+    }
+
+    func testShutdownRestoresNewWindowsBeforeRetryingAnExistingBatch() async {
+        let host = RestorationHost()
+        let progress = Mutex((active: 0, peak: 0, attempts: [WindowLiftAvoidance.WindowKey: Int]()))
+        let initialBatchGate = DispatchSemaphore(value: 0)
+        let responsive = WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: 55)
+        let oldKeys = Set(stride(from: 10, through: 80, by: 10).map {
+            WindowLiftAvoidance.WindowKey(pid: 42, cgWindowID: CGWindowID($0))
+        })
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                let attempt = progress.withLock { value in
+                    value.active += 1
+                    value.peak = max(value.peak, value.active)
+                    value.attempts[key, default: 0] += 1
+                    return value.attempts[key, default: 0]
+                }
+                defer { progress.withLock { $0.active -= 1 } }
+                if key == responsive { return .handled }
+                if attempt == 1 {
+                    if key.cgWindowID <= 40 { _ = initialBatchGate.wait(timeout: .now() + 3) }
+                } else {
+                    Thread.sleep(forTimeInterval: 2)
+                }
+                return .retry
+            }, restorationWindowKeys: { nil })
+        for key in oldKeys { controller.enqueueRestorationForTesting(key: key, frames: frames) }
+        let beginning = ProcessInfo.processInfo.systemUptime
+        controller.isEnabled = true
+        controller.poll()
+        let deadline = ContinuousClock.now + .seconds(2)
+        while progress.withLock({ $0.active }) < 4, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertEqual(progress.withLock { $0.active }, 4)
+        controller.enqueueRestorationForTesting(key: responsive, frames: frames)
+        for _ in 0..<4 { initialBatchGate.signal() }
+        let result = await controller.stopAndRestore()
+        let final = progress.withLock { $0 }
+        XCTAssertEqual(result, .incomplete(remaining: 8))
+        XCTAssertNil(controller.pendingRestorations[responsive])
+        XCTAssertEqual(Set(controller.pendingRestorations.keys), oldKeys)
+        XCTAssertEqual(final.peak, 4)
+        XCTAssertEqual(final.active, 0)
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - beginning, 3)
+        XCTAssertNil(controller.restoreTask)
+        XCTAssertFalse(controller.isEnabled)
+    }
+}
+
+private final class LiftProbeFixture: WindowLiftWindowProbing, Sendable {
+    struct State {
+        var now: TimeInterval = 200
+        var captures = 0
+        var candidateKeys = Set<WindowLiftAvoidance.WindowKey>()
+        var livenessKeys = Set<WindowLiftAvoidance.WindowKey>()
+        var frameRequests: [Set<WindowLiftAvoidance.WindowKey>] = []
+        var frames: [WindowLiftAvoidance.WindowKey: CGRect] = [:]
+    }
+    let state = Mutex(State())
+    func capture(on contexts: [WindowLiftAvoidanceContext], excludingPID: pid_t, includeLiveWindowKeys: Bool,
+                 includesTiles: Bool, trackedKeys: Set<WindowLiftAvoidance.WindowKey>, livenessKeys: Set<WindowLiftAvoidance.WindowKey>) -> WindowLiftCGScanResult {
+        state.withLock {
+            $0.captures += 1
+            $0.candidateKeys = trackedKeys
+            $0.livenessKeys = livenessKeys
+            return .init(candidatesByScreenIndex: [:], onScreenFrames: $0.frames, liveWindowKeys: nil)
+        }
+    }
+    func frames(for keys: Set<WindowLiftAvoidance.WindowKey>) -> [WindowLiftAvoidance.WindowKey: CGRect] {
+        state.withLock {
+            $0.frameRequests.append(keys)
+            return $0.frames.filter { keys.contains($0.key) }
+        }
+    }
+}
+
+@MainActor
+private final class LiftContextHost: WindowLiftAvoidanceHost {
+    var contexts: [WindowLiftAvoidanceContext] = []
+    func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] { contexts }
+    func windowGeometryChanged() {}
+}
+
+@MainActor
+final class WindowLiftContextLifecycleTests: XCTestCase {
+    func testPollChecksSuppressedAndActiveLivenessWithoutTreatingSuppressionsAsCandidates() async {
+        let host = LiftContextHost()
+        let screen = context(x: 0)
+        host.contexts = [screen]
+        let active = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let suppressed = WindowLiftAvoidance.WindowKey(pid: -502, cgWindowID: 2)
+        let probe = LiftProbeFixture()
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil }, windowProbe: probe)
+        controller.reconcileContextsForTesting([screen])
+        for key in [active, suppressed] {
+            controller.installSessionForTesting(key: key, context: screen, frames: frames(screen), state: state(frames(screen)))
+        }
+        controller.clearManagedSession(for: suppressed, cancelWriter: false, reason: "test", suppression: .untilNative(userEra: false))
+        controller.isEnabled = true
+
+        controller.poll()
+        await controller.scanTask?.value
+
+        XCTAssertEqual(probe.state.withLock { $0.captures }, 1)
+        XCTAssertEqual(probe.state.withLock { $0.candidateKeys }, [active])
+        XCTAssertEqual(probe.state.withLock { $0.livenessKeys }, [active, suppressed])
+        XCTAssertNotNil(controller.states[active])
+        XCTAssertNil(controller.states[suppressed])
+        await controller.stopAndRestore()
+    }
+
+    func testCancelledWriterIsReleasedAfterItFinishes() async {
+        let host = LiftContextHost()
+        let a = context(x: 0)
+        let key = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let gate = DispatchSemaphore(value: 0)
+        let started = Mutex(false)
+        let writer = Task.detached {
+            _ = await AsyncWorkScope.performBlocking {
+                started.withLock { $0 = true }
+                _ = gate.wait(timeout: .now() + 2)
+            }
+        }
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil })
+        await waitUntil { started.withLock { $0 } }
+        controller.installSessionForTesting(key: key, context: a, frames: frames(a), state: state(frames(a)), writer: writer)
+        controller.clearSessionForTesting(key)
+        XCTAssertEqual(controller.retainedWriterCountForTesting, 1)
+        gate.signal()
+        await waitUntil { controller.retainedWriterCountForTesting == 0 }
+        await controller.stopAndRestore()
+    }
+
+    private func context(x: CGFloat) -> WindowLiftAvoidanceContext {
+        let frame = CGRect(x: x, y: 0, width: 1200, height: 800)
+        return .init(geometry: .init(screenFrame: frame, visibleFrame: frame, taskbarTop: 32),
+                     screenCGFrame: frame, visibleCGFrame: frame, primaryScreenHeight: 800)
+    }
+
+    private func frames(_ context: WindowLiftAvoidanceContext) -> WindowRestorationFrames {
+        let native = context.geometry.visibleFrame
+        return .init(nativeAppKit: native,
+            targetAppKit: CGRect(x: native.minX, y: 34, width: native.width, height: native.height - 34),
+            primaryScreenHeight: 800)
+    }
+
+    private func state(_ frames: WindowRestorationFrames, settledAt: TimeInterval = 100) -> WindowLiftAvoidance.SessionState {
+        .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit, adjustedFrame: frames.targetAppKit,
+                     reliftCount: 0, settledAt: settledAt, standoffRounds: 0))
+    }
+
+    func testDisplayRemovalGeometryChangeAndReorderingPreserveUnaffectedSessions() async {
+        let a = context(x: 0)
+        let b = context(x: 1200)
+        let keyA = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let keyB = WindowLiftAvoidance.WindowKey(pid: -502, cgWindowID: 2)
+        for (next, expected) in [([b], Set([keyA])), ([b, a], Set<WindowLiftAvoidance.WindowKey>()),
+                                 ([a, context(x: 2400)], Set([keyB])), ([], Set([keyA, keyB]))] {
+            let restored = Mutex<Set<WindowLiftAvoidance.WindowKey>>([])
+            let host = LiftContextHost()
+            host.contexts = next
+            let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+                restoreWindow: { key, _, _, _, _ in restored.withLock { _ = $0.insert(key) }; return .handled },
+                restorationWindowKeys: { nil })
+            controller.reconcileContextsForTesting([a, b])
+            controller.installSessionForTesting(key: keyA, context: a, frames: frames(a), state: state(frames(a)))
+            controller.installSessionForTesting(key: keyB, context: b, frames: frames(b), state: state(frames(b)))
+            controller.reconcileContextsForTesting(next)
+            for task in controller.pendingWorkForTesting { await task.value }
+            XCTAssertEqual(restored.withLock { $0 }, expected)
+            for (key, context) in [(keyA, a), (keyB, b)] where !expected.contains(key) {
+                XCTAssertEqual(controller.sessionForTesting(key), state(frames(context)))
+            }
+            await controller.stopAndRestore()
+        }
+    }
+
+    func testSecondDisplayRestorationWaitsForItsCancelledWriter() async {
+        for beforeFirstBatchStarts in [false, true] {
+            await assertSecondDisplayRestorationWaitsForItsCancelledWriter(
+                beforeFirstBatchStarts: beforeFirstBatchStarts
+            )
+        }
+    }
+
+    private func assertSecondDisplayRestorationWaitsForItsCancelledWriter(beforeFirstBatchStarts: Bool) async {
+        let a = context(x: 0)
+        let b = context(x: 1200)
+        let keyA = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let keyB = WindowLiftAvoidance.WindowKey(pid: -502, cgWindowID: 2)
+        let calls = Mutex<[WindowLiftAvoidance.WindowKey]>([])
+        let restoreGate = DispatchSemaphore(value: 0)
+        let writerGate = DispatchSemaphore(value: 0)
+        let firstWriterEntered = Mutex(false)
+        let firstWriter: Task<Void, Never>? = beforeFirstBatchStarts ? Task.detached {
+            _ = await AsyncWorkScope.performBlocking {
+                firstWriterEntered.withLock { $0 = true }
+                _ = restoreGate.wait(timeout: .now() + 3)
+            }
+        } : nil
+        let writing = Mutex(false)
+        let writer = Task.detached {
+            _ = await AsyncWorkScope.performBlocking {
+                writing.withLock { $0 = true }
+                _ = writerGate.wait(timeout: .now() + 3)
+            }
+        }
+        let host = LiftContextHost()
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, _, _, _, _ in
+                calls.withLock { $0.append(key) }
+                if key == keyA, !beforeFirstBatchStarts { _ = restoreGate.wait(timeout: .now() + 3) }
+                return .handled
+            }, restorationWindowKeys: { nil })
+        await waitUntil { writing.withLock { $0 } && (!beforeFirstBatchStarts || firstWriterEntered.withLock { $0 }) }
+        controller.reconcileContextsForTesting([a, b])
+        controller.installSessionForTesting(key: keyA, context: a, frames: frames(a), state: state(frames(a)),
+                                            writer: firstWriter)
+        controller.installSessionForTesting(key: keyB, context: b, frames: frames(b), state: state(frames(b)), writer: writer)
+        controller.reconcileContextsForTesting([b])
+        if !beforeFirstBatchStarts { await waitUntil { calls.withLock { $0 == [keyA] } } }
+        let first = controller.pendingWorkForTesting
+        controller.reconcileContextsForTesting([])
+        restoreGate.signal()
+        for task in first { await task.value }
+        XCTAssertEqual(calls.withLock { $0 }, [keyA])
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 1)
+        writerGate.signal()
+        await controller.stopAndRestore()
+        XCTAssertEqual(calls.withLock { $0 }, [keyA, keyB])
+        XCTAssertEqual(controller.pendingRestorationCountForTesting, 0)
+    }
+
+    func testSettledWindowHasNoFastReadsAndRespondsToEventsAndFallback() async {
+        let host = LiftContextHost()
+        let a = context(x: 0)
+        host.contexts = [a]
+        let key = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let frames = frames(a)
+        let probe = LiftProbeFixture()
+        probe.state.withLock { $0.frames = [key: frames.targetQuartz] }
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil }, windowProbe: probe,
+            uptime: { probe.state.withLock { $0.now } })
+        controller.reconcileContextsForTesting([a])
+        controller.installSessionForTesting(key: key, context: a, frames: frames, state: state(frames))
+        controller.enableMonitoringForTesting()
+        XCTAssertEqual(controller.pollIntervalForTesting, 1)
+        XCTAssertNil(controller.trackedIntervalForTesting)
+        for _ in 0..<100 { controller.probeTrackedFramesForTesting() }
+        XCTAssertTrue(probe.state.withLock { $0.frameRequests.isEmpty })
+        controller.pollForTesting()
+        for task in controller.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(probe.state.withLock { $0.captures }, 1)
+        XCTAssertNotNil(controller.sessionForTesting(key))
+        controller.geometryEventForTesting()
+        for task in controller.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(probe.state.withLock { $0.captures }, 2)
+        probe.state.withLock { $0.frames[key] = CGRect(x: 200, y: 200, width: 500, height: 400); $0.now += 2 }
+        controller.pollForTesting()
+        for task in controller.pendingWorkForTesting { await task.value }
+        XCTAssertNil(controller.sessionForTesting(key))
+        await controller.stopAndRestore()
+    }
+
+    func testFastProbeIncludesOnlySettlingWindowsAndExpires() async {
+        let host = LiftContextHost()
+        let a = context(x: 0)
+        host.contexts = [a]
+        let old = WindowLiftAvoidance.WindowKey(pid: -501, cgWindowID: 1)
+        let recent = WindowLiftAvoidance.WindowKey(pid: -502, cgWindowID: 2)
+        let frames = frames(a)
+        let probe = LiftProbeFixture()
+        probe.state.withLock { $0.frames = [old: frames.targetQuartz, recent: frames.targetQuartz] }
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil }, windowProbe: probe,
+            uptime: { probe.state.withLock { $0.now } })
+        controller.reconcileContextsForTesting([a])
+        controller.installSessionForTesting(key: old, context: a, frames: frames, state: state(frames))
+        controller.installSessionForTesting(key: recent, context: a, frames: frames, state: state(frames, settledAt: 199.5))
+        controller.enableMonitoringForTesting()
+        XCTAssertEqual(controller.pollIntervalForTesting, 0.2)
+        XCTAssertEqual(controller.trackedIntervalForTesting, 0.05)
+        controller.probeTrackedFramesForTesting()
+        for task in controller.pendingWorkForTesting { await task.value }
+        XCTAssertEqual(probe.state.withLock { $0.frameRequests }, [Set([recent])])
+        probe.state.withLock { $0.now = 202 }
+        controller.refreshCadenceForTesting()
+        XCTAssertEqual(controller.pollIntervalForTesting, 1)
+        XCTAssertNil(controller.trackedIntervalForTesting)
+        XCTAssertNotNil(controller.sessionForTesting(old))
+        XCTAssertNotNil(controller.sessionForTesting(recent))
+        await controller.stopAndRestore()
+    }
+
+    private func waitUntil(_ predicate: () -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !predicate(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(1)) }
+        XCTAssertTrue(predicate())
+    }
+}
+
+extension WindowLiftAvoidanceController {
+    func installSessionForTesting(key: WindowLiftAvoidance.WindowKey, context: WindowLiftAvoidanceContext,
+                                  frames: WindowRestorationFrames, state: WindowLiftAvoidance.SessionState,
+                                  writer: Task<Void, Never>? = nil) {
+        states[key] = state
+        managedFrames[key] = frames
+        sessionContexts[key] = context
+        writeTasks[key] = writer
+    }
+    func reconcileContextsForTesting(_ contexts: [WindowLiftAvoidanceContext]) { reconcileContexts(contexts) }
+    func enableMonitoringForTesting() {
+        isEnabled = true
+        refreshCadenceForTesting()
+    }
+    func refreshCadenceForTesting() {
+        updatePollTimerLifecycle()
+        updateTrackedProbeLifecycle()
+    }
+    func pollForTesting() { poll() }
+    func probeTrackedFramesForTesting() { probeTrackedFrames() }
+    func geometryEventForTesting() { requestEventPoll() }
+    func sessionForTesting(_ key: WindowLiftAvoidance.WindowKey) -> WindowLiftAvoidance.SessionState? { states[key] }
+    var pollIntervalForTesting: TimeInterval? { pollTimerInterval }
+    var trackedIntervalForTesting: TimeInterval? { trackedProbeTimer?.timeInterval }
+    var pendingWorkForTesting: [Task<Void, Never>] { [scanTask, trackedProbeTask, restoreTask].compactMap { $0 } }
+
+    func clearSessionForTesting(_ key: WindowLiftAvoidance.WindowKey) {
+        clearManagedSession(for: key, cancelWriter: true, reason: "test")
+    }
+    var retainedWriterCountForTesting: Int { writeDrainTasks.values.reduce(0) { $0 + $1.count } }
+
+    func enqueueRestorationForTesting(key: WindowLiftAvoidance.WindowKey, frames: WindowRestorationFrames) {
+        pendingRestorations[key] = frames
+    }
+    var pendingRestorationCountForTesting: Int { pendingRestorations.count }
+}
+
+@MainActor
+private final class LiftPermissionEffectHandler: PermissionEffectHandler {
+    let lift: WindowLiftAvoidanceController
+
+    init(lift: WindowLiftAvoidanceController) { self.lift = lift }
+
+    func startApp() { lift.isEnabled = true }
+    func setActivationPolicy(_ policy: PermissionActivationPolicy) {}
+    func showGuideWindow() {}
+    func updateGuideWindow() {}
+    func closeGuideWindow() {}
+    func openAccessibilitySettings() {}
+    func openApplicationsFolder() {}
+    func startWatchdog() {}
+    func stopWatchdog() {}
+    func freezeLiftSnapshots() { lift.beginPermissionUncertainty() }
+    func unfreezeLiftSnapshots() { lift.endPermissionUncertainty() }
+    func restoreLiftedWindows(episode: UInt64) async -> WindowRestorationCompletion {
+        await lift.restoreAndStopForPermissionRecovery()
+    }
+    func suspendPanelsAndStores() {}
+    func launchNewInstance(episode: UInt64) async -> Result<Void, Error> { .success(()) }
+    func terminateSelf() {}
+}
+
+extension WindowRestorationTests {
+    private func waitUntil(_ predicate: () -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !predicate(), ContinuousClock.now < deadline { await Task.yield() }
+        XCTAssertTrue(predicate())
+    }
+
+    func testRepeatedStableSamplesWaitForAdmittedWriterBeforeResumingMonitoring() async {
+        let host = RestorationHost()
+        let gate = RestorationWriterGate()
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, frames, start, live, budget in
+                WindowRestorer(access: access).restore(key: key, frames: frames,
+                    expectedStartTime: start, liveWindowKeys: live, budget: budget)
+            }, restorationWindowKeys: { nil }, makeGeometryObserver: {
+                FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            }, workspaceNotificationCenter: NotificationCenter())
+        let handler = LiftPermissionEffectHandler(lift: controller)
+        let coordinator = PermissionRecoveryCoordinator(handler: handler,
+            permissionService: PermissionService(trustCheck: { true }), installLocation: .applications)
+        coordinator.launched(trusted: true)
+        let writer = Task { await gate.wait() }
+        await waitUntil { gate.hasEntered }
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.writeTasks[key] = writer
+        controller.beginPermissionUncertainty()
+        for _ in 0..<3 {
+            coordinator.sampleTrust(true)
+            await Task.yield()
+            XCTAssertFalse(controller.isEnabled)
+            XCTAssertFalse(gate.hasDrained)
+            XCTAssertEqual(access.writes.withLock { $0 }, 0)
+        }
+
+        gate.release()
+        await waitUntil { controller.isEnabled }
+        XCTAssertTrue(gate.hasDrained)
+        coordinator.terminationRequested()
+        let completion = await controller.stopAndRestore()
+        XCTAssertEqual(completion, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        XCTAssertFalse(controller.isEnabled)
+        withExtendedLifetime(handler) {}
+    }
+
+    func testRepeatedUnfreezeKeepsAdmittedWriterOwnedUntilShutdownRestores() async {
+        let host = RestorationHost()
+        let gate = RestorationWriterGate()
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, frames, start, live, budget in
+                WindowRestorer(access: access).restore(key: key, frames: frames,
+                    expectedStartTime: start, liveWindowKeys: live, budget: budget)
+            }, restorationWindowKeys: { nil }, makeGeometryObserver: {
+                FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            }, workspaceNotificationCenter: NotificationCenter())
+        let writer = Task { await gate.wait() }
+        await waitUntil { gate.hasEntered }
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.writeTasks[key] = writer
+        controller.beginPermissionUncertainty()
+        for _ in 0..<3 {
+            controller.endPermissionUncertainty()
+            await Task.yield()
+        }
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertFalse(gate.hasDrained)
+        XCTAssertNotNil(controller.managedFrames[key])
+
+        var shutdownEntered = false
+        var shutdownFinished = false
+        let shutdown = Task {
+            shutdownEntered = true
+            let result = await controller.stopAndRestore()
+            shutdownFinished = true
+            return result
+        }
+        await waitUntil { shutdownEntered }
+        XCTAssertFalse(shutdownFinished)
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+
+        gate.release()
+        let completion = await shutdown.value
+        XCTAssertTrue(gate.hasDrained)
+        XCTAssertEqual(completion, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertTrue(controller.managedFrames.isEmpty)
+    }
+
+    func testRefreezeAndDeniedShutdownInvalidateAnUnfreezeWaitingForItsWriter() async {
+        let host = RestorationHost()
+        let gate = RestorationWriterGate()
+        var trusted = true
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { trusted },
+            restoreWindow: { key, frames, start, live, budget in
+                WindowRestorer(access: access).restore(key: key, frames: frames,
+                    expectedStartTime: start, liveWindowKeys: live, budget: budget)
+            }, restorationWindowKeys: { nil }, makeGeometryObserver: {
+                FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            }, workspaceNotificationCenter: NotificationCenter())
+        let writer = Task { await gate.wait() }
+        await waitUntil { gate.hasEntered }
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.writeTasks[key] = writer
+        controller.beginPermissionUncertainty()
+        controller.endPermissionUncertainty()
+        await Task.yield()
+        trusted = false
+        controller.beginPermissionUncertainty()
+
+        var shutdownEntered = false
+        var shutdownFinished = false
+        let shutdown = Task {
+            shutdownEntered = true
+            let result = await controller.stopAndRestore()
+            shutdownFinished = true
+            return result
+        }
+        await waitUntil { shutdownEntered }
+        XCTAssertFalse(shutdownFinished)
+        gate.release()
+        let denied = await shutdown.value
+        XCTAssertTrue(gate.hasDrained)
+        XCTAssertEqual(denied, .incomplete(remaining: 1))
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertNotNil(controller.managedFrames[key])
+
+        trusted = true
+        let recovered = await controller.stopAndRestore()
+        XCTAssertEqual(recovered, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        XCTAssertFalse(controller.isEnabled)
+    }
+
+    func testDeniedTrustCannotUnfreezeOrRestoreSavedGeometry() async {
+        let host = RestorationHost()
+        var trusted = false
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { trusted },
+            restoreWindow: { key, frames, start, live, budget in
+                WindowRestorer(access: access).restore(key: key, frames: frames,
+                    expectedStartTime: start, liveWindowKeys: live, budget: budget)
+            }, restorationWindowKeys: { nil }, makeGeometryObserver: {
+                FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            }, workspaceNotificationCenter: NotificationCenter())
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        let completion = await controller.stopAndRestore()
+        XCTAssertEqual(completion, .incomplete(remaining: 1))
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+        controller.endPermissionUncertainty()
+        let deniedRecovery = await controller.restoreAndStopForPermissionRecovery()
+        XCTAssertEqual(deniedRecovery, .incomplete(remaining: 1))
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertNotNil(controller.managedFrames[key])
+
+        trusted = true
+        let recovered = await controller.stopAndRestore()
+        XCTAssertEqual(recovered, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+    }
+
+    func testShutdownRestoresWhenTrustChangesDuringStopAndReturnsBeforeTheWriterDrains() async {
+        let host = RestorationHost()
+        let gate = RestorationWriterGate()
+        var trustReads = 0
+        var trustRestored = false
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: {
+            if trustRestored { return true }
+            trustReads += 1
+            return trustReads == 1
+        }, restoreWindow: { key, frames, start, live, budget in
+            WindowRestorer(access: access).restore(key: key, frames: frames,
+                expectedStartTime: start, liveWindowKeys: live, budget: budget)
+        }, restorationWindowKeys: { nil })
+        let writer = Task { await gate.wait() }
+        await waitUntil { gate.hasEntered }
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.writeTasks[key] = writer
+        var shutdownEntered = false
+        var shutdownFinished = false
+        let shutdown = Task {
+            shutdownEntered = true
+            let result = await controller.stopAndRestore()
+            shutdownFinished = true
+            return result
+        }
+        await waitUntil { shutdownEntered }
+        XCTAssertFalse(shutdownFinished)
+        XCTAssertFalse(gate.hasDrained)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+
+        trustRestored = true
+        gate.release()
+        let completion = await shutdown.value
+
+        XCTAssertTrue(gate.hasDrained)
+        XCTAssertEqual(completion, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        XCTAssertTrue(controller.managedFrames.isEmpty)
+        XCTAssertFalse(controller.isEnabled)
+    }
+
+    func testConcurrentFrozenShutdownsBothAwaitTheWriterAndSingleRestoration() async {
+        let host = RestorationHost()
+        let gate = RestorationWriterGate()
+        let access = RestorationFixture(result: .success(actualFrame: frames.nativeQuartz))
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { key, frames, start, live, budget in
+                WindowRestorer(access: access).restore(key: key, frames: frames,
+                    expectedStartTime: start, liveWindowKeys: live, budget: budget)
+            }, restorationWindowKeys: { nil })
+        let writer = Task { await gate.wait() }
+        await waitUntil { gate.hasEntered }
+        controller.managedFrames[key] = frames
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: frames.nativeAppKit,
+            adjustedFrame: frames.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.writeTasks[key] = writer
+        controller.beginPermissionUncertainty()
+        var firstEntered = false
+        var secondEntered = false
+        var firstFinished = false
+        var secondFinished = false
+        let first = Task(priority: .high) {
+            firstEntered = true
+            let result = await controller.stopAndRestore()
+            firstFinished = true
+            return result
+        }
+        await waitUntil { firstEntered }
+        let second = Task(priority: .low) {
+            secondEntered = true
+            let result = await controller.stopAndRestore()
+            secondFinished = true
+            return result
+        }
+        await waitUntil { secondEntered }
+        XCTAssertFalse(firstFinished)
+        XCTAssertFalse(secondFinished)
+        XCTAssertEqual(access.writes.withLock { $0 }, 0)
+
+        gate.release()
+        let firstResult = await first.value
+        let secondResult = await second.value
+        XCTAssertTrue(gate.hasDrained)
+        XCTAssertEqual(firstResult, .complete)
+        XCTAssertEqual(secondResult, .complete)
+        XCTAssertEqual(access.writtenFrames.withLock { $0 }, [frames.nativeQuartz])
+        XCTAssertTrue(controller.managedFrames.isEmpty)
+        XCTAssertFalse(controller.isEnabled)
+    }
+
+    func testControllerOnlyTrustLossRecoversWhenWatchdogStaysRunning() async {
+        let host = RestorationHost()
+        var trusted = true
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { trusted },
+            restoreWindow: { _, _, _, _, _ in .handled }, restorationWindowKeys: { nil },
+            makeGeometryObserver: {
+                FrontmostWindowGeometryObserver(makeSession: { _, _ in nil }, readFocused: { _ in .none })
+            }, workspaceNotificationCenter: NotificationCenter())
+        let handler = LiftPermissionEffectHandler(lift: controller)
+        let coordinator = PermissionRecoveryCoordinator(handler: handler,
+            permissionService: PermissionService(trustCheck: { trusted }), installLocation: .applications)
+        coordinator.launched(trusted: true)
+        XCTAssertEqual(coordinator.phase, .running)
+        XCTAssertTrue(controller.isEnabled)
+
+        trusted = false
+        controller.poll()
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertEqual(coordinator.phase, .running)
+
+        trusted = true
+        for _ in 0..<3 { coordinator.sampleTrust(true) }
+        XCTAssertEqual(coordinator.phase, .running)
+        let deadline = ContinuousClock.now + .seconds(1)
+        while !controller.isEnabled, ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        XCTAssertTrue(controller.isEnabled)
+        await controller.restoreAndStopForPermissionRecovery()
+        withExtendedLifetime(handler) {}
+    }
+
+    func testStopWithRestoredPermissionRestoresFrozenSessionBeforeReturning() async {
+        let host = RestorationHost()
+        let writes = Mutex(0)
+        let controller = WindowLiftAvoidanceController(host: host, isTrustedProbe: { true },
+            restoreWindow: { _, _, _, _, _ in writes.withLock { $0 += 1 }; return .handled },
+            restorationWindowKeys: { nil })
+        let managed = frames
+        controller.managedFrames[key] = managed
+        controller.states[key] = .lifted(.init(generation: 1, nativeFrame: managed.nativeAppKit,
+            adjustedFrame: managed.targetAppKit, reliftCount: 0, settledAt: 0, standoffRounds: 0))
+        controller.beginPermissionUncertainty()
+
+        let completion = await controller.stopAndRestore()
+
+        XCTAssertEqual(completion, .complete)
+        XCTAssertEqual(writes.withLock { $0 }, 1)
+        await controller.restoreAndStopForPermissionRecovery()
+    }
+}

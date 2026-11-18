@@ -1,0 +1,6 @@
+{
+  "version": "1.1.29",
+  "draft": false,
+  "prerelease": false,
+  "notes": "- Refactored window tracking, title matching, and Accessibility geometry updates, with simpler validation and rollback.\n- Reduced repeated WindowServer snapshot parsing across displays while preserving window selection.\n- Simplified the README introduction and improved scenario validation and release packaging."
+}

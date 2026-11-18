@@ -1,0 +1,48 @@
+name: Artifact maintenance
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/artifact-maintenance.yml
+      - Scripts/cleanup_artifacts.cjs
+      - Scripts/check_artifact_cleanup.mjs
+  workflow_run:
+    workflows: [CI, Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: artifact-maintenance
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    if: github.event_name != 'workflow_run' || ((github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: master
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '*'
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Verify cleanup policy
+        run: |
+          node -e 'if (process.versions.node.includes("-")) throw new Error("Prerelease Node.js is not allowed")'
+          node --test Scripts/check_artifact_cleanup.mjs
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        with:
+          script: |
+            const { cleanup } = require('./Scripts/cleanup_artifacts.cjs');
+            await cleanup({ github, context, core });

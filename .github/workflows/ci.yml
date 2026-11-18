@@ -1,0 +1,192 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore: ['.github/release.json']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up latest stable Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '*'
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Set up latest stable Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.x'
+          check-latest: true
+          allow-prereleases: false
+
+      - name: Verify stable runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'if (process.versions.node.includes("-")) throw new Error("Prerelease Node.js is not allowed")'
+          python3 -c 'import sys; assert sys.version_info.releaselevel == "final", "Prerelease Python is not allowed"'
+
+      - name: Verify build tooling
+        run: python3 -m unittest discover -s Scripts -p 'test_*.py'
+
+      - name: Verify workflow behavior
+        run: node --test Scripts/check_*.mjs
+
+      - name: Select newest stable Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE="$(python3 Scripts/select_xcode.py)"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          xcrun swift --version
+          sw_vers
+          node --version
+          python3 --version
+          python3 -c 'import platform; assert int(platform.mac_ver()[0].split(".")[0]) >= 27, "Tests require the newest macOS runner family"'
+
+      - name: Check localization
+        run: python3 Scripts/check_localization.py
+
+      - name: Check debug switches
+        run: python3 Scripts/check_debug_switches.py
+
+      - name: Build and run unit tests
+        id: tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild test \
+            -project ProperWM.xcodeproj \
+            -scheme ProperWM \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/TestResults.xcresult \
+            -enableCodeCoverage YES \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild-test.log
+
+      - name: Build and validate WindowLab replay
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project ProperWM.xcodeproj -target window-lab -configuration Debug \
+            SYMROOT="$PWD/build/WindowLab/Products" OBJROOT="$PWD/build/WindowLab/Intermediates" \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild-windowlab.log
+          python3 Scripts/check_windowlab_cli.py build/WindowLab/Products/Debug/window-lab build/windowlab-fixtures
+
+      - name: Check deployment compatibility
+        if: (success() || failure()) && steps.tests.outcome != 'skipped'
+        shell: bash
+        run: |
+          logs=(build/xcodebuild-test.log)
+          if [[ -f build/xcodebuild-windowlab.log ]]; then
+            logs+=(build/xcodebuild-windowlab.log)
+          fi
+          python3 Scripts/check_availability_warnings.py "${logs[@]}"
+
+      - name: Verify window runtime with a constrained Swift executor
+        if: success()
+        env:
+          TEST_RUNNER_LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building \
+            -project ProperWM.xcodeproj \
+            -scheme ProperWM \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/ConstrainedInventory.xcresult \
+            -enableCodeCoverage NO \
+            -destination 'platform=macOS' \
+            -only-testing:ProperWMTests/InventoryLifecycleTests \
+            -only-testing:ProperWMTests/AppTrackerPeriodicBatchTests \
+            -only-testing:ProperWMTests/AppRuntimeTests \
+            -only-testing:ProperWMTests/WindowCommandLifecycleTests \
+            -only-testing:ProperWMTests/WindowObservationLifecycleTests \
+            -only-testing:ProperWMTests/WindowRestorationTests \
+            -only-testing:ProperWMTests/WindowLiftContextLifecycleTests \
+            -only-testing:ProperWMTests/AppIconResolverTests \
+            -only-testing:ProperWMTests/PanelLifecycleTests \
+            -only-testing:ProperWMTests/TaskbarSpaceStoreTests \
+            -only-testing:ProperWMTests/TaskbarBehaviorTests \
+            -only-testing:ProperWMTests/WindowLiftBehaviorTests \
+            -only-testing:ProperWMTests/ApplicationBehaviorTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild-inventory.log
+
+      - name: Export coverage
+        if: success() || failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d build/TestResults.xcresult ] && xcrun xccov view --report build/TestResults.xcresult > build/coverage.txt; then
+            xcrun xccov view --report --json build/TestResults.xcresult > build/coverage.json
+            python3 Scripts/coverage_summary.py build/coverage.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage is unavailable because test execution did not produce a report." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build Apple Silicon package
+        if: success()
+        env:
+          PROPERWM_VERSION: ${{ inputs.version }}
+        run: bash Scripts/package_release.sh
+
+      - name: Check release deployment compatibility
+        if: success()
+        run: python3 Scripts/check_availability_warnings.py build/xcodebuild-release.log
+
+      - name: Upload ProperWM
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ProperWM
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: test-results
+          path: |
+            build/xcodebuild-test.log
+            build/xcodebuild-release.log
+            build/xcodebuild-inventory.log
+            build/xcodebuild-windowlab.log
+            build/TestResults.xcresult
+            build/coverage.txt
+            build/coverage.json
+          if-no-files-found: warn
+          retention-days: 7

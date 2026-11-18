@@ -1,0 +1,79 @@
+import ApplicationServices
+import CoreGraphics
+
+// 2026-09-05 从 App/Composition/PanelVisibilityState.swift 搬来，消掉唯一一处 Platform→App 反向依赖。
+
+// 异步 AX 全屏探测的纯判定（PanelCoordinator.detectFullscreenViaAX 调用）。
+// role 门禁是硬约束：Finder 挂着一个桌面伪窗口（role=AXScrollArea，frame 恰好等于整屏），
+// 恢复最小化窗口的瞬间它会成为 AXFocusedWindow —— 没有门禁就命中 frame≈整屏兜底，任务条被误隐藏。
+/// 焦点窗口相对**这一块屏**的三态裁决（多屏任务条，2026-09-02）。
+/// `.notOnThisScreen` = 焦点窗口的主体在别的屏上——对本屏的条而言它**不是证据**：
+/// 本屏此刻可能正显示着别的 app 的全屏空间，此时要改问 SkyLight 本屏的当前空间类型
+///（`PanelCoordinator.triggerAsyncFullscreenCheck`），而不是当成「不全屏」把条放出来。
+enum FullscreenAXVerdict: Equatable, Sendable {
+    case unknown
+    case fullscreen
+    case windowed
+    case notOnThisScreen
+}
+
+enum FullscreenWindowClassifier {
+    static let frameTolerance: CGFloat = 8
+
+    /// `windowLayer` is the focused window's CG layer (`kCGWindowLayer`); nil = not read / unknown.
+    /// No default on purpose: a caller that omits it silently loses the desktop-overlay guard below.
+    static func classify(
+        role: String?,
+        isAXFullscreen: Bool,
+        windowFrame: CGRect?,
+        windowLayer: Int?,
+        screenCGFrame: CGRect
+    ) -> FullscreenAXVerdict {
+        guard role == kAXWindowRole else { return .windowed }
+
+        if isAXFullscreen {
+            guard let wf = windowFrame else { return .fullscreen }
+            // 归属判据（面积主体在本屏），不是宽度判据。原来的 `width > screen × 0.7` 兼任
+            // 多屏护栏，但把**全屏幕拼贴（真分屏）的半宽 tile 误否**——2026-08-30 实测
+            // （macOS 26.5.2，`scratch/space-probe-20260830-2106.log`）：分屏 tile 报
+            // AXFullScreen=true、frame=(0,40 1278×1400)，1278 < 2560×0.7 被否，任务条
+            // 因此盖在分屏内容上（0.9.10 反馈 `02525cc5`）。面积归属保住护栏的本意：
+            // 同日实测另一块屏上的全屏窗口与本屏不相交，照样拦下。
+            return mostlyBelongsToScreen(wf, screenCGFrame) ? .fullscreen : .notOnThisScreen
+        }
+
+        // Fallback: frame ≈ full screen (games / HTML5 that skip the AXFullScreen flag)
+        if let wf = windowFrame {
+            if matchesScreenFrame(wf, screenCGFrame) {
+                // A screen-sized window *below* the normal layer is a desktop overlay — wallpaper /
+                // desktop-widget helpers own one and take focus when the desktop is clicked — not
+                // fullscreen content. Without this the bar hides for as long as the desktop has focus.
+                // An unknown layer keeps the fullscreen verdict (borderless games must still hide it).
+                if let windowLayer, windowLayer < 0 { return .windowed }
+                return .fullscreen
+            }
+            return mostlyBelongsToScreen(wf, screenCGFrame) ? .windowed : .notOnThisScreen
+        }
+
+        return .windowed
+    }
+
+    static func matchesScreenFrame(_ frame: CGRect, _ screen: CGRect) -> Bool {
+        abs(frame.width - screen.width) < frameTolerance
+            && abs(frame.height - screen.height) < frameTolerance
+            && abs(frame.minX - screen.minX) < frameTolerance
+            && abs(frame.minY - screen.minY) < frameTolerance
+    }
+
+    /// 窗口面积的一半以上落在这块屏上才算「属于本屏」。纯 CGRect 数学——
+    /// 这里不允许出现 AX / AppKit / 日志（见 panels-and-screens 规则）。
+    /// 与 `WindowLiftAvoidance` 里私有的同名方法是同一个面积法，刻意不共享——
+    /// 避让那份冻结在自己的规则文件里，两边耦合反而让改动更危险。
+    private static func mostlyBelongsToScreen(_ frame: CGRect, _ screen: CGRect) -> Bool {
+        let frameArea = frame.width * frame.height
+        guard frameArea > 0 else { return false }
+        let overlap = frame.intersection(screen)
+        guard !overlap.isNull, !overlap.isEmpty else { return false }
+        return overlap.width * overlap.height >= frameArea * 0.5
+    }
+}

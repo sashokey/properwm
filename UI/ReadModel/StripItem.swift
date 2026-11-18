@@ -1,0 +1,187 @@
+import CoreGraphics
+import Foundation
+
+enum WindowDisplayTitle {
+    static func resolve(rawTitle: String?, fallbackName: String) -> String {
+        let title = rawTitle.map(bounded).flatMap { title in
+            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
+        } ?? bounded(fallbackName)
+        return title
+    }
+
+    static func bounded(_ value: String) -> String { BoundedText.utf8(value) }
+
+    static func singleLine(_ value: String) -> String {
+        value.split(whereSeparator: \.isNewline).joined(separator: " ")
+    }
+
+}
+
+struct StripItem: Hashable {
+    let id: String
+    let title: String
+    let status: String
+    let appID: String
+    let bundleIdentifier: String?
+    let applicationOrigin: ApplicationOrigin?
+    let owningApplication: ApplicationIdentity?
+    let actionIdentity: WindowActionIdentity
+
+    var resourceOrigin: ApplicationOrigin? { owningApplication?.origin ?? applicationOrigin }
+    var resourcePID: Int32 { owningApplication?.pid ?? pid }
+
+    var applicationKey: String {
+        if let owningApplication { return "bundle:\(owningApplication.origin.bundlePath)" }
+        if let applicationOrigin { return "bundle:\(applicationOrigin.bundlePath)" }
+        if let processGeneration { return "process:\(pid):\(processGeneration.seconds):\(processGeneration.microseconds)" }
+        return "process:\(pid)"
+    }
+    let isOnDesktop: Bool
+    let bounds: CGRect?
+    let displayUUID: String?
+    var pid: Int32 { actionIdentity.pid }
+    var processGeneration: ProcessGeneration? { actionIdentity.processGeneration }
+    var cgWindowID: CGWindowID? { actionIdentity.cgWindowID }
+    var actionWindowID: String { actionIdentity.windowID.rawValue }
+
+    func representsSameProcess(as other: StripItem) -> Bool {
+        pid == other.pid && processGeneration == other.processGeneration && applicationOrigin == other.applicationOrigin
+            && owningApplication == other.owningApplication
+    }
+
+    func representsSameWindow(as other: StripItem) -> Bool {
+        id == other.id && actionIdentity == other.actionIdentity && applicationOrigin == other.applicationOrigin
+            && owningApplication == other.owningApplication
+    }
+
+    var spaceIdentity: WindowSpaceIdentity? {
+        WindowSpaceIdentity(actionIdentity)
+    }
+
+    init(members: [WindowRecord]) {
+        let anchor = members.min { ($0.cgWindowID ?? .max) < ($1.cgWindowID ?? .max) } ?? members[0]
+        let token = members[0].groupID
+        let representative = members.first { $0.status == .active }
+            ?? members.first { $0.status != .minimized && $0.status != .hidden }
+            ?? anchor
+
+        self.id = token
+        self.actionIdentity = representative.actionIdentity
+        self.title = representative.title
+        self.status = representative.status.rawValue
+        self.appID = representative.owningApplication?.bundleIdentifier ?? representative.appID.rawValue
+        self.bundleIdentifier = representative.owningApplication?.bundleIdentifier ?? representative.bundleIdentifier
+        self.applicationOrigin = representative.applicationOrigin
+        self.owningApplication = representative.owningApplication
+        self.isOnDesktop = representative.isOnDesktop
+        self.bounds = representative.bounds
+        self.displayUUID = representative.displayUUID
+    }
+
+    init(record: WindowRecord) {
+        self.init(members: [record])
+    }
+
+    static func openWindows(from snapshot: DockSnapshot) -> [StripItem] {
+        let records = snapshot.orderedWindowIDs.compactMap { snapshot.windows[$0] }.filter {
+            $0.status != .disappeared
+        }
+        return makeItems(records: records)
+    }
+
+    private static func makeItems(records: [WindowRecord]) -> [StripItem] {
+
+        var slots: [[WindowRecord]] = []
+        var slotIndexByKey: [String: Int] = [:]
+        for record in records {
+            let key = tabGroupKey(for: record)
+            if let key, let idx = slotIndexByKey[key] {
+                slots[idx].append(record)
+            } else {
+                if let key { slotIndexByKey[key] = slots.count }
+                slots.append([record])
+            }
+        }
+
+        return slots.map { StripItem(members: $0) }
+    }
+
+    private static func tabGroupKey(for record: WindowRecord) -> String? {
+        guard record.cgWindowID != nil else { return nil }
+        return record.groupID
+    }
+}
+
+enum StripOrdering {
+    #if DEBUG
+    enum PlacementReason: String, Codable, Equatable {
+        case sameAppSibling
+        case tail
+    }
+
+    struct Placement: Equatable {
+        let chipID: String
+        let index: Int
+        let reason: PlacementReason
+    }
+    #endif
+
+    struct ReconcileResult: Equatable {
+        let order: [String]
+        #if DEBUG
+        let placements: [Placement]
+        #endif
+    }
+
+    static func reconcile(remembered: [String], current: [String], appKeyOf: [String: String] = [:]) -> [String] {
+        reconcileOrder(
+            remembered: remembered,
+            current: current,
+            appKeyOf: appKeyOf
+        ).order
+    }
+
+    #if DEBUG
+    static func reconcileWithTrace(
+        remembered: [String], current: [String], appKeyOf: [String: String] = [:]
+    ) -> ReconcileResult {
+        reconcileOrder(remembered: remembered, current: current, appKeyOf: appKeyOf)
+    }
+    #endif
+
+    static func reconcileOrder(
+        remembered: [String],
+        current: [String],
+        appKeyOf: [String: String] = [:]
+    ) -> ReconcileResult {
+        let currentSet = Set(current)
+        let rememberedSet = Set(remembered)
+        var result = remembered.filter { currentSet.contains($0) }
+        #if DEBUG
+        var placements: [Placement] = []
+        #endif
+        for id in current where !rememberedSet.contains(id) {
+            let app = appKeyOf[id]
+            if let app, let pos = result.lastIndex(where: { appKeyOf[$0] == app }) {
+                result.insert(id, at: pos + 1)
+                #if DEBUG
+                placements.append(Placement(chipID: id, index: pos + 1, reason: .sameAppSibling))
+                #endif
+            } else {
+                result.append(id)
+                #if DEBUG
+                placements.append(Placement(chipID: id, index: result.count - 1, reason: .tail))
+                #endif
+            }
+        }
+        #if DEBUG
+        return ReconcileResult(order: result, placements: placements)
+        #else
+        return ReconcileResult(order: result)
+        #endif
+    }
+
+    static func persistableLiveOrder(_ order: [String]) -> [String] {
+        order.filter { $0.hasPrefix("tabgrp-") }
+    }
+}

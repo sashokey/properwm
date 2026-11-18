@@ -1,0 +1,54 @@
+{
+  "name": "feishu-process-change-replay",
+  "mode": "replay",
+  "expectedStableIdentity": false,
+  "steps": [
+    {
+      "label": "first-process",
+      "observations": [
+        {
+          "kind": "appeared",
+          "source": "coreGraphics",
+          "pid": 9101,
+          "bundleIdentifier": "com.electron.lark",
+          "cgWindowID": 12001,
+          "isMinimized": false,
+          "expectedDecision": "newWindow",
+          "expectedReason": "feishu-app-fallback"
+        }
+      ]
+    },
+    {
+      "label": "second-process-ax",
+      "observations": [
+        {
+          "kind": "appeared",
+          "source": "accessibility",
+          "pid": 9102,
+          "bundleIdentifier": "com.electron.lark",
+          "title": "飞书",
+          "isMinimized": false,
+          "atSeconds": 1,
+          "expectedDecision": "newWindow",
+          "expectedReason": "feishu-app-fallback"
+        }
+      ]
+    },
+    {
+      "label": "second-process-cg",
+      "observations": [
+        {
+          "kind": "unchanged",
+          "source": "coreGraphics",
+          "pid": 9102,
+          "bundleIdentifier": "com.electron.lark",
+          "cgWindowID": 12001,
+          "isMinimized": false,
+          "atSeconds": 2,
+          "expectedDecision": "knownWindow",
+          "expectedReason": "feishu-app-fallback"
+        }
+      ]
+    }
+  ]
+}

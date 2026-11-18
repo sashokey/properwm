@@ -1,0 +1,168 @@
+# Maintenance
+
+The imported baseline is source version 0.18.4, commit `825924c8019945bb0b620702f8a274a249e9c8f6`. ProperWM's independent root snapshot is `3dab8e2b88687ce7d758a221f51f69a268bc2f40`.
+
+The original source remains in repository history. Removed features can be restored from that snapshot, including their models, services, views, resources, project references, and tests. Restoration requires an explicit scope decision; copying a view alone may omit dependencies or bring back unwanted behavior.
+
+For future source-project fixes:
+
+1. Compare with the recorded baseline and identify the bug and affected retained subsystem.
+2. Transfer the smallest applicable fix and its regression test.
+3. Adapt it to ProperWM's window-only model and fixed behavior.
+4. Check for reintroduced launchers, file operations, Dock writes, settings, author services, and product branding.
+5. Run CI and relevant Mac acceptance scenarios.
+6. Record the source commit, rationale, adaptations, and verification in the ProperWM commit message.
+
+Track source changes manually when requested; there is no automatic merge or background update service. GitHub's standard Source code archives for each release tag and this repository history provide the corresponding source for distributed binaries.
+
+Keep commits focused and explain what changed, why it was needed, what behavior was preserved, and how it was verified. Code changes follow SOLID, KISS, and DRY.
+
+Validate nontrivial code changes on a working branch. Move them to master after the relevant CI checks pass. This protects the main branch from intermediate migration failures; code review, meaningful tests, and Mac acceptance checks establish the behavior itself.
+
+## Platform and toolchain policy
+
+The deployment minimum is macOS 26 on Apple Silicon. Keep its compatibility without adding a dedicated macOS 26 test matrix or special behavior. Tests run on the newest hosted macOS family available in GitHub Actions, currently `xcode-27`; its patch version follows GitHub's image updates. A newer Apple release can precede availability in hosted runners. Move the label forward when GitHub provides a newer family.
+
+Select the newest installed stable Xcode, resolving application symlinks before excluding beta and release-candidate bundles. Compile all targets in Swift 6 language mode. Node.js and Python are resolved to the newest stable releases for each CI run; their actual versions, Xcode, Swift, and macOS are recorded in the build log.
+
+Official GitHub Actions are pinned to full release commit SHAs. Dependabot checks them daily and opens update pull requests; merge those updates after CI passes. Keep the source, release workflow, and packaging free of third-party runtime packages. The system frameworks are supplied by macOS and the selected Xcode SDK.
+
+## Artifact storage
+
+Build and test artifacts expire after seven days. Artifact maintenance runs after CI or Release completes and when its policy changes. It tests the deletion policy before using Actions write permission.
+
+For each managed name (`ProperWM`, `test-results`, and legacy `xcodebuild-test-log`), keep the three newest completed artifacts and the newest successful result. Preserve a completed unsuccessful release's app package until its normal expiration so publication can resume. Also keep artifacts from active runs, the triggering run, unknown runs, and unrelated artifact names. The maintenance workflow reads trusted `master` code and does not run for fork or pull-request completion events.
+
+Only GitHub Actions artifacts are deleted. Published release assets, tags, source, workflow runs, and their logs are not deletion targets.
+
+When resuming a failed release after `Re-run all jobs`, the workflow verifies validation, the versioned build, and failed publication together. It identifies the single `ProperWM` artifact created during the verified build's successful upload step and downloads it by ID. The resume stops if the artifact is missing, expired, or ambiguous, or if the release tag points to a different source revision.
+
+## Dev diagnostics and performance measurements
+
+Build the local Dev app with `PRODUCT_BUNDLE_IDENTIFIER=io.github.sashokey.properwm.dev`. Enable the bounded inventory and click-latency journals for functional checks and keep them in the Dev app's local log directory. Exclude both ProperWM bundle identifiers from inventory and helper ownership. Use one running copy during desktop acceptance.
+
+Compare CPU time and physical memory footprint across builds with the same build configuration, diagnostics, display setup, and open-window workload. Measure equal intervals of idle time, taskbar window switching, and Space switching. Mark the phase boundaries and repeat the run before judging small differences. Use a comparison between Release builds to attribute a change to the patch. A logged Debug run measures the combined cost of its build and diagnostics.
+
+## Taskbar reference and boundaries
+
+Use public AppKit and SwiftUI components for UI construction and rendering. Keep private SkyLight calls confined to native window and Space integration.
+
+The UI reference is Windows 11 Pro 26H2 (26300.9711), 1920×1080 at 100%, dark theme, Small taskbar, bottom, left aligned, with combining set to When taskbar is full and window buttons shown on the taskbar where the window is open. Inspect the real UI as well as Microsoft's [current taskbar settings documentation](https://support.microsoft.com/en-us/windows/experience/personalization/customize-the-taskbar-in-windows). The [Win32 taskbar design guide](https://learn.microsoft.com/en-us/windows/win32/uxguide/winenv-taskbar) explicitly describes Windows 7; its screenshots are not the current visual reference.
+
+Retain only the open-window area. The observed taskbar height is 32, button height 28, top/bottom inset 2, icon size 16, and Start's outer left inset 10. Translate these to macOS points, not unscaled Retina pixels. Use the macOS system font and native app icons. The bar fills the screen width and touches its bottom edge.
+
+Render the latest accepted window title on the next presenter update, including rapid tab changes and intermediate application titles during chat navigation. Do not freeze captions based on how often they change or wait for a quiet interval. Keep unread Accessibility titles distinct from known empty values; a failed read may preserve the last known title, while a successful read must reach the native button without an artificial hold.
+
+A follow-up measurement kept five Terminal windows, two File Explorer windows, and fifteen Notepad windows separate in a 1,676-pixel button area. Compressed long buttons painted at 74–75 pixels with 2-pixel gaps; adding another Notepad window combined Terminal. A short Clock caption painted at 66 pixels while space was available. A separate Windows Terminal window titled exactly `.` used a 39-pixel button and a 41-pixel pitch to the next icon; the label starts at 28 with an 8-pixel trailing inset. Keep natural caption width separate from the compression limit, and distribute fractional width across buttons without accumulating empty pixels. These are measurements of the configured reference, not Microsoft-documented universal constants.
+
+Right-click actions use AppKit NSMenu and ordinary NSMenuItem rendering. The application menu contains Open at Login, Hide Status Bar Icon, a separator, and Quit. Internal reordering moves the existing button views within the taskbar; it must not create a detached system drag image. Use those same constrained group bounds to select an insertion position: the leading edge crosses a left neighbor's midpoint or the trailing edge crosses a right neighbor's midpoint. Do not require the pointer to enter another button. Compare with complete neighboring groups and their current layout slots, keeping the result stable during animation and repeated pointer events. Returning to the original slot must not persist a reorder. Hover and active transitions respect Reduce Motion. Keep the Windows-shaped neutral highlight and lower active underline/inactive dot; do not replace them with an accent-filled macOS toggle or pill shape.
+
+The live Windows reference was checked again with a manual pointer sequence, because the automation overlay does not move the real pointer and a synthetic drag is not a clean hover sample. Inactive hover and unhovered active have similar body fill; active has a stronger edge and a longer colored indicator. Hovering active increases its fill and softens its edge; holding a press darkens it. Preserve those distinctions with native neutral selection and separator colors over the Apple material, not an opaque accent fill or a hover that overrides active. A settled lossless capture measures the active underline at 11 by 2 pixels, one pixel above the button bottom; translate this to points. The inactive indicator remains 4 by 2. Keep its horizontal center exactly aligned with the 16-point icon. An 11-point underline needs a half-point left coordinate at 1x; rounding that edge shifts its center. Preserve the dimensions and vertical placement, and verify the rendered centers at 1x and 2x. An immediate transition frame is not evidence of its final width.
+
+The taskbar and combined/overflow list use Apple's public [NSGlassEffectView](https://developer.apple.com/documentation/appkit/nsglasseffectview), with content inside `contentView`. Buttons compose public NSButton, NSTextField, NSImageView, and NSBox controls: AppKit draws the controls, while ProperWM supplies the measured Windows geometry and interaction state. The highlight uses `unemphasizedSelectedContentBackgroundColor`, with the original four-point corner radius and no filled accent color. Only the lower active indicator uses the system accent. Do not layer separate Liquid Glass surfaces on the buttons. Use the text field's alignment rectangle to retain the measured label insets rather than adding its intrinsic margins to them. Center that rectangle vertically on the icon and visible button, and use native backing-pixel alignment rather than rounding to whole points. At 2x the 15-point line is centered exactly; at 1x retain AppKit's nearest-pixel placement. Do not center on the enlarged bottom-edge hit target. The list uses NSTableView, native row selection, NSScrollView, and standard symbol close buttons over the glass; keep all intervening backgrounds clear. The permission-recovery hint uses a SwiftUI GroupBox. Do not restore private glass selectors, a separate fake blur layer, or the former floating capsule/resize grip. Preserve existing window tracking, native tabs, display attribution, fullscreen visibility, and maximized-window avoidance.
+
+The status icon uses public [NSStatusItem.isVisible](https://developer.apple.com/documentation/appkit/nsstatusitem/isvisible) with the stable autosave name `ProperWM.StatusBarIcon`, so AppKit preserves visibility across launches. Do not reset visibility on startup or ordinary activation. Handle [Finder reopen events](https://developer.apple.com/documentation/appkit/nsapplicationdelegate/applicationshouldhandlereopen(_:hasvisiblewindows:)) by showing the existing status item and returning false to suppress default window creation. Reopening an already running installed app restores the icon and its saved visible state without restarting the taskbar. Keep transient-install guidance unchanged.
+
+No thumbnails or screen capture are allowed. A separate button has no hover popup. Combined groups and overflow use only window titles and application icons, including during file dragging. Closing the popup cancels pending row actions. ScreenCaptureKit and Screen Recording permission must not be reintroduced for these lists.
+
+During a group drag, keep the committed order as the priority for combining buttons while moving their live layout slots to the proposed position. Recompute the priority after committing the move. A resize or inventory change can still remove the dragged button and cancel the move.
+
+Accessibility remains necessary for window management. App Sandbox is incompatible with the retained cross-application Accessibility operations; see [Apple's restrictions](https://developer.apple.com/documentation/security/protecting-user-data-with-app-sandbox). Do not add privacy permissions to solve unrelated implementation issues. Fullscreen visibility follows window and Space state; global input monitoring must not be reintroduced. Treat window titles and diagnostic reports as potentially sensitive; they must not be uploaded automatically.
+
+## Permission startup and recovery
+
+On a normal installed launch without Accessibility permission, remain an accessory application and request only the native system prompt. Poll for the grant without opening a ProperWM guide or repeating the prompt. Elapsed time, an initial denial, or an ungranted permission is not proof of a broken permission record. A late grant starts the taskbar once in the same process; quitting while waiting prevents a later grant from starting it.
+
+Keep explanations for confirmed problems: a transient/read-only installation, sustained permission loss after the app was already running, or a failed recovery relaunch. Preserve the permission-loss debounce, panel suspension, window restoration, recovery guidance, and retry behavior. Do not reset privacy permissions or introduce new ones to test first-launch behavior; use injected permission states for automated checks.
+
+## Embedded helper windows
+
+An embedded accessory process may own a visible window while a regular application provides its identity. Admit that helper only when exactly one running regular host contains its canonical bundle below Contents, both executables remain inside their own bundle's Contents/MacOS directory, and both processes have valid Apple-anchored signatures with the same Team ID. Verify code identifiers and process generations; unknown, ambiguous, unsigned, mismatched, or escaped paths do not establish ownership. Do not add application-name exceptions or privacy permissions.
+
+Keep the native window PID, bundle origin, generation, AX element and CG identity. Use the verified host only for presentation/grouping and ordinary Quit, validating both identities before Quit. Window activation, minimize, restore and close still target the native owner. Cache the binding after admission; reuse existing focus/event refreshes and remove it on helper or host termination and tracker shutdown. Signing checks run during background admission, not rendering or focus polling.
+
+AX lists may expose another process's elements. Skip confirmed foreign owners rather than relabeling them; unread ownership is a failed inventory read, not confirmation that windows disappeared. Independently switchable nonmodal AXDialog windows require a confirmed application-level parent and a reasonable frame. Sheets, modal dialogs, unknown dialog metadata and floating utility windows remain excluded.
+
+## Custom application windows
+
+Inventory merges an application's published window list with its focused and main window elements. A failed whole-list read remains unknown; a successful empty list does not discard separately published roots. Validate native ownership and retain the exact AX element for window commands.
+
+A substantial AXWindow with AXUnknown subrole can be an independent window. Require a confirmed nonmodal application parent and the same-owner, normal-layer WindowServer root. A nonempty title or exact window focus supplies initial positive evidence; an already admitted independent root can continue without either, while retaining its native ownership, parent and modal guards. Main-window capability is not required. Existing application, utility, system, transparency and geometry exclusions still apply. Missing parent or modal data does not establish eligibility.
+
+A filtered window that remains in raw AX is not an absent tab. Preserve independent seats when focus or title evidence changes. Apply newer confirmed focus before eligibility. A confirmed native child loses its independent seat without a destroy tombstone; missing native metadata preserves prior inventory and a detached root can be discovered again.
+
+## Menu-bar application windows
+
+A standalone accessory application can own ordinary switchable windows even though it has no Dock icon. Do not exclude its whole process based on activation policy. Check each window with the same title, frame, role, subrole, transparency, and system-surface rules as other applications. Embedded helpers must satisfy the verified ownership rules above.
+
+Keep an admitted application's AX observer after its last window closes, just as for regular applications. The open-window projection hides the empty application; an AX window-created event must detect its next window without waiting for periodic admission. Process termination and tracker shutdown still release the observer. Do not restore the former non-regular eviction retries, which implemented obsolete Dock-style app-card behavior.
+
+## Window lifecycle and quiet-state guarantees
+
+The runtime snapshot contains actual windows only. Keep admitted application observers for future window-created events, but do not synthesize app-only cards or retain per-process read generations after termination. A departed process loses its pending read token; a reused PID receives a fresh token, so late results cannot consume its new request.
+
+Land each completed periodic AX read and release its PID before reading the next application. A slow application must not hold another application's ready result or trailing event. Coalesce pending snapshot publication on the main queue without adding a timer; a newer immediate rebuild supersedes the queued publication. Reuse one immutable application-candidate list per ownership pass, but revalidate each helper and host generation and signature before accepting its binding.
+
+Skip the full CG list on launch retries with an empty or unread AX result. When a Space notification requires an immediate fullscreen check, share one on-screen CG capture across the participating panels. Each panel classifies its own display and the delayed fallback reads fresh data.
+
+Use one background probe of visible CG window IDs on the 500 ms foreground tick. Read full AX inventory on changes, real events, due absence work, or the five-second fallback. Keep the lightweight system-focus check for tracked helpers. Take any probe used to confirm a full CG snapshot after the AX read and before the full capture. Advance the foreground baseline only on a successful inventory with confirmed CG evidence.
+
+Keep one inventory backoff per process generation. After successive unread rounds, wait at least 0.5, 1, and 2 seconds before retrying. After these retries, use only periodic reconciliation until success or process replacement. Keep the latest coalesced event through the wait and use the existing ticks to resume it. An unread round preserves the last confirmed inventory.
+
+Read minimized state, title, position, size, role, and subrole in one AX attribute batch per window. Preserve individual AX errors. Use scalar reads for unsupported batches or ambiguous fields within the original budget. Apply the inventory backoff after a batch timeout.
+
+Queued AX subscription removal belongs to its observation session. Stopping that session cancels pending cleanup, releases its queued elements, and prevents the next native removal from starting; an already admitted call may drain. Retiring an element from a live session still removes all required notifications. Release phantom-held diagnostic episodes when their seats retire. Admission history used only by tests is Debug-only; runtime diagnostics use the bounded inventory log rather than unconditional console dumps.
+
+Use a successful on-screen CG capture as liveness evidence when it contains every saved session and suppression identity. Missing identities or an unavailable capture still require the full window list; an unavailable full list is unknown.
+
+Use one five-second fullscreen timer across panels. Share a fresh focused-window observation within each check and classify it for each display. Read managed Spaces in the background worker and carry the result with its display, geometry, probe and hold generations. Use the carried result for Space evidence in the UI callback.
+
+Keep the per-window Space membership read authoritative in Release and in Debug verification mode. Use `DOCK_SPACE_BATCH_MODE=verify` to compare per-Space results on real desktops before enabling the batched path. Check moved, minimized, hidden, fullscreen, and shared-Space windows. Retain scalar lookup for parked windows and missing results. Discard the capture when its layout changes or its read budget expires.
+
+During a group drag, reuse text measurements and move only the dragged frames while the insertion slot is unchanged. A combined/overflow list stores window models and asks NSTableView for reusable rows near its viewport. Cancel a removed row's delayed file hover before reuse, and rebind its title, selection and exact-window actions.
+
+On application activation, cancel only initial height-adjustment writers that have not consumed their active-owner validation gate. Once the first size write is authorized, finish the bounded, geometry-verified adjustment even if focus changes. Focus loss must not roll an already applied size back to the original full height or discard restoration metadata. Stop, permission recovery, retired display contexts and external geometry retain their separate cancellation/restoration rules.
+
+Maintain an already confirmed height adjustment if the same window returns to its known native frame while its application is inactive. Keep the active-application requirement in the pending validation for initial adjustments; only maintenance of a confirmed managed frame may continue in the background, including across an activation notification during validation. Recheck process generation, display context, the native CG/AX frame and window capabilities before writing. Preserve manual geometry and leave previously unmanaged inactive windows untouched. Use the existing observation and fallback paths without another timer or input observation.
+
+Bottom-docked tiles may extend horizontally beyond their owning display. Keep the majority-overlap requirement, minimum dimensions, bottom alignment, top bound and second aligned edge; horizontal containment is not required. Reuse the maximized detector's menu-reserved visible frame when a secondary display reports its entire screen as visible. A full-height window moved partly beyond either side must still clear the taskbar, preserving its top, left and width. Keep the tiles kill switch, application-independent detection, native AX validation and restoration of the latest accepted frame.
+
+An animated write whose guarded rollback fails must retain its original geometry in the existing pending-restoration queue. Also retain a potentially mutating write failure whose rollback was not requested because its first changed frame could not be acknowledged. Keep its abandoned session and standoff count until restoration or normal lifecycle cleanup; do not strand a managed intermediate frame or grant a new retry budget. A window with pending restoration cannot start another lift, including between delayed restoration attempts. Restoration uses the existing cancellation, process-generation and external-frame guards, retry cadence and operation limits. Successful restoration lets ordinary detection retry an active window; a manual frame or replaced process is never overwritten.
+
+Changing or removing one display context restores only windows owned by that context. Reordering contexts or adding an unaffected display must preserve the other sessions and their original geometry. Cancelled writers must finish before their window is restored, including when another restoration is already running. Release completed writer references without dropping outstanding work during Accessibility recovery.
+
+Stopping is idempotent even after monitoring and visible sessions have already been cleared. Retired writers still belong to the controller: transfer their drains to the existing restoration completion path and await them before stop-and-restore returns. Do not infer that shutdown is complete from an empty session list or a disabled polling timer.
+
+The focused-window observer uses the shared AX observation session, with messaging timeouts on each individual AX element. Create and register off the main actor; attach and detach the run-loop source on it. Coalesce refreshes and retargeting, cancel obsolete operations, and reject callbacks from older lifecycles. A transient focused-window read preserves the last confirmed registration. Failed reads and registrations retry through the existing fallback tick, not through a new timer or an immediate retry loop.
+
+Fast window-lift probing is limited to an active write and the existing one-second application-response interval after settling or abandonment. Probe only those transitioning windows. A retained stable session needs restoration metadata, not a permanent 20 Hz probe. Settled windows use geometry events and the one-second global fallback; a fallback read must still discover external geometry changes when AX notifications are unavailable. Preserve all native geometry validation and standoff limits.
+
+An unresolved application icon can be cached between renders, but application launch/activation invalidates that unresolved result. Notify the presenter so the existing button refreshes even if the window inventory did not change. Keep successful icons cached and perform file-stamp checks off the main actor.
+
+## Inventory and action identity
+
+A matching frame or size does not establish that two minimized windows are native tabs. Keep independent windows at startup. Retain positively observed tab membership and shadow evidence; a visible tear-out needs an unambiguous old seat and a replacement without its own independent seat. Minimized members are not visible tear-outs. Keep every physical seat token stable and every CG ID unique in the ordered inventory.
+
+Treat a failed CoreGraphics capture as unknown for destructive decisions. Preserve AX-absent seats, histories, shadow evidence and cached handles until a successful CG capture confirms absence. Positive AX updates may still land in that round, including an unambiguous visible switch to a previously observed tab member without its own independent seat. Geometry alone cannot establish a replacement while CG is unknown. A successful empty capture remains different from a failed one.
+
+Application observer readiness includes its application-level subscriptions, not only an allocated AX session. Retry temporary creation and registration failures from the existing periodic fallback using the subscription backoff. Keep established window subscriptions and reject results from a stopped generation. Unsupported notifications remain terminal and retain periodic coverage without repeated registration.
+
+An open combined/overflow list must invalidate its rows and delayed actions when their process, CG or action identity changes, even when the stable seat ID is unchanged. A separate button's delayed file hover must capture and validate the original identity, then allow a fresh hover after rejecting a stale target. A title-only update may update the existing rows. Preserve external window titles literally, including ProperWM.
+
+Keep the command identity tied to the accepted AX element when a process reuses a CG ID. A replacement element invalidates queued commands while retaining the visual seat. Compare any acquired AX target to the captured element before sending the window command.
+
+An explicitly opened list retains keyboard focus until dismissal or another explicit action. Pointer exit uses the existing grace period only for hover and file-drag lists. Explicit activation, including Accessibility Press, cancels pending hover from other groups; a later hover cannot replace a keyboard-focused list.
+
+Destructive tab inference and phantom cleanup require current native-root, raw-AX absence, subscription identity and AX/Space evidence. A failed read is unknown. Keep live minimized windows and windows assigned to another Space; a minimized-at-startup window can be independent even when it has never been seen visible. Preserve positively learned tab membership. Phantom cleanup also requires a matching current sibling frame so an unrelated window does not become a shadow tab.
+
+Close can supersede a pending activation or minimization of the same window. Repeated Close remains coalesced while its accepted operation is pending. Confirm helper activation against the exact system-focused native window when its verified host remains frontmost, revalidating the host generation and bundle origin.
+
+At dequeue, check a panel action against the Space revision and visible window representative from its original panel. Discard commands that lost their projection before native execution and clear their pending feedback.
+
+A Space notification also cancels in-flight panel actions before their next native effect and allows calls already started to drain. When a new Space is confirmed with a partial window read, hide windows with unconfirmed membership. Keep previously confirmed membership for the same parked window and require fresh membership when a replacement AX target inherits its CG ID.
+
+Save canonical application keys alongside the same-boot window order. Reconstruct application ranks from those keys when a new tracker assigns different seat serials. Retain the existing missing-window grace and new-boot reset; session-local serials are not persistent application identities.
+
+Synchronous window-lift validation, writes and guarded cleanup run through the blocking-work bridge on a serial geometry queue. Validation and animation share a one-second admission budget; an already started native call drains before cancellation cleanup. Distinguish a write refused before admission from an admitted AX error, which may have changed the window. Cleanup has an independent bounded budget and may restore only the acknowledged or just-attempted managed frame, never a manual replacement. Release obsolete observation watermarks after all relevant scans and writer drains can no longer apply them.
+
+For guarded AX writes, batch the frame attributes on both sides of native identity validation when the application supports the batch. Recheck any corroborated identity attribute in the final batch. macOS exposes frame reads and writes as separate AX calls, so an external change can still occur between them. After a cancelled write returns an uncertain result, keep the existing bounded observation window even if the first rollback succeeded.

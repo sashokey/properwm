@@ -1,0 +1,172 @@
+import CoreGraphics
+import Foundation
+
+enum TabFoldDecision {
+
+    /// 本轮对账已放置座位的折叠视角摘要。`activeCgID` 仅作回写索引（成员学习），不是身份。
+    struct PlacedSeat {
+        let activeCgID: CGWindowID
+        let formerCgIDs: Set<CGWindowID>
+    }
+
+    enum Reason: String {
+        case membership   // 曾是该座位的活跃标签
+    }
+
+    enum Verdict: Equatable {
+        /// 折叠进已有座位，不另建。`ownerActiveCgID` 非 nil = 归属唯一确定，调用方可把候选
+        /// cgID 记入该座位历史（成员学习：下次折叠不再依赖几何）；nil = 归属歧义，只折叠不学习。
+        case fold(ownerActiveCgID: CGWindowID?, reason: Reason)
+        case newSeat
+    }
+
+    static func verdict(
+        candidateCgID: CGWindowID,
+        candidateIsMinimized: Bool,
+        placedSeats: [PlacedSeat]
+    ) -> Verdict {
+        guard candidateIsMinimized else { return .newSeat }
+
+        let owners = placedSeats.filter { $0.formerCgIDs.contains(candidateCgID) }
+        if owners.count == 1 { return .fold(ownerActiveCgID: owners[0].activeCgID, reason: .membership) }
+        if owners.count > 1 { return .fold(ownerActiveCgID: nil, reason: .membership) }
+
+        return .newSeat
+    }
+}
+
+/// Pass A「并入标签」的纯决策层：一个已落座、**未最小化、app 未隐藏**的座位，其 activeCgID 这轮
+/// 离开了 AX 却仍在 CG 且没有 destroy tombstone——它是被合并进了另一扇窗（「合并所有窗口」/ 把标签
+/// 拖进别的窗的标签栏），还是只是一次 AX 漏读？
+///
+/// 原生标签 = N 个真实 NSWindow；合并后原窗成为 order-out 后台标签：离开 AX、仍在 CG、`onscreen=false`，
+/// 且 CG bounds 被系统改成了所属窗口的 frame。原来这条路无条件保座位（「AX 缺席不能证明关窗」），于是
+/// 一扇窗两张卡；接着同 frame 有两个老座位，切标签的顶替规则拒绝接手，每切一次再裂一张（2026-09-12 实测）。
+///
+/// 释放条件（全满足）：候选在 CG 里 **不在屏上**（真可见窗口漏读时 CG 说 onscreen=true，不释放）；
+/// 候选的 **CG bounds**（不是座位里过时的 AX 帧）与至少一个 **AX 在场且 min=false** 的兄弟座位逐像素同
+/// frame。归属唯一时回传 owner，调用方把候选记入其历史（下次最小化爆发按成员秒折）。
+enum TabMergeDecision {
+
+    /// 本轮 AX 在场（activeCgID 仍在 eligible 里）的兄弟座位摘要；`bounds` 取本轮 AX 快照的帧。
+    struct AXPresentSeat {
+        let activeCgID: CGWindowID
+        let bounds: CGRect?
+        let isMinimized: Bool
+    }
+
+    enum Verdict: Equatable {
+        /// 并入了标签 → 释放座位。`ownerActiveCgID` 非 nil = 归属唯一，调用方做成员学习。
+        case release(ownerActiveCgID: CGWindowID?)
+        case retain
+    }
+
+    static func verdict(
+        candidateIsConfirmedDormant: Bool,
+        candidateIsOnScreen: Bool,
+        candidateCGBounds: CGRect?,
+        candidateSeatBounds: CGRect?,
+        axPresentSeats: [AXPresentSeat],
+        frameKey: (CGRect?) -> String?
+    ) -> Verdict {
+        guard candidateIsConfirmedDormant else { return .retain }
+        guard !candidateIsOnScreen else { return .retain }
+        guard let key = frameKey(candidateCGBounds ?? candidateSeatBounds) else { return .retain }
+        let owners = axPresentSeats.filter { !$0.isMinimized && frameKey($0.bounds) == key }
+        if owners.count == 1 { return .release(ownerActiveCgID: owners[0].activeCgID) }
+        if owners.count > 1 { return .release(ownerActiveCgID: nil) }
+        return .retain
+    }
+}
+
+/// 幽灵座位自愈的纯决策层。
+///
+/// 幽灵座位 = 折叠判定失手时从 min=true 爆发候选里裂出来的多余座位（典型：dock 启动时窗口
+/// 已最小化，seed 无历史无影子池可用）。它标着 min=true，被「最小化不释放座位」的保留规则
+/// 永久扣住——还原窗口后它的 cgID 只是离开 AX、仍在 CG，卡就一直裂着。
+///
+/// 自愈判定五门槛（全满足才释放，宁可不愈不误删）：
+/// - `everSeenVisible == false`：该座位的 activeCgID 在本会话从未以 min=false 出现在 AX 里。
+///   真窗口几乎必然可见过；这门槛保护 Safari 式「一最小化就整个离开 AX」的真窗口。
+/// - AX 连续缺席 ≥ threshold：不是一两轮漏读。
+/// - cgID 仍在 CG：不在就是真关闭，走既有删除路径，轮不到自愈。
+/// - 本轮 AX 读到了该 app 的窗口：app 挂死/AX 读失败时按兵不动。
+/// - 同 pid 至少一个座位当前在 AX 里：孤座位永不自愈（防误删 app 仅有的卡）。
+enum PhantomSeatDecision {
+    enum HoldReason: String, Hashable {
+        case everSeenVisible
+        case absenceGraceNotElapsed
+        case cgMissing
+        case noEligibleWindows
+        case noAXPresentSibling
+        case dormantWindowUnconfirmed
+        case noCoframedAXSibling
+    }
+
+    struct Evaluation: Equatable {
+        let shouldRelease: Bool
+        #if DEBUG
+        let holdReasons: Set<HoldReason>
+        #endif
+    }
+
+    static func evaluate(
+        everSeenVisible: Bool,
+        axAbsentFor: TimeInterval,
+        threshold: TimeInterval,
+        cgStillPresent: Bool,
+        axReadSawWindows: Bool,
+        axPresentSiblingCount: Int,
+        confirmedDormantWindow: Bool,
+        hasCoframedAXSibling: Bool
+    ) -> Evaluation {
+        var shouldRelease = true
+        #if DEBUG
+        var reasons: Set<HoldReason> = []
+        #endif
+        func hold(_ reason: HoldReason) {
+            shouldRelease = false
+            #if DEBUG
+            reasons.insert(reason)
+            #endif
+        }
+        if everSeenVisible { hold(.everSeenVisible) }
+        if axAbsentFor < threshold { hold(.absenceGraceNotElapsed) }
+        if !cgStillPresent { hold(.cgMissing) }
+        if !axReadSawWindows { hold(.noEligibleWindows) }
+        if axPresentSiblingCount < 1 { hold(.noAXPresentSibling) }
+        if !confirmedDormantWindow { hold(.dormantWindowUnconfirmed) }
+        if !hasCoframedAXSibling { hold(.noCoframedAXSibling) }
+        #if DEBUG
+        return Evaluation(shouldRelease: shouldRelease, holdReasons: reasons)
+        #else
+        return Evaluation(shouldRelease: shouldRelease)
+        #endif
+    }
+
+    static func shouldRelease(
+        everSeenVisible: Bool,
+        axAbsentFor: TimeInterval,
+        threshold: TimeInterval,
+        cgStillPresent: Bool,
+        axReadSawWindows: Bool,
+        axPresentSiblingCount: Int,
+        confirmedDormantWindow: Bool,
+        hasCoframedAXSibling: Bool
+    ) -> Bool {
+        evaluate(
+            everSeenVisible: everSeenVisible,
+            axAbsentFor: axAbsentFor,
+            threshold: threshold,
+            cgStillPresent: cgStillPresent,
+            axReadSawWindows: axReadSawWindows,
+            axPresentSiblingCount: axPresentSiblingCount,
+            confirmedDormantWindow: confirmedDormantWindow,
+            hasCoframedAXSibling: hasCoframedAXSibling
+        ).shouldRelease
+    }
+}
+
+#if DEBUG
+extension PhantomSeatDecision.HoldReason: Codable {}
+#endif

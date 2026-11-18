@@ -1,0 +1,311 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths: ['.github/release.json']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (X.Y.Z)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as a pre-release'
+        default: false
+        type: boolean
+      draft:
+        description: 'Keep as a draft'
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.request.outputs.version }}
+      prerelease: ${{ steps.request.outputs.prerelease }}
+      draft: ${{ steps.request.outputs.draft }}
+      notes: ${{ steps.request.outputs.notes }}
+      source_sha: ${{ steps.request.outputs.source_sha }}
+      resume_artifact_id: ${{ steps.request.outputs.resume_artifact_id }}
+      resume_artifact_digest: ${{ steps.request.outputs.resume_artifact_digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Verify release workflow behavior
+        run: node --test Scripts/check_release_workflow.mjs
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        id: request
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_DRAFT: ${{ inputs.draft }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+        with:
+          script: |
+            let request;
+            if (context.eventName === 'workflow_dispatch') {
+              request = {
+                version: process.env.RELEASE_VERSION,
+                draft: process.env.RELEASE_DRAFT !== 'false',
+                prerelease: process.env.RELEASE_PRERELEASE !== 'false'
+              };
+            } else if (context.eventName === 'push' && context.ref === 'refs/heads/master') {
+              const fs = require('node:fs/promises');
+              request = JSON.parse(await fs.readFile('.github/release.json', 'utf8'));
+            } else {
+              throw new Error('Unsupported release event');
+            }
+            const { version, draft, prerelease, notes = '' } = request;
+            if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version) || version !== version.trim()) {
+              throw new Error('Version must be X.Y.Z');
+            }
+            if (typeof draft !== 'boolean' || typeof prerelease !== 'boolean') {
+              throw new Error('draft and prerelease must be booleans');
+            }
+            if (typeof notes !== 'string') {
+              throw new Error('notes must be a string');
+            }
+            const lookupTag = () => github.request('GET /repos/{owner}/{repo}/git/ref/tags/{tag}', {
+              ...context.repo, tag: 'v' + version
+            });
+            if (request.resume_run_id !== undefined) {
+              const runID = request.resume_run_id;
+              if (!Number.isSafeInteger(runID) || runID <= 0) throw new Error('Invalid resume_run_id');
+              const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: runID });
+              if (run.status !== 'completed' || run.conclusion !== 'failure'
+                  || run.path?.split('@', 1)[0] !== '.github/workflows/release.yml' || run.event !== 'push'
+                  || run.head_branch !== 'master' || !/^[a-f0-9]{40}$/.test(run.head_sha)
+                  || run.head_repository?.full_name !== context.repo.owner + '/' + context.repo.repo) {
+                throw new Error('Resume requires a completed release run from this repository master');
+              }
+              const resumableBuilds = jobs => {
+                const builds = jobs.filter(job => job.name.startsWith('build / '));
+                if (builds.length > 0
+                    && builds.every(job => job.status === 'completed' && job.conclusion === 'success')
+                    && jobs.some(job => job.name === 'validate' && job.conclusion === 'success')
+                    && jobs.some(job => job.name === 'publish' && job.conclusion === 'failure')) {
+                  return builds;
+                }
+              };
+              const runRequest = { ...context.repo, run_id: runID, per_page: 100 };
+              const latestJobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                ...runRequest, filter: 'latest'
+              });
+              let builds = resumableBuilds(latestJobs);
+              for (let attempt = run.run_attempt - 1; !builds && attempt > 0; attempt--) {
+                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                  ...runRequest, attempt_number: attempt
+                });
+                builds = resumableBuilds(jobs);
+              }
+              if (!builds) {
+                throw new Error('Resume requires a successful versioned build and a failed publication');
+              }
+              const { data: source } = await github.rest.repos.getContent({
+                ...context.repo, path: '.github/release.json', ref: run.head_sha
+              });
+              if (source.encoding !== 'base64') throw new Error('Source release request is unavailable');
+              const original = JSON.parse(Buffer.from(source.content, 'base64').toString('utf8'));
+              if (original.version !== version || original.prerelease !== prerelease || original.draft !== draft) {
+                throw new Error('Resume request does not match the tested release request');
+              }
+              const { data: tag } = await lookupTag();
+              if (tag.object.type !== 'commit' || tag.object.sha !== run.head_sha) {
+                throw new Error('Resume tag points to a different source commit');
+              }
+              const uploads = builds.flatMap(job => job.steps ?? []).filter(step => step.name === 'Upload ProperWM');
+              const [upload] = uploads;
+              const started = Date.parse(upload?.started_at);
+              const completed = Date.parse(upload?.completed_at);
+              if (uploads.length !== 1 || upload.status !== 'completed' || upload.conclusion !== 'success'
+                  || !(started <= completed)) {
+                throw new Error('Resume requires a successful ProperWM upload in the verified build');
+              }
+              const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                ...runRequest, name: 'ProperWM'
+              });
+              const matches = artifacts.filter(artifact => {
+                const created = Date.parse(artifact.created_at);
+                return artifact.name === 'ProperWM' && started <= created && created <= completed;
+              });
+              const [artifact] = matches;
+              if (matches.length !== 1 || artifact.expired !== false || !Number.isSafeInteger(artifact.id)
+                  || artifact.id <= 0) {
+                throw new Error('Resume requires exactly one retained verified ProperWM artifact');
+              }
+              const digest = artifact.digest ?? '';
+              if (digest && !/^sha256:[a-f0-9]{64}$/.test(digest)) {
+                throw new Error('Invalid digest for the verified ProperWM artifact');
+              }
+              core.setOutput('source_sha', run.head_sha);
+              core.setOutput('resume_artifact_id', String(artifact.id));
+              core.setOutput('resume_artifact_digest', digest);
+            } else {
+              try {
+                await lookupTag();
+                throw new Error('This version already has a tag. Use a new version.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+            core.setOutput('version', version);
+            core.setOutput('draft', String(draft));
+            core.setOutput('prerelease', String(prerelease));
+            if (notes) core.setOutput('notes', notes);
+
+  build:
+    if: needs.validate.outputs.resume_artifact_id == ''
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+
+  publish:
+    if: >-
+      !cancelled() && needs.validate.result == 'success' &&
+      (needs.build.result == 'success' ||
+       (needs.build.result == 'skipped' && needs.validate.outputs.resume_artifact_id != ''))
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        if: needs.validate.outputs.resume_artifact_id == ''
+        with:
+          name: ProperWM
+          path: dist
+          github-token: ${{ github.token }}
+
+      - name: Download verified release artifact
+        if: needs.validate.outputs.resume_artifact_id != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ARTIFACT_ID: ${{ needs.validate.outputs.resume_artifact_id }}
+          RELEASE_ARTIFACT_DIGEST: ${{ needs.validate.outputs.resume_artifact_digest }}
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/properwm-release.zip"
+          curl --fail --silent --show-error --location --retry 3 \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --output "$archive" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$RELEASE_ARTIFACT_ID/zip"
+          if [[ -n "$RELEASE_ARTIFACT_DIGEST" ]]; then
+            printf '%s  %s\n' "${RELEASE_ARTIFACT_DIGEST#sha256:}" "$archive" | sha256sum -c -
+          fi
+          unzip -q "$archive" -d dist
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_DRAFT: ${{ needs.validate.outputs.draft }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          RELEASE_NOTES: ${{ needs.validate.outputs.notes }}
+          RELEASE_SOURCE_SHA: ${{ needs.validate.outputs.source_sha || github.sha }}
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const crypto = require('node:crypto');
+            const version = process.env.RELEASE_VERSION;
+            const sourceSHA = process.env.RELEASE_SOURCE_SHA || context.sha;
+            const names = ['ProperWM-' + version + '.zip'];
+            const sums = await fs.readFile('dist/SHA256SUMS.txt', 'utf8');
+            for (const name of names) {
+              const bytes = await fs.readFile('dist/' + name);
+              const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+              if (!sums.split('\n').some(line => line === hash + '  ' + name)) {
+                throw new Error('Checksum mismatch: ' + name);
+              }
+            }
+            const tagRef = 'tags/v' + version;
+            async function requireExpectedTag() {
+              const { data } = await github.request('GET /repos/{owner}/{repo}/git/ref/tags/{tag}', {
+                ...context.repo, tag: 'v' + version
+              });
+              if (data.object.type !== 'commit' || data.object.sha !== sourceSHA) {
+                throw new Error('Release tag points to a different commit');
+              }
+            }
+            try {
+              await requireExpectedTag();
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              try {
+                await github.rest.git.createRef({ ...context.repo, ref: 'refs/' + tagRef, sha: sourceSHA });
+              } catch (creationError) {
+                if (creationError.status !== 422) throw creationError;
+              }
+              await requireExpectedTag();
+            }
+            const matches = (await github.paginate(github.rest.repos.listReleases, {
+              ...context.repo, per_page: 100
+            })).filter(release => release.tag_name === 'v' + version);
+            if (matches.length > 1) throw new Error('Multiple releases use the requested tag');
+            let release = matches[0];
+            if (release && release.prerelease !== (process.env.RELEASE_PRERELEASE === 'true')) {
+              throw new Error('Existing release metadata does not match the tested source');
+            }
+            if (!release) ({ data: release } = await github.rest.repos.createRelease({
+              ...context.repo,
+              tag_name: 'v' + version,
+              name: 'ProperWM ' + version,
+              draft: true,
+              prerelease: process.env.RELEASE_PRERELEASE === 'true',
+              generate_release_notes: true,
+              body: [
+                process.env.RELEASE_NOTES,
+                'Apple Silicon app for macOS 26 or later. Ad-hoc signed; not notarized.',
+                'The installable app ZIP is attached.',
+                "Source is available through GitHub's standard Source code archives for this release tag.",
+                'Mac acceptance checklist: https://github.com/' + context.repo.owner + '/' + context.repo.repo
+                  + '/blob/' + sourceSHA + '/TESTING.md'
+              ].filter(Boolean).join('\n\n')
+            }));
+            if (release.assets.some(asset => !names.includes(asset.name))) {
+              throw new Error('Existing release contains unexpected assets');
+            }
+            for (const name of names) {
+              const bytes = await fs.readFile('dist/' + name);
+              const digest = 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex');
+              const assets = release.assets.filter(asset => asset.name === name);
+              if (assets.length > 1) throw new Error('Duplicate release asset: ' + name);
+              const existing = assets[0];
+              if (existing) {
+                if (release.draft && existing.state === 'starter' && existing.size === 0) {
+                  await github.rest.repos.deleteReleaseAsset({ ...context.repo, asset_id: existing.id });
+                } else if (existing.state === 'uploaded' && existing.size === bytes.length && existing.digest === digest) {
+                  continue;
+                } else {
+                  throw new Error('Existing release asset does not match the verified archive: ' + name);
+                }
+              }
+              if (!release.draft) throw new Error('Published release is missing the verified asset');
+              await github.rest.repos.uploadReleaseAsset({
+                ...context.repo, release_id: release.id, name,
+                headers: { 'content-type': name.endsWith('.zip') ? 'application/zip' : 'text/plain' },
+                data: bytes
+              });
+            }
+            await requireExpectedTag();
+            if (process.env.RELEASE_DRAFT !== 'true' && release.draft) {
+              await github.rest.repos.updateRelease({
+                ...context.repo, release_id: release.id, draft: false
+              });
+            }
+            core.summary.addLink('ProperWM ' + version, release.html_url);
+            await core.summary.write();

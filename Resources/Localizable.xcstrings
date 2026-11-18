@@ -1,0 +1,3612 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "\n\nIf simply turning the switch back on works, ProperWM restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\n如果直接把开关打开就生效了，ProperWM会自己重启，不用管；走上面的清理步骤则需要退出后手动重开。\n另外，之前被 Dock 栏让开过的窗口可能会矮一条边——重新最大化一次就复原了。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nIf simply turning the switch back on works, ProperWM restarts itself and there is nothing else to do; going through the cleanup above means reopening it manually afterwards.\nAlso, windows the taskbar had moved out of its way may sit one taskbar height short — maximizing them once puts them back."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\n如果只是把開關重新打開就生效了，ProperWM會自己重新啟動，不必再做什麼；若走過上面的清除步驟，之後要自行重新打開它。\n另外，先前被工作列挪開過的視窗可能會少一條工作列的高度——重新最大化一次就會復原。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nスイッチをもう一度オンにするだけで許可が有効になる場合は、ProperWMが自動的に再起動するので、ほかの操作は不要です。上の手順で記録を削除した場合は、あとから手動で開き直してください。\nまた、タスクバーとの重なりを避けるために移動したウインドウは、高さがタスクバー1本分だけ縮んだままになることがあります。一度最大化し直すと元に戻ります。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nWenn es schon genügt, den Schalter wieder zu aktivieren, startet sich ProperWM von selbst neu und du musst nichts weiter tun; nach der Bereinigung oben musst du es dagegen von Hand wieder öffnen.\nAußerdem können Fenster, die die Taskleiste aus dem Weg geschoben hat, um eine Taskleistenhöhe zu kurz sein – einmal maximieren stellt sie wieder her."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSi le simple fait de réactiver l’interrupteur suffit, ProperWM redémarre automatiquement et aucune autre action n’est nécessaire. Après avoir suivi les étapes de réinitialisation ci-dessus, vous devez toutefois le rouvrir manuellement.\nPar ailleurs, les fenêtres déplacées pour laisser de la place à la barre des tâches peuvent conserver une hauteur réduite de la hauteur d’une barre des tâches. Il suffit de les agrandir une fois pour rétablir leur taille."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSi basta con volver a activar el interruptor, ProperWM se reinicia automáticamente y no tienes que hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse sitio pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSi basta con volver a activar el interruptor, ProperWM se reinicia automáticamente y no necesitas hacer nada más; si sigues los pasos de restablecimiento anteriores, tendrás que volver a abrirlo manualmente después.\nAdemás, las ventanas que la barra de tareas había desplazado para hacerse lugar pueden quedar con la altura de una barra de tareas de menos; basta con maximizarlas una vez para que recuperen su tamaño."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSe bastar ativar o interruptor novamente, o ProperWM se reinicia sozinho e não há mais nada a fazer; seguindo a limpeza acima, é preciso reabri-lo manualmente depois.\nAlém disso, janelas que a barra de tarefas havia deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos — basta maximizá-las uma vez para voltarem ao normal."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSe bastar voltar a ativar o interruptor, o ProperWM reinicia-se sozinho e não é preciso fazer mais nada; se seguir a limpeza acima, terá de o voltar a abrir manualmente depois.\nAlém disso, as janelas que a barra de tarefas tinha deslocado para abrir espaço podem ficar com a altura de uma barra de tarefas a menos – basta maximizá-las uma vez para voltarem ao normal."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nSe basta riattivare l’interruttore, ProperWM si riavvia automaticamente e non devi fare altro; se invece segui i passaggi di pulizia qui sopra, dovrai poi riaprirlo manualmente.\nInoltre, le finestre spostate per lasciare spazio alla barra delle applicazioni potrebbero risultare più basse di un’altezza della barra: basta ingrandirle una volta per riportarle alla dimensione corretta."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\n스위치를 다시 켜는 것만으로 해결되면 ProperWM가 자동으로 재실행되므로 따로 할 일은 없습니다. 위의 정리 단계를 거쳤다면 이후에 직접 다시 열어야 합니다.\n또한 작업 표시줄이 비켜 두었던 윈도우는 작업 표시줄 높이만큼 짧아져 있을 수 있습니다. 한 번 최대화하면 원래대로 돌아옵니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nЕсли достаточно снова включить переключатель, приложение ProperWM перезапустится само, и больше ничего делать не нужно; если Вы выполняли описанный выше сброс записи, потом приложение придется открыть вручную.\nКроме того, окна, которые панель задач сдвинула с пути, могут оказаться короче на высоту панели задач — достаточно один раз развернуть их, и они вернутся на место."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nAnahtarı yeniden açmak yeterli olursa ProperWM kendini yeniden çalıştırır ve yapmanız gereken başka bir şey olmaz; yukarıdaki temizleme adımlarını izlediyseniz sonrasında uygulamayı elle yeniden açmanız gerekir.\nAyrıca görev çubuğunun kendisine yer açmak için taşıdığı pencereler bir görev çubuğu yüksekliği kadar kısa kalabilir — bu pencereleri bir kez büyütmek yerlerine oturtur."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nअगर स्विच को दोबारा चालू करने से ही काम बन जाता है, तो ProperWM अपने आप रीस्टार्ट हो जाएगा और कुछ और करने की ज़रूरत नहीं है; ऊपर बताए गए रीसेट के चरण अपनाने पर इसे बाद में ख़ुद दोबारा खोलना होगा।\nसाथ ही, टास्कबार ने रास्ते से जो विंडो हटाई थीं, उनकी ऊँचाई पहले के मुक़ाबले टास्कबार की ऊँचाई जितनी कम रह सकती है — उन्हें एक बार मैक्सिमाइज़ करने से वे पहले जैसी हो जाती हैं।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\n\nNếu chỉ cần bật lại công tắc là xong, ProperWM sẽ tự khởi chạy lại và bạn không cần làm gì thêm; nếu bạn đã làm theo các bước dọn dẹp ở trên, hãy tự mở lại ứng dụng sau đó.\nNgoài ra, các cửa sổ mà thanh tác vụ đã dời đi có thể bị thấp hơn một chiều cao thanh tác vụ — chỉ cần phóng to tối đa chúng một lần là sẽ trở lại bình thường."
+          }
+        }
+      }
+    },
+    "Accessibility Permission Was Revoked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能权限已失效"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accessibility Permission Was Revoked"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輔助使用權限已失效"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクセシビリティの許可が取り消されました"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedienungshilfen-Berechtigung wurde entzogen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’autorisation d’accessibilité a été révoquée"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ha revocado el permiso de accesibilidad"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se revocó el permiso de accesibilidad"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A permissão de Acessibilidade foi revogada"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A permissão de Acessibilidade foi revogada"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’autorizzazione di accessibilità è stata revocata"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손쉬운 사용 권한이 해제됨"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение универсального доступа отозвано"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişilebilirlik izni geri alındı"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऐक्सेसिबिलिटी अनुमति हटा दी गई"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền Trợ năng đã bị thu hồi"
+          }
+        }
+      }
+    },
+    "Check Again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新检测"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Again"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新檢查"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再確認"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut prüfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier à nouveau"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar de nuevo"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar de nuevo"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar Novamente"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar novamente"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica di nuovo"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 확인"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить снова"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden Denetle"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिर से जाँचें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kiểm tra lại"
+          }
+        }
+      }
+    },
+    "Couldn’t Change Open at Login": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时启动设置失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t Change Open at Login"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法更改「在登入時打開」設定"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「ログイン時に開く」を変更できませんでした"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Bei der Anmeldung öffnen“ konnte nicht geändert werden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de modifier « Ouvrir avec la session »"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido cambiar “Abrir al iniciar sesión”"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo cambiar “Abrir al iniciar sesión”"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível alterar “Abrir no Início da Sessão”"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível alterar “Abrir ao iniciar sessão”"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile modificare “Apri al login”"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "‘로그인 시 열기’를 변경할 수 없음"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось изменить параметр «Открывать при входе»"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Oturum Açıldığında Aç” ayarı değiştirilemedi"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“लॉगइन पर खोलें” बदला नहीं जा सका"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể thay đổi tùy chọn “Mở khi đăng nhập”"
+          }
+        }
+      }
+    },
+    "Couldn’t start a new instance of ProperWM: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder.": {
+      "comment": "%@ 是系统返回的错误描述",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能启动新的ProperWM实例：%@\n\n可以点“重试”，或者退出后从“应用程序”手动打开。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t start a new instance of ProperWM: %@\n\nYou can click Retry, or quit and open it manually from your Applications folder."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法啟動新的ProperWM：%@\n\n可以按一下「重試」，或先結束，再從「應用程式」檔案夾手動打開。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMの新しいインスタンスを起動できませんでした: %@\n\n「再試行」をクリックするか、いったん終了して「アプリケーション」フォルダから手動で開いてください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine neue Instanz von ProperWM konnte nicht gestartet werden: %@\n\nDu kannst auf „Erneut versuchen“ klicken oder ProperWM beenden und von Hand aus dem Ordner „Programme“ öffnen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de lancer une nouvelle instance de ProperWM : %@\n\nVous pouvez cliquer sur Réessayer, ou quitter puis l’ouvrir manuellement depuis votre dossier Applications."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido iniciar una nueva instancia de ProperWM: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo iniciar una nueva instancia de ProperWM: %@\n\nPuedes hacer clic en Reintentar, o salir de la app y abrirla manualmente desde la carpeta Aplicaciones."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível iniciar uma nova instância do ProperWM: %@\n\nVocê pode clicar em Tentar Novamente, ou encerrar e abri-lo manualmente a partir da pasta Aplicativos."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível iniciar uma nova instância do ProperWM: %@\n\nPode clicar em Voltar a tentar ou sair e abri-lo manualmente a partir da pasta Aplicações."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile avviare una nuova istanza di ProperWM: %@\n\nPuoi fare clic su Riprova oppure uscire e aprirlo manualmente dalla cartella Applicazioni."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM를 새로 시작할 수 없습니다: %@\n\n재시도를 클릭하거나, 종료한 후 응용 프로그램 폴더에서 직접 여십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось запустить новый экземпляр ProperWM: %@\n\nНажмите «Повторить» или завершите приложение и откройте его вручную из папки «Приложения»."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM’in yeni bir örneği başlatılamadı: %@\n\nYeniden Dene’yi tıklayabilir veya çıkıp Uygulamalar klasöründen elle açabilirsiniz."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM का नया इंस्टेंस शुरू नहीं हो सका: %@\n\nआप “फिर कोशिश करें” पर क्लिक कर सकते हैं, या इसे बंद करके ऐप्लिकेशन फ़ोल्डर से ख़ुद खोल सकते हैं।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể khởi chạy lại ProperWM: %@\n\nBạn có thể bấm Thử lại, hoặc thoát rồi tự mở ứng dụng từ thư mục Ứng dụng."
+          }
+        }
+      }
+    },
+    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份ProperWM。可以这样重置一次：\n\n1. 先退出ProperWM——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 辅助功能”里把列表中的 ProperWM 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开ProperWM，按提示重新添加并打开开关。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Accessibility, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份ProperWM。你可以重設一次：\n\n1. 先結束ProperWM——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「輔助使用」裡選取列表中的ProperWM，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開ProperWM，再依照提示重新加入並打開開關。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のProperWMと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にProperWMを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「アクセシビリティ」でリストからProperWMを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからProperWMを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von ProperWM. So setzt du ihn zurück:\n\n1. Beende zuerst ProperWM – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Bedienungshilfen“ ProperWM in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne ProperWM erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de ProperWM. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord ProperWM — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Accessibilité, sélectionnez ProperWM dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez ProperWM depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Sal primero de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Primero sal de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Accesibilidad, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do ProperWM. Você pode redefini-lo:\n\n1. Primeiro, encerre o ProperWM — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Acessibilidade, selecione ProperWM na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o ProperWM novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do ProperWM. Pode repô-lo:\n\n1. Comece por sair do ProperWM – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Acessibilidade, selecione ProperWM na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o ProperWM a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di ProperWM. Puoi reimpostarla:\n\n1. Esci prima da ProperWM: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Accessibilità, seleziona ProperWM nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri ProperWM dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 ProperWM 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 ProperWM를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 손쉬운 사용에서 목록의 ProperWM를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 ProperWM를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии ProperWM. Ее можно сбросить:\n\n1. Сначала завершите ProperWM: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Универсальный доступ» выберите ProperWM в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте ProperWM из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı ProperWM’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce ProperWM’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Erişilebilirlik bölümünde listeden ProperWM’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. ProperWM’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड ProperWM की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले ProperWM बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > ऐक्सेसिबिलिटी में सूची से ProperWM चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. ProperWM को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản ProperWM này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát ProperWM — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Trợ năng, chọn ProperWM trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại ProperWM từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
+          }
+        }
+      }
+    },
+    "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你已经打开了开关却还是没生效，可能是旧版本留下的授权记录不再匹配当前这份ProperWM。可以这样重置一次：\n\n1. 先退出ProperWM——应用还在运行时，列表里的减号是灰的，删不掉。\n2. 在“隐私与安全性 → 设备控制和数据访问”里把列表中的 ProperWM 用减号删掉，可能不止一条，都删掉。\n3. 从“应用程序”重新打开ProperWM，按提示重新添加并打开开关。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If the switch is already on and nothing happens, a permission record left by an older version may no longer match this copy of ProperWM. You can reset it:\n\n1. Quit ProperWM first — while it is running, the minus button in the list is greyed out and the entry cannot be removed.\n2. In Privacy & Security > Device Control and Data Access, select ProperWM in the list and remove it with the minus button. There may be more than one entry; remove them all.\n3. Open ProperWM again from your Applications folder, then add it and turn the switch on when prompted."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果你已經打開開關卻還是沒有反應，可能是舊版本留下的權限記錄已經不符合目前這份ProperWM。你可以重設一次：\n\n1. 先結束ProperWM——App還在執行時，列表裡的減號是灰的，項目刪不掉。\n2. 在「隱私權與安全性」>「裝置控制和資料取用」裡選取列表中的ProperWM，用減號移除；可能不只一項，全部移除。\n3. 從「應用程式」檔案夾重新打開ProperWM，再依照提示重新加入並打開開關。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スイッチがすでにオンなのに何も起きない場合は、古いバージョンが残した許可の記録が現在のProperWMと一致していない可能性があります。次の手順でリセットできます。\n\n1. 先にProperWMを終了してください。実行中はリストの削除（-）ボタンが淡色表示になり、項目を削除できません。\n2. 「プライバシーとセキュリティ」>「デバイスの制御とデータへのアクセス」でリストからProperWMを選び、削除（-）ボタンで削除します。項目が複数ある場合は、すべて削除してください。\n3. 「アプリケーション」フォルダからProperWMを開き直し、表示される案内に従って追加し、スイッチをオンにします。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn der Schalter bereits aktiviert ist und trotzdem nichts passiert, passt womöglich ein Berechtigungseintrag aus einer älteren Version nicht mehr zu dieser Kopie von ProperWM. So setzt du ihn zurück:\n\n1. Beende zuerst ProperWM – solange es läuft, ist die Minustaste in der Liste grau und der Eintrag lässt sich nicht entfernen.\n2. Wähle unter „Datenschutz & Sicherheit“ > „Gerätesteuerung und Datenzugriff“ ProperWM in der Liste aus und entferne es mit der Minustaste. Es können mehrere Einträge vorhanden sein; entferne sie alle.\n3. Öffne ProperWM erneut aus dem Ordner „Programme“, füge es dann hinzu und aktiviere den Schalter, wenn du dazu aufgefordert wirst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si l’interrupteur est déjà activé et que rien ne se passe, il se peut qu’une autorisation laissée par une version antérieure ne corresponde plus à cette copie de ProperWM. Vous pouvez la réinitialiser :\n\n1. Quittez d’abord ProperWM — tant qu’il est en cours d’exécution, le bouton moins de la liste est grisé et l’entrée ne peut pas être supprimée.\n2. Dans Confidentialité et sécurité > Contrôle de l’appareil et accès aux données, sélectionnez ProperWM dans la liste et supprimez-le à l’aide du bouton moins. Il peut y avoir plusieurs entrées ; supprimez-les toutes.\n3. Rouvrez ProperWM depuis votre dossier Applications, puis ajoutez-le et activez l’interrupteur lorsque vous y êtes invité."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Sal primero de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a datos, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, añádelo y activa el interruptor cuando se te pida."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el interruptor ya está activado y no pasa nada, puede que un registro de permiso que dejó una versión anterior ya no coincida con esta copia de ProperWM. Puedes restablecerlo:\n\n1. Primero sal de ProperWM: mientras se está ejecutando, el botón menos de la lista aparece atenuado y no se puede eliminar la entrada.\n2. En Privacidad y seguridad > Control de dispositivos y acceso a los datos, selecciona ProperWM en la lista y elimínalo con el botón menos. Puede haber más de una entrada; elimínalas todas.\n3. Vuelve a abrir ProperWM desde la carpeta Aplicaciones, agrégalo y activa el interruptor cuando se te solicite."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se o interruptor já estiver ativado e nada acontecer, um registro de permissão deixado por uma versão anterior pode não corresponder mais a esta cópia do ProperWM. Você pode redefini-lo:\n\n1. Primeiro, encerre o ProperWM — enquanto ele estiver em execução, o botão de menos na lista fica acinzentado e a entrada não pode ser removida.\n2. Em Privacidade e Segurança > Controle do Dispositivo e Acesso a Dados, selecione ProperWM na lista e remova-o com o botão de menos. Pode haver mais de uma entrada; remova todas.\n3. Abra o ProperWM novamente a partir da pasta Aplicativos, depois adicione-o e ative o interruptor quando solicitado."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se o interruptor já estiver ativado e nada acontecer, é possível que um registo de permissão deixado por uma versão anterior já não corresponda a esta cópia do ProperWM. Pode repô-lo:\n\n1. Comece por sair do ProperWM – enquanto estiver em execução, o botão de menos na lista fica acinzentado e não é possível remover a entrada.\n2. Em Privacidade e segurança > Controlo do dispositivo e acesso a dados, selecione ProperWM na lista e remova-o com o botão de menos. Pode existir mais de uma entrada; remova todas.\n3. Volte a abrir o ProperWM a partir da pasta Aplicações, adicione-o e ative o interruptor quando lhe for pedido."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se l’interruttore è già attivo e non succede nulla, è possibile che un’autorizzazione rimasta da una versione precedente non corrisponda più a questa copia di ProperWM. Puoi reimpostarla:\n\n1. Esci prima da ProperWM: finché è in esecuzione, il pulsante con il segno meno (–) nell’elenco è disattivato (in grigio) e non è possibile rimuovere la voce.\n2. In Privacy e sicurezza > Controllo del dispositivo e accesso ai dati, seleziona ProperWM nell’elenco e rimuovilo con il pulsante con il segno meno (–). Potrebbero esserci più voci: rimuovile tutte.\n3. Riapri ProperWM dalla cartella Applicazioni, poi aggiungilo e attiva l’interruttore quando richiesto."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스위치가 이미 켜져 있는데도 아무 반응이 없다면, 이전 버전이 남긴 권한 기록이 이 ProperWM 사본과 더 이상 일치하지 않을 수 있습니다. 다음과 같이 재설정할 수 있습니다.\n\n1. 먼저 ProperWM를 종료하십시오. 실행 중에는 목록의 빼기(−) 버튼이 비활성화되어 항목을 제거할 수 없습니다.\n2. 개인정보 보호 및 보안 > 기기 제어 및 데이터 접근에서 목록의 ProperWM를 선택하고 빼기(−) 버튼으로 제거하십시오. 항목이 여러 개일 수 있으니 모두 제거하십시오.\n3. 응용 프로그램 폴더에서 ProperWM를 다시 열고, 안내가 나타나면 추가한 다음 스위치를 켜십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Если переключатель уже включен, но ничего не происходит, возможно, запись о разрешении, оставшаяся от старой версии, больше не соответствует этой копии ProperWM. Ее можно сбросить:\n\n1. Сначала завершите ProperWM: пока приложение запущено, кнопка «минус» в списке неактивна, и запись удалить нельзя.\n2. В разделе «Конфиденциальность и безопасность» > «Управление устройством и доступ к данным» выберите ProperWM в списке и удалите запись кнопкой «минус». Записей может быть несколько — удалите все.\n3. Снова откройте ProperWM из папки «Приложения», затем, когда появится запрос, добавьте приложение и включите переключатель."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahtar zaten açıksa ve hiçbir şey olmuyorsa, eski bir sürümden kalan izin kaydı ProperWM’in bu kopyasıyla artık eşleşmiyor olabilir. Kaydı sıfırlayabilirsiniz:\n\n1. Önce ProperWM’den çıkın — uygulama çalışırken listedeki eksi düğmesi soluk görünür ve kayıt çıkarılamaz.\n2. Gizlilik ve Güvenlik > Aygıt Denetimi ve Veri Erişimi bölümünde listeden ProperWM’i seçin ve eksi düğmesiyle çıkarın. Birden fazla kayıt olabilir; hepsini çıkarın.\n3. ProperWM’i Uygulamalar klasöründen yeniden açın, ardından istendiğinde onu ekleyin ve anahtarı açın."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अगर स्विच पहले से चालू है और कुछ नहीं हो रहा, तो हो सकता है कि किसी पुराने संस्करण से बचा अनुमति रिकॉर्ड ProperWM की इस कॉपी से अब मेल न खा रहा हो। आप इसे रीसेट कर सकते हैं:\n\n1. पहले ProperWM बंद करें — जब तक यह चल रहा है, सूची में माइनस बटन ग्रे रहता है और एंट्री हटाई नहीं जा सकती।\n2. गोपनीयता और सुरक्षा > डिवाइस नियंत्रण और डेटा ऐक्सेस में सूची से ProperWM चुनें और माइनस बटन से उसे हटाएँ। एक से ज़्यादा एंट्री हो सकती हैं; सभी हटा दें।\n3. ProperWM को ऐप्लिकेशन फ़ोल्डर से दोबारा खोलें, फिर संकेत मिलने पर इसे जोड़ें और स्विच चालू करें।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nếu công tắc đã bật mà không có gì xảy ra, bản ghi quyền do phiên bản cũ để lại có thể không còn khớp với bản ProperWM này. Bạn có thể đặt lại như sau:\n\n1. Trước tiên hãy thoát ProperWM — khi ứng dụng đang chạy, nút dấu trừ trong danh sách bị mờ và không thể xóa mục.\n2. Trong Quyền riêng tư & Bảo mật > Điều khiển thiết bị và truy cập dữ liệu, chọn ProperWM trong danh sách rồi xóa bằng nút dấu trừ. Có thể có nhiều hơn một mục; hãy xóa tất cả.\n3. Mở lại ProperWM từ thư mục Ứng dụng, sau đó thêm ứng dụng và bật công tắc khi được nhắc."
+          }
+        }
+      }
+    },
+    "Move ProperWM to Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先移到“应用程序”"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move ProperWM to Applications"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請將ProperWM移到「應用程式」"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMを「アプリケーション」に移動してください"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM in den Ordner „Programme“ bewegen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déplacez ProperWM vers le dossier Applications"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mueve ProperWM a la carpeta Aplicaciones"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mueve ProperWM a la carpeta Aplicaciones"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mova o ProperWM para Aplicativos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mova o ProperWM para Aplicações"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sposta ProperWM in Applicazioni"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM를 응용 프로그램 폴더로 이동"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переместить ProperWM в папку «Приложения»"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM’i Uygulamalar Klasörüne Taşı"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM को ऐप्लिकेशन में मूव करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di chuyển ProperWM vào thư mục Ứng dụng"
+          }
+        }
+      }
+    },
+    "Nothing to do here — just a moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请稍候，不用操作。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to do here — just a moment."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不用操作，請稍候。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "操作は不要です。少しお待ちください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du musst nichts tun. Bitte warte einen Moment."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune action nécessaire — patientez un instant."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hace falta que hagas nada: espera un momento."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No necesitas hacer nada: espera un momento."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há nada a fazer aqui — só um instante."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não precisa de fazer nada – só um instante."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non devi fare nulla: ci vorrà solo un attimo."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "여기서 할 일은 없습니다. 잠시만 기다리십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ничего делать не нужно — подождите немного."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burada yapılacak bir şey yok — bir saniye."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यहाँ कुछ करने की ज़रूरत नहीं — बस एक क्षण।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn không cần làm gì ở đây — chỉ một lát thôi."
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "확인"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ОК"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamam"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ठीक"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Open Applications Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“应用程序”"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Applications Folder"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開「應用程式」檔案夾"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリケーションフォルダを開く"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner „Programme“ öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir le dossier Applications"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir carpeta Aplicaciones"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir carpeta Aplicaciones"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Pasta Aplicativos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir pasta Aplicações"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri la cartella Applicazioni"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "응용 프로그램 폴더 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть папку «Приложения»"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulamalar Klasörünü Aç"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऐप्लिकेशन फ़ोल्डर खोलें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở thư mục Ứng dụng"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開「系統設定」"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定を開く"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir Réglages Système"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes del Sistema"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Configuración del Sistema"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes do Sistema"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Definições do Sistema"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri Impostazioni di Sistema"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Системные настройки"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları’nı Aç"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिस्टम सेटिंग खोलें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở Cài đặt hệ thống"
+          }
+        }
+      }
+    },
+    "Open at Login": {
+      "comment": "状态栏菜单项，对齐 macOS Dock 右键菜单 Options > Open at Login 的原生说法",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时启动"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open at Login"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在登入時打開"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログイン時に開く"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei der Anmeldung öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir avec la session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir al iniciar sesión"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir al iniciar sesión"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir no Início da Sessão"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ao iniciar sessão"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri al login"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인 시 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывать при входе"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum Açıldığında Aç"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लॉगइन पर खोलें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở khi đăng nhập"
+          }
+        }
+      }
+    },
+    "Open at Login (Pending Approval)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录时启动（待批准）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open at Login (Pending Approval)"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在登入時打開（待核准）"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログイン時に開く（承認待ち）"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei der Anmeldung öffnen (Genehmigung ausstehend)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir avec la session (en attente d’approbation)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir al iniciar sesión (pendiente de aprobación)"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir al iniciar sesión (pendiente de aprobación)"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir no Início da Sessão (aprovação pendente)"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ao iniciar sessão (aprovação pendente)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri al login (in attesa di approvazione)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로그인 시 열기(승인 대기 중)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открывать при входе (ожидает подтверждения)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oturum Açıldığında Aç (Onay Bekliyor)"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लॉगइन पर खोलें (मंज़ूरी लंबित)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở khi đăng nhập (đang chờ phê duyệt)"
+          }
+        }
+      }
+    },
+    "Putting the windows it moved back where they were.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在把之前让开过的窗口放回原位。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putting the windows it moved back where they were."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在把先前挪開過的視窗放回原位。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "避けていたウインドウを元の位置に戻しています。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die zuvor verschobenen Fenster werden an ihre alte Position zurückgesetzt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remise en place des fenêtres qui avaient été écartées."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devolviendo a su sitio las ventanas que se habían apartado."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devolviendo a su lugar las ventanas que se habían apartado."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devolvendo ao lugar original as janelas que foram movidas."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A devolver ao lugar original as janelas que foram movidas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le finestre spostate vengono rimesse al loro posto."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이동했던 윈도우를 원래 위치로 되돌리는 중입니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окна, которые были сдвинуты, возвращаются на прежние места."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taşıdığı pencereler eski yerlerine geri konuluyor."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जिन विंडो को हटाया गया था, उन्हें वापस उनकी जगह पर रखा जा रहा है।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đưa các cửa sổ đã bị dời đi về vị trí ban đầu."
+          }
+        }
+      }
+    },
+    "Quit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結束"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "終了"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beenden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitter"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salir"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salir"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encerrar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sair"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esci"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "종료"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çık"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बंद करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thoát"
+          }
+        }
+      }
+    },
+    "Restart Failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重启失败"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restart Failed"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新啟動失敗"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再起動に失敗しました"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neustart fehlgeschlagen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec du redémarrage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al reiniciar"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al reiniciar"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falha ao reiniciar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falha ao reiniciar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvio non riuscito"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재실행 실패"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось перезапустить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden çalıştırılamadı"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रीस्टार्ट विफल रहा"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khởi chạy lại không thành công"
+          }
+        }
+      }
+    },
+    "Restarting ProperWM…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重启ProperWM…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restarting ProperWM…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重新啟動ProperWM⋯"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMを再起動しています…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM wird neu gestartet …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redémarrage de ProperWM…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciando ProperWM…"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciando ProperWM…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiniciando o ProperWM…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A reiniciar o ProperWM…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riavvio di ProperWM…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM 재실행 중…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапуск ProperWM…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM yeniden çalıştırılıyor…"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM रीस्टार्ट हो रहा है…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang khởi chạy lại ProperWM…"
+          }
+        }
+      }
+    },
+    "Restoring Windows…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在还原窗口…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoring Windows…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在還原視窗⋯"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウを元に戻しています…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster werden wiederhergestellt …"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restauration des fenêtres…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurando ventanas…"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurando ventanas…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurando janelas…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A restaurar janelas…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ripristino delle finestre…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우 복원 중…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление окон…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencereler geri yükleniyor…"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विंडो रीस्टोर की जा रही हैं…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang khôi phục các cửa sổ…"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重試"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentar Novamente"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voltar a tentar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprova"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재시도"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden Dene"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिर कोशिश करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại"
+          }
+        }
+      }
+    },
+    "Switch already on but nothing happens?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经打开开关，却还是没反应？"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch already on but nothing happens?"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開關已經打開，卻還是沒有反應？"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スイッチはオンなのに何も起きませんか?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schalter ist an, aber nichts passiert?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’interrupteur est déjà activé, mais rien ne se passe ?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿El interruptor ya está activado pero no pasa nada?"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿El interruptor ya está activado pero no pasa nada?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O interruptor já está ativado, mas nada acontece?"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O interruptor já está ativado, mas nada acontece?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’interruttore è già attivo ma non succede nulla?"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스위치를 이미 켰는데 반응이 없습니까?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переключатель включен, но ничего не происходит?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahtar zaten açık ama hiçbir şey olmuyor mu?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्विच पहले से चालू है, फिर भी कुछ नहीं हो रहा?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công tắc đã bật mà không có gì xảy ra?"
+          }
+        }
+      }
+    },
+    "System Settings > Privacy & Security > Accessibility": {
+      "comment": "macOS 13+ 的权限路径，必须与英文系统界面的原词一致",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统设置的“隐私与安全性 > 辅助功能”"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Settings > Privacy & Security > Accessibility"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統設定的「隱私權與安全性」>「輔助使用」"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定 > プライバシーとセキュリティ > アクセシビリティ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen > Datenschutz & Sicherheit > Bedienungshilfen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages Système > Confidentialité et sécurité > Accessibilité"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes del Sistema > Privacidad y seguridad > Accesibilidad"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración del Sistema > Privacidad y seguridad > Accesibilidad"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes do Sistema > Privacidade e Segurança > Acessibilidade"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definições do Sistema > Privacidade e segurança > Acessibilidade"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazioni di Sistema > Privacy e sicurezza > Accessibilità"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Системные настройки» > «Конфиденциальность и безопасность» > «Универсальный доступ»"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları > Gizlilik ve Güvenlik > Erişilebilirlik"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिस्टम सेटिंग > गोपनीयता और सुरक्षा > ऐक्सेसिबिलिटी"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Trợ năng"
+          }
+        }
+      }
+    },
+    "System Settings > Privacy & Security > Device Control and Data Access": {
+      "comment": "macOS 27+ 的权限路径，必须与英文系统界面的原词一致",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系统设置的“隐私与安全性 > 设备控制和数据访问”"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Settings > Privacy & Security > Device Control and Data Access"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "系統設定的「隱私權與安全性」>「裝置控制和資料取用」"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定 > プライバシーとセキュリティ > デバイスの制御とデータへのアクセス"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen > Datenschutz & Sicherheit > Gerätesteuerung und Datenzugriff"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réglages Système > Confidentialité et sécurité > Contrôle de l’appareil et accès aux données"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes del Sistema > Privacidad y seguridad > Control de dispositivos y acceso a datos"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración del Sistema > Privacidad y seguridad > Control de dispositivos y acceso a los datos"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes do Sistema > Privacidade e Segurança > Controle do Dispositivo e Acesso a Dados"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definições do Sistema > Privacidade e segurança > Controlo do dispositivo e acesso a dados"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impostazioni di Sistema > Privacy e sicurezza > Controllo del dispositivo e accesso ai dati"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정 > 개인정보 보호 및 보안 > 기기 제어 및 데이터 접근"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Системные настройки» > «Конфиденциальность и безопасность» > «Управление устройством и доступ к данным»"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Ayarları > Gizlilik ve Güvenlik > Aygıt Denetimi ve Veri Erişimi"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सिस्टम सेटिंग > गोपनीयता और सुरक्षा > डिवाइस नियंत्रण और डेटा ऐक्सेस"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Điều khiển thiết bị và truy cập dữ liệu"
+          }
+        }
+      }
+    },
+    "This copy is running from a temporary or read-only location.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前副本位于临时或只读位置。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This copy is running from a temporary or read-only location."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前這份副本執行於暫時或唯讀的位置。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このコピーは一時的な場所または読み出し専用の場所で実行されています。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Kopie läuft von einem temporären oder schreibgeschützten Ort."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette copie s’exécute depuis un emplacement temporaire ou en lecture seule."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta copia se está ejecutando desde una ubicación temporal o de solo lectura."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta copia se está ejecutando desde una ubicación temporal o de sólo lectura."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta cópia está sendo executada a partir de um local temporário ou somente leitura."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta cópia está a ser executada a partir de uma localização temporária ou só de leitura."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa copia viene eseguita da una posizione temporanea o di sola lettura."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 사본은 임시 위치 또는 읽기 전용 위치에서 실행 중입니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта копия запущена из временной папки или с носителя только для чтения."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kopya geçici veya salt okunur bir konumdan çalışıyor."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह कॉपी किसी अस्थायी या रीड-ओनली जगह से चल रही है।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao này đang chạy từ vị trí tạm thời hoặc chỉ đọc."
+          }
+        }
+      }
+    },
+    "This will only take a moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "马上就好。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will only take a moment."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "很快就好。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すぐに終わります。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das dauert nur einen Moment."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cela ne prendra qu’un instant."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo tardará un momento."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sólo tardará un momento."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isso levará apenas um instante."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isto demora apenas um instante."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ci vorrà solo un attimo."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잠시면 끝납니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это займет всего минуту."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yalnızca bir an sürecek."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इसमें बस एक क्षण लगेगा।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc này chỉ mất một lát."
+          }
+        }
+      }
+    },
+    "ProperWM is still running. You can try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM还在运行，可以重试。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM is still running. You can try again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM仍在執行，可以再試一次。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMはまだ実行中です。もう一度お試しください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM läuft noch. Du kannst es erneut versuchen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM est toujours en cours d’exécution. Vous pouvez réessayer."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM sigue en ejecución. Puedes volver a intentarlo."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM sigue en ejecución. Puedes intentarlo de nuevo."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM ainda está em execução. Você pode tentar novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM continua em execução. Pode voltar a tentar."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM è ancora in esecuzione. Puoi riprovare."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM가 아직 실행 중입니다. 다시 시도할 수 있습니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM все еще работает. Можно повторить попытку."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM hâlâ çalışıyor. Yeniden deneyebilirsiniz."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM अभी भी चल रहा है। आप फिर कोशिश कर सकते हैं।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM vẫn đang chạy. Bạn có thể thử lại."
+          }
+        }
+      }
+    },
+    "ProperWM just lost its Accessibility permission, so the taskbar has been put away. Turn ProperWM back on in %@.": {
+      "comment": "%@ 同上",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM刚才失去了辅助功能权限，Dock 栏已经收起。请在%@中重新打开 ProperWM的开关。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM just lost its Accessibility permission, so the taskbar has been put away. Turn ProperWM back on in %@."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM剛才失去了輔助使用權限，工作列已經收起。請在%@中重新打開ProperWM的開關。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMのアクセシビリティの許可が失われたため、タスクバーを格納しました。%@でProperWMをもう一度オンにしてください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM hat gerade seine Bedienungshilfen-Berechtigung verloren, deshalb wurde die Taskleiste eingeklappt. Aktiviere ProperWM unter %@ wieder."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM vient de perdre son autorisation d’accessibilité ; la barre des tâches a donc été retirée. Réactivez ProperWM dans %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM acaba de perder el permiso de accesibilidad, por lo que se ha ocultado la barra de tareas. Vuelve a activar ProperWM en %@."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM acaba de perder el permiso de accesibilidad, por lo que se ocultó la barra de tareas. Vuelve a activar ProperWM en %@."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM acabou de perder a permissão de Acessibilidade, então a barra de tarefas foi recolhida. Ative o ProperWM novamente em %@."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM acabou de perder a permissão de Acessibilidade, pelo que a barra de tarefas foi recolhida. Volte a ativar o ProperWM em %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM ha appena perso l’autorizzazione di accessibilità, quindi la barra delle applicazioni è stata nascosta. Riattiva ProperWM in %@."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM가 방금 손쉬운 사용 권한을 잃어 작업 표시줄을 숨겼습니다. %@에서 ProperWM를 다시 켜십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение ProperWM только что лишилось разрешения универсального доступа, поэтому панель задач убрана. Снова включите ProperWM здесь: %@."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM Erişilebilirlik iznini az önce kaybetti, bu yüzden görev çubuğu gizlendi. Şu konumda ProperWM’in anahtarını yeniden açın: %@."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM की ऐक्सेसिबिलिटी अनुमति अभी-अभी हट गई, इसलिए टास्कबार हटा दिया गया है। %@ में ProperWM को फिर से चालू करें।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM vừa mất quyền Trợ năng nên thanh tác vụ đã được cất đi. Hãy bật lại ProperWM trong %@."
+          }
+        }
+      }
+    },
+    "ProperWM needs this permission to read and manage your windows.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM 需要这项权限来读取和操作窗口。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM needs this permission to read and manage your windows."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM需要這項權限來讀取與管理你的視窗。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWMはウインドウを読み取って操作するために、この許可を必要とします。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM benötigt diese Berechtigung, um deine Fenster zu lesen und zu verwalten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM a besoin de cette autorisation pour lire et gérer vos fenêtres."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM necesita este permiso para leer y gestionar tus ventanas."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM necesita este permiso para leer y administrar tus ventanas."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM precisa desta permissão para ler e gerenciar suas janelas."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM precisa desta permissão para ler e gerir as suas janelas."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM richiede questa autorizzazione per leggere e gestire le finestre."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM가 윈도우를 읽고 관리하려면 이 권한이 필요합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложению ProperWM нужно это разрешение, чтобы получать сведения об окнах и управлять ими."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM’in pencerelerinizi okuyabilmesi ve yönetebilmesi için bu izne ihtiyacı var."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM को आपकी विंडो पढ़ने और प्रबंधित करने के लिए इस अनुमति की ज़रूरत है।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM cần quyền này để đọc và quản lý các cửa sổ của bạn."
+          }
+        }
+      }
+    },
+    "ProperWM will restart itself once you grant it again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新授权后ProperWM会自动重启。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM will restart itself once you grant it again."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新授權後ProperWM會自行重新啟動。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "もう一度許可すると、ProperWMは自動的に再起動します。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobald du sie erneut erteilst, startet sich ProperWM von selbst neu."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM redémarrera de lui-même une fois l’autorisation réaccordée."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM se reiniciará automáticamente cuando vuelvas a concederle el permiso."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM se reiniciará automáticamente cuando vuelvas a otorgarle el permiso."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM será reiniciado sozinho assim que você conceder a permissão novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ProperWM reinicia-se sozinho assim que voltar a conceder a permissão."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM si riavvierà automaticamente dopo la nuova autorizzazione."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다시 허용하면 ProperWM가 자동으로 재실행됩니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение ProperWM перезапустится само, как только разрешение будет выдано снова."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İzni yeniden verdiğinizde ProperWM kendini yeniden çalıştıracak."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपके दोबारा अनुमति देते ही ProperWM अपने आप रीस्टार्ट हो जाएगा।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ProperWM sẽ tự khởi chạy lại sau khi bạn cấp lại quyền."
+          }
+        }
+      }
+    },
+    "Turn On Accessibility Permission": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要开启辅助功能权限"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn On Accessibility Permission"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟輔助使用權限"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アクセシビリティを許可してください"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedienungshilfen-Berechtigung aktivieren"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activer l’autorisation d’accessibilité"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa el permiso de accesibilidad"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa el permiso de accesibilidad"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ative a permissão de Acessibilidade"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ative a permissão de Acessibilidade"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva l’autorizzazione di accessibilità"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "손쉬운 사용 권한 켜기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить разрешение универсального доступа"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erişilebilirlik İznini Aç"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ऐक्सेसिबिलिटी अनुमति चालू करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bật quyền Trợ năng"
+          }
+        }
+      }
+    },
+    "Turn on ProperWM in %@. This window closes by itself once you do, and the taskbar finishes starting.": {
+      "comment": "%@ 是系统设置里的权限路径，随 macOS 版本不同",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在%@中，打开 ProperWM的开关。开启后本窗口会自动关闭，Dock 栏会继续启动。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on ProperWM in %@. This window closes by itself once you do, and the taskbar finishes starting."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在%@中打開ProperWM的開關。打開後這個視窗會自動關閉，工作列也會繼續啟動。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@でProperWMをオンにしてください。オンにするとこのウインドウは自動的に閉じ、タスクバーの起動が完了します。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviere ProperWM unter %@. Sobald du das getan hast, schließt sich dieses Fenster von selbst und die Taskleiste startet vollständig."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activez ProperWM dans %@. Cette fenêtre se ferme alors d’elle-même et la barre des tâches termine son démarrage."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa ProperWM en %@. Esta ventana se cerrará sola cuando lo hagas y la barra de tareas terminará de iniciarse."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa ProperWM en %@. Esta ventana se cerrará automáticamente cuando lo hagas y la barra de tareas terminará de iniciarse."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ative o ProperWM em %@. Esta janela se fecha sozinha quando você fizer isso, e a barra de tarefas termina de iniciar."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ative o ProperWM em %@. Esta janela fecha-se sozinha assim que o fizer e a barra de tarefas conclui o arranque."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attiva ProperWM in %@. Questa finestra si chiude da sola quando lo fai e la barra delle applicazioni completa l’avvio."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에서 ProperWM를 켜십시오. 켜면 이 윈도우가 자동으로 닫히고 작업 표시줄이 시작됩니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите ProperWM здесь: %@. Окно закроется само, и панель задач завершит запуск."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu konumda ProperWM’in anahtarını açın: %@. Bunu yaptığınızda bu pencere kendiliğinden kapanır ve görev çubuğunun başlatılması tamamlanır."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ में ProperWM चालू करें। चालू करते ही यह विंडो अपने आप बंद हो जाएगी और टास्कबार पूरी तरह शुरू हो जाएगा।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy bật ProperWM trong %@. Cửa sổ này sẽ tự đóng ngay khi bạn bật, và thanh tác vụ sẽ khởi động xong."
+          }
+        }
+      }
+    },
+    "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag ProperWM to your Applications folder and open it from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 会把辅助功能授权绑定到具体的应用副本上。当前这份ProperWM跑在一个临时或只读的位置，就算你打开了开关也不会生效，而且卸载磁盘映像后那条授权记录还会留在系统里。请把 ProperWM 拖到“应用程序”文件夹，再从那里重新打开。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ties Accessibility permission to one specific copy of an app. This copy is running from a temporary or read-only location, so turning the switch on will not take effect — and the permission record stays behind in System Settings after the disk image is ejected. Drag ProperWM to your Applications folder and open it from there."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS會把輔助使用權限綁定到某一份特定的App副本上。目前這份執行於暫時或唯讀的位置，就算打開開關也不會生效，而且退出磁碟映像檔後，那筆權限記錄還會留在「系統設定」裡。請把ProperWM拖到「應用程式」檔案夾，再從那裡重新打開。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOSはアクセシビリティの許可を、アプリの特定のコピーに結び付けます。このコピーは一時的な場所または読み出し専用の場所で実行されているため、スイッチをオンにしても反映されません。さらに、ディスクイメージを取り出したあとも、許可の記録がシステム設定に残ります。ProperWMを「アプリケーション」フォルダにドラッグし、そこから開いてください。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS bindet die Bedienungshilfen-Berechtigung an genau eine Kopie einer App. Diese Kopie läuft von einem temporären oder schreibgeschützten Ort, deshalb bleibt das Aktivieren des Schalters wirkungslos – und der Berechtigungseintrag bleibt nach dem Auswerfen des Images in den Systemeinstellungen zurück. Bewege ProperWM in den Ordner „Programme“ und öffne es von dort."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS associe l’autorisation d’accessibilité à une copie précise d’une app. Cette copie s’exécute depuis un emplacement temporaire ou en lecture seule, si bien qu’activer l’interrupteur restera sans effet — et l’autorisation restera inscrite dans Réglages Système après l’éjection de l’image disque. Faites glisser ProperWM dans votre dossier Applications, puis ouvrez-le depuis là."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS asocia el permiso de accesibilidad a una copia concreta de cada app. Esta copia se está ejecutando desde una ubicación temporal o de solo lectura, así que activar el interruptor no surtirá efecto, y el registro del permiso se queda en Ajustes del Sistema después de expulsar la imagen de disco. Arrastra ProperWM a la carpeta Aplicaciones y ábrelo desde allí."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS asocia el permiso de accesibilidad a una copia específica de cada app. Esta copia se está ejecutando desde una ubicación temporal o de sólo lectura, así que activar el interruptor no tendrá efecto, y el registro del permiso permanece en Configuración del Sistema después de expulsar la imagen de disco. Arrastra ProperWM a la carpeta Aplicaciones y ábrelo desde ahí."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de um app. Esta cópia está em execução a partir de um local temporário ou somente leitura, portanto ativar o interruptor não terá efeito — e o registro da permissão continua nos Ajustes do Sistema depois que a imagem de disco é ejetada. Arraste o ProperWM para a pasta Aplicativos e abra-o de lá."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O macOS associa a permissão de Acessibilidade a uma cópia específica de uma aplicação. Esta cópia está a ser executada a partir de uma localização temporária ou só de leitura, pelo que ativar o interruptor não terá efeito – e o registo da permissão permanece nas Definições do Sistema depois de a imagem de disco ser ejetada. Arraste o ProperWM para a pasta Aplicações e abra-o a partir daí."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS associa l’autorizzazione di accessibilità a una copia specifica di un’app. Questa copia viene eseguita da una posizione temporanea o di sola lettura, quindi attivare l’interruttore non avrà effetto; inoltre l’autorizzazione resta registrata in Impostazioni di Sistema anche dopo l’espulsione dell’immagine disco. Trascina ProperWM nella cartella Applicazioni e aprilo da lì."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS는 손쉬운 사용 권한을 앱의 특정 사본 하나에 연결합니다. 이 사본은 임시 위치 또는 읽기 전용 위치에서 실행 중이므로 스위치를 켜도 적용되지 않으며, 디스크 이미지를 추출한 뒤에도 권한 기록이 시스템 설정에 남게 됩니다. ProperWM를 응용 프로그램 폴더로 드래그한 다음 그곳에서 여십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS привязывает разрешение универсального доступа к конкретной копии приложения. Эта копия запущена из временной папки или с носителя только для чтения, поэтому включение переключателя не подействует, а запись о разрешении останется в Системных настройках после извлечения образа диска. Перетащите ProperWM в папку «Приложения» и откройте приложение оттуда."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS, Erişilebilirlik iznini bir uygulamanın belirli bir kopyasına bağlar. Bu kopya geçici veya salt okunur bir konumdan çalıştığı için anahtarı açmak etki etmez — ayrıca disk görüntüsü çıkarıldıktan sonra izin kaydı Sistem Ayarları’nda kalır. ProperWM’i Uygulamalar klasörünüze sürükleyin ve oradan açın."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ऐक्सेसिबिलिटी अनुमति को ऐप की किसी एक ख़ास कॉपी से जोड़ता है। यह कॉपी किसी अस्थायी या रीड-ओनली जगह से चल रही है, इसलिए स्विच चालू करने का कोई असर नहीं होगा — और डिस्क इमेज बाहर निकालने के बाद भी अनुमति का रिकॉर्ड सिस्टम सेटिंग में बचा रहता है। ProperWM को ऐप्लिकेशन फ़ोल्डर में ड्रैग करें और वहीं से खोलें।"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS gắn quyền Trợ năng với một bản sao cụ thể của ứng dụng. Bản sao này đang chạy từ vị trí tạm thời hoặc chỉ đọc, vì vậy việc bật công tắc sẽ không có hiệu lực — và bản ghi quyền vẫn còn lại trong Cài đặt hệ thống sau khi ảnh đĩa được tháo. Hãy kéo ProperWM vào thư mục Ứng dụng rồi mở từ đó."
+          }
+        }
+      }
+    },
+    "Close window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭窗口"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close window"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉視窗"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウを閉じる"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster schließen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer la fenêtre"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar ventana"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar ventana"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar Janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar janela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiudi finestra"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우 닫기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть окно"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencereyi Kapat"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विंडो बंद करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đóng cửa sổ"
+          }
+        }
+      }
+    },
+    "Close all windows": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close all windows"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭所有窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉所有視窗"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのウインドウを閉じる"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Fenster schließen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer toutes les fenêtres"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar todas las ventanas"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar todas las ventanas"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar todas as janelas"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fechar todas as janelas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiudi tutte le finestre"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모든 윈도우 닫기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть все окна"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tüm pencereleri kapat"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सभी विंडो बंद करें"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đóng tất cả cửa sổ"
+          }
+        }
+      }
+    },
+    "More windows": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More windows"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多視窗"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他のウインドウ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Fenster"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autres fenêtres"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más ventanas"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más ventanas"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mais janelas"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mais janelas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altre finestre"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "더 많은 윈도우"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другие окна"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diğer pencereler"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "और विंडो"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các cửa sổ khác"
+          }
+        }
+      }
+    },
+    "Hide Status Bar Icon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Status Bar Icon"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏状态栏图标"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏狀態列圖示"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ステータスバーアイコンを非表示"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statusleistensymbol ausblenden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquer l’icône de la barre d’état"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar el icono de la barra de estado"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar el ícono de la barra de estado"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar ícone da barra de status"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar ícone da barra de estado"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nascondi icona della barra di stato"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "상태 막대 아이콘 숨기기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть значок в строке состояния"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum Çubuğu Simgesini Gizle"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्टेटस बार का आइकन छिपाएँ"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn biểu tượng trên thanh trạng thái"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -1,0 +1,18 @@
+Provides a taskbar for switching between open windows in the current Space on each display.
+
+Requires macOS 26 or later. Supports Apple Silicon Macs.
+
+## Installation
+
+Download the app ZIP from [Releases](https://github.com/sashokey/properwm/releases), move `ProperWM.app` to `/Applications`, and open it. Grant **Accessibility** permission when prompted so the app can manage windows.
+
+The app is currently ad-hoc signed and not notarized. macOS may require **Privacy & Security → Open Anyway** on first launch.
+
+## Usage notes
+
+- **Restore a hidden menu bar icon:** right-click an empty area of the taskbar and uncheck **Hide Status Bar Icon**, or open ProperWM again from **Applications** while it is already running. The visibility choice is remembered across app and Mac restarts.
+- **Access the menu without the icon:** right-click an empty area of the taskbar to open ProperWM's menu, including **Quit**.
+- **Bring a window forward while dragging a file:** pause over its taskbar button without releasing the file. A minimized window will be restored. For a combined group, pause over the button, then over the desired window in the list. Finish by dropping the file into the application's window.
+- **Fullscreen transitions:** the taskbar follows window and Space changes. It may briefly appear during a transition animation; ProperWM does not monitor global keyboard, mouse, or gesture input.
+- **Window sizing:** maximized windows are adjusted above the taskbar, including after re-maximizing. Titlebar double-click behavior belongs to the target app; ProperWM does not override it to restore a previous smaller size.
+- **Reorder application groups:** dragging a window button moves all taskbar buttons for that app together. Windows within a group keep their order. Release outside the taskbar to cancel the move.

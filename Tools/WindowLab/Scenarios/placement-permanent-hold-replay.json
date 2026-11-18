@@ -1,0 +1,35 @@
+{
+  "name": "placement-permanent-hold-replay",
+  "mode": "placementReplay",
+  "initialOrderedWindowIDs": ["A", "B", "C"],
+  "steps": [
+    {
+      "label": "b-minimized",
+      "windowID": "B",
+      "newStatus": "minimized",
+      "atSeconds": 0,
+      "expectedOrder": ["A", "B", "C"]
+    },
+    {
+      "label": "b-hidden",
+      "windowID": "B",
+      "newStatus": "hidden",
+      "atSeconds": 1,
+      "expectedOrder": ["A", "B", "C"]
+    },
+    {
+      "label": "b-disappeared",
+      "windowID": "B",
+      "newStatus": "disappeared",
+      "atSeconds": 2,
+      "expectedOrder": ["A", "B", "C"]
+    },
+    {
+      "label": "b-restored",
+      "windowID": "B",
+      "newStatus": "inactive",
+      "atSeconds": 20,
+      "expectedOrder": ["A", "B", "C"]
+    }
+  ]
+}

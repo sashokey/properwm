@@ -1,0 +1,66 @@
+{
+  "name": "cg-window-number-reuse-replay",
+  "mode": "replay",
+  "expectedStableIdentity": false,
+  "steps": [
+    {
+      "label": "first-owner",
+      "observations": [
+        {
+          "kind": "appeared",
+          "source": "coreGraphics",
+          "pid": 42,
+          "cgWindowID": 21,
+          "title": "Fixture",
+          "bounds": "0:30:800:600",
+          "isMinimized": false,
+          "expectedDecision": "newWindow"
+        }
+      ]
+    },
+    {
+      "label": "ownership-change",
+      "observations": [
+        {
+          "kind": "disappeared",
+          "source": "coreGraphics",
+          "pid": 42,
+          "cgWindowID": 21,
+          "title": "Fixture",
+          "bounds": "0:30:800:600",
+          "isMinimized": false,
+          "atSeconds": 1,
+          "expectedDecision": "knownWindow"
+        },
+        {
+          "kind": "appeared",
+          "source": "coreGraphics",
+          "pid": 43,
+          "cgWindowID": 21,
+          "title": "Fixture",
+          "bounds": "0:30:800:600",
+          "isMinimized": false,
+          "atSeconds": 1,
+          "expectedDecision": "newWindow"
+        }
+      ]
+    },
+    {
+      "label": "same-new-owner",
+      "observations": [
+        {
+          "kind": "titleChanged",
+          "source": "coreGraphics",
+          "pid": 43,
+          "cgWindowID": 21,
+          "title": "Renamed fixture",
+          "bounds": "40:60:900:700",
+          "isMinimized": false,
+          "atSeconds": 2,
+          "expectedDecision": "knownWindow",
+          "expectedReason": "cg-window-id-bound"
+        }
+      ]
+    }
+  ]
+}

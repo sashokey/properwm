@@ -1,0 +1,246 @@
+import AppKit
+import Combine
+import Foundation
+#if DEBUG
+import os
+#endif
+
+@MainActor
+final class TaskbarScreenOrchestrator: NSObject, WindowLiftAvoidanceHost {
+    struct Unit {
+        let key: String?
+        let coordinator: PanelCoordinator
+    }
+
+    private(set) var units: [Unit] = []
+    let overlaySpaceHost: OverlaySpaceHost?
+
+    private let runtime: AppRuntime
+    private let stripOrderStore: StripOrderStore
+    private let displayTopologyStore: DisplayTopologyStore
+    private let spaceStore: TaskbarSpaceStore
+    private let topologySnapshotProvider: @MainActor () -> ScreenTopologySnapshot
+    private let startCoordinator: (PanelCoordinator) -> Bool
+    private let topologyRetryScheduler: DisplayTopologyRefreshController.ScheduleAfter
+    private let captureFullscreenCGWindows: () -> [[String: Any]]?
+    #if DEBUG
+    private let logger = Logger(subsystem: "io.github.sashokey.properwm", category: "taskbar-screens")
+    #endif
+
+    var onRequestTaskbarMenu: ((NSEvent, NSView) -> Void)? {
+        didSet { units.forEach { $0.coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu } }
+    }
+
+    private var started = false
+    private var isSuspended = false
+    private var topologyRefreshController: DisplayTopologyRefreshController?
+    private var fullscreenTimer: Timer?
+    private var fullscreenObservers: [NSObjectProtocol] = []
+
+    init(
+        runtime: AppRuntime,
+        stripOrderStore: StripOrderStore,
+        displayTopologyStore: DisplayTopologyStore,
+        spaceStore: TaskbarSpaceStore = TaskbarSpaceStore(),
+        overlaySpaceHost: OverlaySpaceHost? = OverlaySpaceHost.make(),
+        topologySnapshotProvider: @escaping @MainActor () -> ScreenTopologySnapshot = {
+            DisplayIdentity.topologySnapshot()
+        },
+        startCoordinator: @escaping (PanelCoordinator) -> Bool = { $0.start() },
+        topologyRetryScheduler: @escaping DisplayTopologyRefreshController.ScheduleAfter = { delay, action in
+            let item = DispatchWorkItem(block: action)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+            return item
+        },
+        captureFullscreenCGWindows: @escaping () -> [[String: Any]]? = PanelCoordinator.captureFullscreenCGWindows
+    ) {
+        self.overlaySpaceHost = overlaySpaceHost
+        self.runtime = runtime
+        self.stripOrderStore = stripOrderStore
+        self.displayTopologyStore = displayTopologyStore
+        self.spaceStore = spaceStore
+        self.topologySnapshotProvider = topologySnapshotProvider
+        self.topologyRetryScheduler = topologyRetryScheduler
+        self.startCoordinator = startCoordinator
+        self.captureFullscreenCGWindows = captureFullscreenCGWindows
+        super.init()
+    }
+
+    isolated deinit {
+        stopFullscreenMonitoring()
+        spaceStore.stop()
+        topologyRefreshController?.cancel()
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func start() {
+        guard !started else { return }
+        started = true
+        let seedController = makeTopologyRefreshController()
+        topologyRefreshController = seedController
+        let snapshot = seedController.prepareForTopologyChange()
+        spaceStore.start(snapshots: runtime.$snapshot.eraseToAnyPublisher())
+        rebuildUnits(reason: "start", snapshot: snapshot)
+        startFullscreenMonitoring()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    func suspendAndRelease() {
+        guard !isSuspended else { return }
+        isSuspended = true
+        stopFullscreenMonitoring()
+        spaceStore.stop()
+        for unit in units {
+            unit.coordinator.tearDown()
+        }
+        units = []
+        overlaySpaceHost?.tearDown()
+        topologyRefreshController?.cancel()
+        topologyRefreshController = nil
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    private func rebuildUnits(reason: String, snapshot: ScreenTopologySnapshot) {
+        guard started, !isSuspended else { return }
+        let desired = TaskbarDisplaySet.desiredUnitKeys(
+            connectedKeys: snapshot.identifiedDisplayUUIDs, physicalDisplayCount: snapshot.physicalDisplayCount
+        )
+        let current = units.map(\.key)
+        guard desired != current else { return }
+        let desiredSet = Set(desired.map { $0 ?? "" })
+        var survivors: [String?: Unit] = [:]
+        for unit in units {
+            if desiredSet.contains(unit.key ?? "") {
+                survivors[unit.key] = unit
+            } else {
+                unit.coordinator.tearDown()
+            }
+        }
+        units = desired.compactMap { key in survivors[key] ?? makeUnit(key: key) }
+        #if DEBUG
+        logger.info("units rebuilt reason=\(reason, privacy: .public) count=\(self.units.count, privacy: .public)")
+        #endif
+    }
+
+    private func makeUnit(key: String?) -> Unit? {
+        let placement: TaskbarUnitPlacement = key.map { .fixed(displayUUID: $0) } ?? .primary
+        let coordinator = PanelCoordinator(
+            placement: placement,
+            overlaySpaceHost: overlaySpaceHost,
+            runtime: runtime,
+            stripOrderStore: stripOrderStore,
+            displayTopologyStore: displayTopologyStore,
+            spaceStore: spaceStore,
+            usesSharedFullscreenMonitor: true
+        )
+        coordinator.onRequestTaskbarMenu = onRequestTaskbarMenu
+        coordinator.onAccessoryWillOpen = { [weak self] unit, kind in
+            self?.admitAccessory(for: unit, kind: kind) ?? false
+        }
+        guard startCoordinator(coordinator) else { return nil }
+        return Unit(key: key, coordinator: coordinator)
+    }
+
+    @objc private func screenParametersChanged() {
+        spaceStore.refresh()
+        let snapshot: ScreenTopologySnapshot
+        if let seedController = topologyRefreshController {
+            snapshot = seedController.prepareForTopologyChange()
+        } else {
+            snapshot = topologySnapshotProvider()
+            applyTopologySnapshot(snapshot)
+        }
+        rebuildUnits(reason: "screens", snapshot: snapshot)
+        units.forEach { $0.coordinator.screenParametersChanged() }
+    }
+
+    private func makeTopologyRefreshController() -> DisplayTopologyRefreshController {
+        DisplayTopologyRefreshController(
+            snapshotProvider: topologySnapshotProvider,
+            applySnapshot: { [weak self] snapshot in
+                self?.applyTopologySnapshot(snapshot)
+            },
+            onRetrySnapshot: { [weak self] snapshot in
+                self?.rebuildUnits(
+                    reason: "topology-retry",
+                    snapshot: snapshot
+                )
+                self?.units.forEach { $0.coordinator.screenParametersChanged() }
+            },
+            scheduleAfter: topologyRetryScheduler
+        )
+    }
+
+    private func applyTopologySnapshot(_ snapshot: ScreenTopologySnapshot) {
+        displayTopologyStore.apply(snapshot)
+        runtime.updateDisplayTopology(snapshot.attributionTable)
+    }
+
+    private func admitAccessory(for unit: PanelCoordinator, kind: PanelCoordinator.AccessoryKind) -> Bool {
+        let others = units.filter { $0.coordinator !== unit }
+        if kind == .implicit, others.contains(where: { $0.coordinator.taskbarView?.taskbarContent.hasKeyboardWindowList == true }) {
+            return false
+        }
+        for other in others {
+            other.coordinator.dismissTaskbarPopups()
+        }
+        return true
+    }
+
+    func windowLiftAvoidanceContexts() -> [WindowLiftAvoidanceContext] {
+        units.compactMap { $0.coordinator.windowLiftAvoidanceContext() }
+    }
+
+    func windowGeometryChanged() {
+        updateFullscreenPanels { $0.windowGeometryChanged(sharedRead: $1) }
+    }
+
+    private func startFullscreenMonitoring() {
+        let notifications = NSWorkspace.shared.notificationCenter
+        fullscreenObservers.append(notifications.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.handleSpaceChange() }
+        })
+        fullscreenObservers.append(notifications.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated {
+                self?.updateFullscreenPanels { $0.handleAppActivated(pid: pid, sharedRead: $1) }
+            }
+        })
+        fullscreenTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFullscreenPanels { $0.reconcileFullscreenState(sharedRead: $1) }
+            }
+        }
+        fullscreenTimer?.tolerance = 0.5
+    }
+
+    private func handleSpaceChange() {
+        lazy var windows = captureFullscreenCGWindows()
+        updateFullscreenPanels { coordinator, batch in
+            coordinator.handleSpaceChange(sharedRead: batch, readCGWindows: { windows })
+        }
+    }
+
+    private func stopFullscreenMonitoring() {
+        fullscreenTimer?.invalidate()
+        fullscreenTimer = nil
+        fullscreenObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+        fullscreenObservers.removeAll()
+    }
+
+    private func updateFullscreenPanels(_ update: (PanelCoordinator, FullscreenAXReadBatch) -> Void) {
+        guard started, !isSuspended, !units.isEmpty else { return }
+        let batch = FullscreenAXReadBatch(read: PanelCoordinator.readFullscreenAXObservation)
+        units.forEach { update($0.coordinator, batch) }
+    }
+
+}
